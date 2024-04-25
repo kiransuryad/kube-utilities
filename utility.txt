@@ -1,0 +1,34 @@
+_kube_ps1_get_context_ns() {
+  # Set the command time
+  if [[ "$(_kube_ps1_shell_type)" == "bash" ]]; then
+    if ((BASH_VERSINFO[0] >= 4 && BASH_VERSINFO[1] >= 2)); then
+      _KUBE_PS1_LAST_TIME=$(printf '%(%s)T')
+    else
+      _KUBE_PS1_LAST_TIME=$(date +%s)
+    fi
+  elif [[ "$(_kube_ps1_shell_type)" == "zsh" ]]; then
+    _KUBE_PS1_LAST_TIME=$EPOCHREALTIME
+  fi
+
+  KUBE_PS1_CONTEXT="${KUBE_PS1_CONTEXT:-N/A}"
+  KUBE_PS1_NAMESPACE="${KUBE_PS1_NAMESPACE:-N/A}"
+  KUBE_PS1_AWS_PROFILE="${KUBE_PS1_AWS_PROFILE:-N/A}"
+
+  # Cache which cfgfiles we can read in case they change.
+  local conf
+  _KUBE_PS1_CFGFILES_READ_CACHE=
+  for conf in $(_kube_ps1_split_config : "${KUBECONFIG:-${HOME}/.kube/config}"); do
+    [[ -r $conf ]] && _KUBE_PS1_CFGFILES_READ_CACHE+=":$conf"
+  done
+
+  _kube_ps1_get_context
+  _kube_ps1_get_ns
+  _kube_ps1_get_aws_profile
+}
+
+_kube_ps1_get_aws_profile() {
+  KUBE_PS1_AWS_PROFILE=$(kubectl config view --minify --output "jsonpath={.contexts[?(@.name=='$(kubectl config current-context)')].context.aws-profile}")
+  if [[ -n "$KUBE_PS1_AWS_PROFILE" ]]; then
+    export AWS_PROFILE=$KUBE_PS1_AWS_PROFILE
+  fi
+}
