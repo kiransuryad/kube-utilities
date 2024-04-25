@@ -32,3 +32,10 @@ _kube_ps1_get_aws_profile() {
     export AWS_PROFILE=$KUBE_PS1_AWS_PROFILE
   fi
 }
+
+_kube_ps1_get_aws_profile() {
+  KUBE_PS1_AWS_PROFILE=$(kubectl config view --minify --output "jsonpath={.users[?(@.name=='$(kubectl config current-context)')].user.exec.env[?(@.name=='AWS_PROFILE')].value}")
+  if [[ -n "$KUBE_PS1_AWS_PROFILE" ]]; then
+    export AWS_PROFILE=$KUBE_PS1_AWS_PROFILE
+  fi
+}
