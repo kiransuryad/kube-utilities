@@ -8,3 +8,15 @@ aws s3 rb s3://your-bucket-name --force
 aws s3api list-object-versions --bucket BUCKET_NAME --output json --query '{"Objects": Versions[].{Key: Key, VersionId: VersionId}}' > delete.json
 aws s3api delete-objects --bucket BUCKET_NAME --delete file://delete.json
 
+
+aws s3api list-object-versions --bucket your-bucket-name --output json --query '{"Objects": Versions[].{Key: Key, VersionId: VersionId}}' | \
+jq -c '.Objects[]' | \
+while read -r object; do
+    echo "{\"Objects\": [$object]}" > delete_batch.json
+    aws s3api delete-objects --bucket your-bucket-name --delete file://delete_batch.json
+done
+
+# After deleting all objects and versions, remove the bucket
+aws s3 rb s3://your-bucket-name --force
+
+
