@@ -4,3 +4,7 @@ aws s3api delete-objects --bucket BUCKET_NAME --delete "$(aws s3api list-object-
 
 s3 delete  force
 aws s3 rb s3://your-bucket-name --force
+
+aws s3api list-object-versions --bucket BUCKET_NAME --output json --query '{"Objects": Versions[].{Key: Key, VersionId: VersionId}}' > delete.json
+aws s3api delete-objects --bucket BUCKET_NAME --delete file://delete.json
+
