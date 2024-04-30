@@ -63,3 +63,47 @@ delete_bucket "$1"
 
 
 
+#!/bin/bash
+
+# Function to delete all objects, versions, and the bucket itself
+delete_bucket() {
+    # List all object versions in the bucket
+    versions=$(aws s3api list-object-versions --bucket "$1" --output json)
+
+    # Extract object keys and version IDs
+    keys=$(echo "$versions" | jq -r '.Versions[] | {Key: .Key, VersionId: .VersionId} | tostring')
+
+    # Loop through each object and delete it
+    while IFS= read -r key; do
+        aws s3api delete-object --bucket "$1" --key "$key"
+    done < <(echo "$keys")
+
+    # Loop through each delete marker and delete it
+    delete_markers=$(echo "$versions" | jq -r '.DeleteMarkers[] | {Key: .Key, VersionId: .VersionId} | tostring')
+    while IFS= read -r delete_marker; do
+        aws s3api delete-object --bucket "$1" --key "$delete_marker"
+    done < <(echo "$delete_markers")
+
+    # Check if there are more versions to delete and recursively call delete_bucket if needed
+    next_key_marker=$(echo "$versions" | jq -r '.NextKeyMarker // empty')
+    next_version_marker=$(echo "$versions" | jq -r '.NextVersionIdMarker // empty')
+    if [ -n "$next_key_marker" ] && [ -n "$next_version_marker" ]; then
+        delete_bucket "$1"
+    else
+        # Delete the bucket itself once all objects and versions are deleted
+        aws s3 rb "s3://$1" --force
+    fi
+}
+
+# Check if bucket name is provided as argument
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <bucket-name>"
+    exit 1
+fi
+
+# Call delete_bucket function with the provided bucket name
+delete_bucket "$1"
+
+
+
+
