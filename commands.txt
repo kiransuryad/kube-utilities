@@ -184,3 +184,57 @@ fi
 delete_bucket "$1"
 
 
+
+aws s3api delete-objects --bucket ${BUCKET_NAME} --delete $(aws s3api list-object-versions --bucket ${METAPLAY_AWS_S3_SERVER_BUCKET} --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}' | jq -c '{Objects: .Objects, Quiet: false}')
+
+
+aws s3api delete-objects --bucket ${BUCKET_NAME} --delete $(aws s3api list-object-versions --bucket ${METAPLAY_AWS_S3_SERVER_BUCKET} | jq -c '{Objects: [.DeleteMarkers[] | {Key:.Key,VersionId:.VersionId}], Quiet: false}')
+
+
+
+
+
+#!/bin/bash
+
+# Function to delete all objects and versions from a specified S3 bucket
+delete_all_versions() {
+    # List all versions and delete markers
+    aws s3api list-object-versions --bucket "$1" --output json | jq -c '.Versions[], .DeleteMarkers[]' | while read -r obj; do
+        key=$(echo "$obj" | jq -r .Key)
+        versionId=$(echo "$obj" | jq -r .VersionId)
+        aws s3api delete-object --bucket "$1" --key "$key" --version-id "$versionId"
+        if [ $? -ne 0 ]; then
+            echo "Failed to delete object $key with version $versionId"
+            return 1
+        fi
+    done
+}
+
+# Function to delete the bucket
+delete_bucket() {
+    echo "Deleting bucket: $1"
+    aws s3 rb "s3://$1" --force
+}
+
+# Main function to control flow
+main() {
+    if [ $# -eq 0 ]; then
+        echo "Usage: $0 <bucket-name>"
+        exit 1
+    fi
+
+    echo "Starting deletion of all objects and versions from bucket: $1"
+    if delete_all_versions "$1"; then
+        delete_bucket "$1"
+    else
+        echo "Error deleting some objects in bucket: $1"
+        exit 1
+    fi
+}
+
+# Start the process
+main "$@"
+
+
+
+
