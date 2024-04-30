@@ -318,3 +318,53 @@ main() {
 # Start the process
 main "$@"
 
+----------
+
+
+
+
+
+#!/bin/bash
+
+# Ensure that the deletion script is executable
+chmod +x delete_script.sh
+
+# Check if the bucket list file was provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 bucket_list.txt"
+    exit 1
+fi
+
+# Read the bucket list file
+bucket_list="$1"
+
+# Use GNU Parallel to execute the deletion script on 4 buckets concurrently
+parallel -j 4 --halt now,fail=1 ./delete_script.sh :::: ${bucket_list}
+
+echo "Deletion process completed."
+
+
+
+
+#!/bin/bash
+
+# Function to delete all objects and versions from a specified S3 bucket
+delete_all_versions() {
+    aws s3api list-object-versions --bucket "$1" --output json | jq -c '.Versions[], .DeleteMarkers[]' | while read -r obj; do
+        key=$(echo "$obj" | jq -r .Key)
+        versionId=$(echo "$obj" | jq -r .VersionId)
+        aws s3api delete-object --bucket "$1" --key "$key" --version-id "$versionId" >> "$1.log" 2>&1
+    done
+    wait  # Wait for all delete-object commands to finish
+}
+
+# Function to delete the bucket
+delete_bucket() {
+    aws s3 rb "s3://$1" --force >> "$1.log" 2>&1
+}
+
+# Delete all versions then the bucket
+delete_all_versions "$1"
+delete_bucket "$1"
+
+
