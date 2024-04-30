@@ -367,4 +367,30 @@ delete_bucket() {
 delete_all_versions "$1"
 delete_bucket "$1"
 
+---
+
+#!/bin/bash
+
+# Ensure that the deletion script is executable
+chmod +x delete_script.sh
+
+# Check if the bucket list file was provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 bucket_list.txt"
+    exit 1
+fi
+
+# Read the bucket list file
+bucket_list="$1"
+
+# Loop through each bucket and execute the deletion script
+while IFS= read -r bucket_name; do
+    echo "Starting deletion for bucket: $bucket_name"
+    ./delete_script.sh "$bucket_name"
+    echo "Finished deletion for bucket: $bucket_name"
+done < "$bucket_list"
+
+echo "Deletion process completed."
+
+
 
