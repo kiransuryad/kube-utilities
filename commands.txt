@@ -393,4 +393,48 @@ done < "$bucket_list"
 echo "Deletion process completed."
 
 
+{
+    "Rules": [
+        {
+            "ID": "Immediate deletion of all objects",
+            "Filter": {
+                "Prefix": ""
+            },
+            "Status": "Enabled",
+            "Expiration": {
+                "Days": 1
+            },
+            "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 1
+            },
+            "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+            }
+        }
+    ]
+}
+
+
+aws s3api put-bucket-lifecycle-configuration --bucket BUCKET_NAME --lifecycle-configuration '{
+    "Rules": [
+        {
+            "ID": "Immediate deletion of all objects",
+            "Filter": {
+                "Prefix": ""
+            },
+            "Status": "Enabled",
+            "Expiration": {
+                "Days": 1
+            },
+            "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 1
+            },
+            "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+            }
+        }
+    ]
+}'
+
+
 
