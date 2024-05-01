@@ -1,0 +1,7 @@
+aws autoscaling update-auto-scaling-group --auto-scaling-group-name <asg-name> --min-size 0 --desired-capacity 0
+
+
+  aws ec2 describe-instances --query "Reservations[*].Instances[*].{ID:InstanceId,State:State.Name}"
+
+
+  kubectl get nodes
