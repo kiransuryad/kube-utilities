@@ -1,3 +1,30 @@
+# AWS Profile and Account:
+# - display current AWS_PROFILE name and AWS account number
+# - displays yellow on red if profile name contains 'production' or ends in '-prod'
+# - displays black on green otherwise
+prompt_aws() {
+  [[ -z "$AWS_PROFILE" || "$SHOW_AWS_PROMPT" = false ]] && return
+
+  # Fetch AWS account number
+  local aws_account=$(aws sts get-caller-identity --output text --query 'Account' 2>/dev/null)
+
+  # Check if aws_account is successfully fetched, otherwise show only AWS_PROFILE
+  local aws_detail
+  if [[ -n "$aws_account" ]]; then
+    aws_detail="AWS: ${AWS_PROFILE} (${aws_account})"
+  else
+    aws_detail="AWS: ${AWS_PROFILE}"
+  fi
+
+  # Determine color scheme based on profile name
+  case "$AWS_PROFILE" in
+    *-prod|*production*) prompt_segment red yellow  "${aws_detail:gs/%/%%}" ;;
+    *) prompt_segment green black "${aws_detail:gs/%/%%}" ;;
+  esac
+}
+
+
+
 _kube_ps1_get_context_ns() {
   # Set the command time
   if [[ "$(_kube_ps1_shell_type)" == "bash" ]]; then
