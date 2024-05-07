@@ -1,3 +1,33 @@
+build_prompt() {
+  # Your existing prompt components
+  prompt_status
+  prompt_context
+  prompt_dir
+  prompt_git
+  prompt_bzr
+  prompt_hg
+  prompt_aws
+
+  # Fetch AWS account number
+  local aws_account=$(aws sts get-caller-identity --output text --query 'Account' 2>/dev/null)
+  
+  # Decide whether to show kube-ps1 based on AWS account
+  case "$aws_account" in
+    "123456789012")  # Suppose this is the account linked to your K8s context
+      PS1+="$(kube_ps1) "
+      ;;
+    *)
+      # Optionally, you can display nothing or some placeholder
+      PS1+="[K8s context not applicable] "
+      ;;
+  esac
+
+  prompt_end
+}
+
+
+
+
 # AWS Profile and Account:
 # - display current AWS_PROFILE name and AWS account number
 # - displays yellow on red if profile name contains 'production' or ends in '-prod'
