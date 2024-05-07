@@ -1,3 +1,56 @@
+
+build_prompt() {
+  # Load current AWS profile
+  local current_profile=$AWS_PROFILE
+
+  # Read the configuration file to get the account number, Kubernetes context, and environment type
+  local config_line=$(awk -v profile="$current_profile" -F, '$1 == profile {print $0}' /path/to/aws_k8s_config.txt)
+
+  local aws_account=$(echo $config_line | cut -d ',' -f2)
+  local k8s_context=$(echo $config_line | cut -d ',' -f3)
+  local env_type=$(echo $config_line | cut -d ',' -f4)
+
+  # Your existing prompt components
+  prompt_status
+  prompt_context
+  prompt_dir
+  prompt_git
+  prompt_bzr
+  prompt_hg
+  
+  # Set AWS details in the prompt, change visual style based on environment type
+  if [[ -n "$aws_account" ]]; then
+    case "$env_type" in
+      prod)
+        prompt_segment red yellow "🛑 AWS: ${current_profile} (${aws_account})"
+        ;;
+      nonprod)
+        prompt_segment green black "🌱 AWS: ${current_profile} (${aws_account})"
+        ;;
+    esac
+  fi
+
+  # Set Kubernetes context in the prompt, if applicable
+  if [[ -n "$k8s_context" ]]; then
+    PS1+="$(kube_ps1) "
+  else
+    PS1+="[K8s context not applicable] "
+  fi
+
+  prompt_end
+}
+
+profile1,123456789012,cluster1,prod
+profile2,234567890123,cluster2,nonprod
+profile3,345678901234,cluster3,nonprod
+
+
+
+
+
+
+
+--------
 build_prompt() {
   # Your existing prompt components
   prompt_status
