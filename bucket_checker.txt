@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# File containing the list of bucket names
+BUCKET_FILE="buckets.txt"
+# Output file for existing bucket names
+OUTPUT_FILE="existing_buckets.txt"
+
+# Clear the output file if it exists
+> "$OUTPUT_FILE"
+
+# Read each line in the file
+while IFS= read -r bucket; do
+    # Check if the bucket exists
+    if aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+        echo "$bucket" >> "$OUTPUT_FILE"
+    fi
+done < "$BUCKET_FILE"
+
+echo "Existing bucket names have been written to $OUTPUT_FILE"
