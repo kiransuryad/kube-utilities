@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Check if bucket name is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <bucket-name>"
+  exit 1
+fi
+
+BUCKET_NAME=$1
+
+# Create lifecycle policy JSON
+LIFECYCLE_POLICY='{
+    "Rules": [
+        {
+            "ID": "Immediate deletion of all objects",
+            "Filter": {
+                "Prefix": ""
+            },
+            "Status": "Enabled",
+            "Expiration": {
+                "Days": 1
+            },
+            "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 1
+            },
+            "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+            }
+        }
+    ]
+}'
+
+# Apply the lifecycle policy to the bucket
+aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET_NAME" --lifecycle-configuration "$LIFECYCLE_POLICY"
+
+if [ $? -eq 0 ]; then
+  echo "Lifecycle policy created for bucket: $BUCKET_NAME"
+else
+  echo "Failed to create lifecycle policy for bucket: $BUCKET_NAME"
+fi
