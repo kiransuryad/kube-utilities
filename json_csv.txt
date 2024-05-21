@@ -1,3 +1,88 @@
+
+
+
+import json
+
+# Load the JSON data
+try:
+    with open('kubent_output.json', 'r') as json_file:
+        data = json.load(json_file)
+    print("Successfully loaded JSON data.")
+except Exception as e:
+    print(f"Failed to load JSON data: {e}")
+    exit(1)
+
+# Print a sample of the data
+print("Sample data:", data[:5] if isinstance(data, list) else data)
+
+
+
+----
+import json
+import csv
+import pandas as pd
+
+# Load the JSON data
+try:
+    with open('kubent_output.json', 'r') as json_file:
+        data = json.load(json_file)
+    print("Successfully loaded JSON data.")
+except Exception as e:
+    print(f"Failed to load JSON data: {e}")
+    exit(1)
+
+# Check if data is empty
+if not data:
+    print("No data found in JSON file.")
+    exit(1)
+
+# Define the CSV file to write to
+csv_file = 'kubent_output.csv'
+
+# Extract relevant fields and write to CSV
+try:
+    with open(csv_file, 'w', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        
+        # Write the headers
+        headers = ["Namespace", "Name", "Kind", "ApiVersion", "Message"]
+        csvwriter.writerow(headers)
+        
+        # Write the data
+        for item in data:
+            row = [
+                item.get("namespace", ""),
+                item.get("name", ""),
+                item.get("kind", ""),
+                item.get("apiVersion", ""),
+                item.get("message", "")
+            ]
+            csvwriter.writerow(row)
+    print(f"Data successfully written to {csv_file}")
+except Exception as e:
+    print(f"Failed to write to CSV file: {e}")
+    exit(1)
+
+# Load the CSV data
+try:
+    df = pd.read_csv('kubent_output.csv')
+    print("Successfully loaded CSV data.")
+except Exception as e:
+    print(f"Failed to load CSV data: {e}")
+    exit(1)
+
+# Convert to Excel
+excel_file = 'kubent_output.xlsx'
+try:
+    df.to_excel(excel_file, index=False)
+    print(f"Data successfully written to {excel_file}")
+except Exception as e:
+    print(f"Failed to write to Excel file: {e}")
+    exit(1)
+
+
+
+---
 import json
 import csv
 import pandas as pd
