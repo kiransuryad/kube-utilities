@@ -1,0 +1,54 @@
+#!/bin/bash
+
+ACCOUNT=$1
+REGION=$2
+
+if [ -z "$ACCOUNT" ] || [ -z "$REGION" ]; then
+    echo "Usage: $0 <AWS_PROFILE> <AWS_REGION>"
+    exit 1
+fi
+
+export AWS_PROFILE=$ACCOUNT
+export AWS_REGION=$REGION
+
+output_file="output_${ACCOUNT}_${REGION}.json"
+results=()
+
+# Check Kubernetes Version for Each Cluster
+clusters=$(aws eks list-clusters --query "clusters" --output text)
+
+for cluster in $clusters; do
+    cluster_info=$(aws eks describe-cluster --name $cluster --query "cluster")
+    version=$(echo $cluster_info | jq -r '.version')
+
+    if [ "$version" == "1.21" ]; then
+        kubelet_versions=()
+        ami_types=()
+
+        # Update kubeconfig for the cluster
+        aws eks update-kubeconfig --name $cluster --region $REGION
+
+        # Get node information
+        nodes=$(kubectl get nodes -o json)
+        for node in $(echo $nodes | jq -r '.items[].metadata.name'); do
+            kubelet_version=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .status.nodeInfo.kubeletVersion')
+            ami_id=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .spec.providerID' | cut -d '/' -f5)
+            ami_type=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .metadata.labels["eks.amazonaws.com/nodegroup-image"] // "custom"')
+
+            kubelet_versions+=("$kubelet_version")
+            ami_types+=("$ami_id:$ami_type")
+        done
+
+        results+=($(jq -n \
+            --arg cluster "$cluster" \
+            --arg version "$version" \
+            --argjson kubelet_versions "$(jq -n '$ARGS.positional' --args "${kubelet_versions[@]}")" \
+            --argjson ami_types "$(jq -n '$ARGS.positional' --args "${ami_types[@]}")" \
+            '{cluster: $cluster, version: $version, kubelet_versions: $kubelet_versions, ami_types: $ami_types}'))
+    fi
+done
+
+# Output the results as JSON
+jq -n --argjson results "$(jq -n '$ARGS.positional' --args "${results[@]}")" '{results: $results}' > $output_file
+
+echo "Output written to $output_file"
