@@ -1,0 +1,129 @@
+#!/bin/bash
+
+output_file="output_current_context.json"
+results=()
+
+# Get current context name
+context_name=$(kubectl config current-context)
+if [ -z "$context_name" ]; then
+    echo "No current context set or unable to determine context name"
+    exit 1
+fi
+
+# Get cluster name from context
+cluster_name=$(kubectl config view -o jsonpath="{.contexts[?(@.name == \"$context_name\")].context.cluster}")
+cluster_name=${cluster_name##*/}  # Extract the actual cluster name from the full context
+
+# Check Kubernetes Version for the Cluster
+cluster_info=$(aws eks describe-cluster --name $cluster_name --query "cluster")
+if [ $? -ne 0 ]; then
+    echo "Error describing cluster $cluster_name. Please ensure the AWS credentials and region are set correctly."
+    exit 1
+fi
+
+version=$(echo $cluster_info | jq -r '.version')
+
+if [ "$version" == "1.21" ]; then
+    kubelet_versions=()
+    ami_types=()
+    comments=()
+
+    # Get node information
+    nodes=$(kubectl get nodes -o json)
+    for node in $(echo $nodes | jq -r '.items[].metadata.name'); do
+        kubelet_version=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .status.nodeInfo.kubeletVersion')
+        ami_id=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .spec.providerID' | cut -d '/' -f5)
+        ami_type=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .metadata.labels["eks.amazonaws.com/nodegroup-image"] // "custom"')
+
+        # Add comments based on the ami_type
+        if [ "$ami_type" == "custom" ]; then
+            comment="Custom AMI detected. Ensure compatibility with Kubernetes 1.22."
+        else
+            comment="AWS Optimized AMI detected. Ensure it is updated to the latest version."
+        fi
+
+        kubelet_versions+=("$kubelet_version")
+        ami_types+=("$ami_id:$ami_type")
+        comments+=("$comment")
+    done
+
+    results+=($(jq -n \
+        --arg cluster "$cluster_name" \
+        --arg version "$version" \
+        --argjson kubelet_versions "$(jq -n '$ARGS.positional' --args "${kubelet_versions[@]}")" \
+        --argjson ami_types "$(jq -n '$ARGS.positional' --args "${ami_types[@]}")" \
+        --argjson comments "$(jq -n '$ARGS.positional' --args "${comments[@]}")" \
+        '{cluster: $cluster, version: $version, kubelet_versions: $kubelet_versions, ami_types: $ami_types, comments: $comments}'))
+
+    # Additional information retrieval
+    kubectl get daemonsets --all-namespaces -o json > daemonsets.json
+    kubectl get statefulsets --all-namespaces -o json > statefulsets.json
+    kubectl get deployments --all-namespaces -o json > deployments.json
+    kubectl get pv -o json > persistentvolumes.json
+    kubectl get pvc --all-namespaces -o json > persistentvolumeclaims.json
+    kubectl get crds -o json > crds.json
+    kubectl get clusterroles -o json > clusterroles.json
+    kubectl get rolebindings --all-namespaces -o json > rolebindings.json
+    kubectl get networkpolicies --all-namespaces -o json > networkpolicies.json
+
+    # Consolidate additional information into Excel
+    python3 - <<EOF
+import json
+import pandas as pd
+
+# Load the main cluster info
+with open('$output_file', 'w') as f:
+    data = {
+        "results": $results
+    }
+    json.dump(data, f)
+
+# Load the JSON data from the file
+with open('$output_file') as f:
+    data = json.load(f)
+
+# Extract the results
+results = data['results']
+
+# Convert the results to a DataFrame
+df = pd.json_normalize(results)
+
+# Save the DataFrame to an Excel file
+output_file = 'cluster_info.xlsx'
+df.to_excel(output_file, sheet_name='Cluster Info', index=False)
+
+# Function to load JSON data and convert to DataFrame
+def json_to_df(json_file):
+    with open(json_file) as f:
+        data = json.load(f)
+    return pd.json_normalize(data['items'])
+
+# Load additional data
+daemonsets_df = json_to_df('daemonsets.json')
+statefulsets_df = json_to_df('statefulsets.json')
+deployments_df = json_to_df('deployments.json')
+pvs_df = json_to_df('persistentvolumes.json')
+pvcs_df = json_to_df('persistentvolumeclaims.json')
+crds_df = json_to_df('crds.json')
+clusterroles_df = json_to_df('clusterroles.json')
+rolebindings_df = json_to_df('rolebindings.json')
+networkpolicies_df = json_to_df('networkpolicies.json')
+
+# Create a Pandas Excel writer using XlsxWriter as the engine
+with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+    df.to_excel(writer, sheet_name='Cluster Info', index=False)
+    daemonsets_df.to_excel(writer, sheet_name='DaemonSets', index=False)
+    statefulsets_df.to_excel(writer, sheet_name='StatefulSets', index=False)
+    deployments_df.to_excel(writer, sheet_name='Deployments', index=False)
+    pvs_df.to_excel(writer, sheet_name='PersistentVolumes', index=False)
+    pvcs_df.to_excel(writer, sheet_name='PersistentVolumeClaims', index=False)
+    crds_df.to_excel(writer, sheet_name='CRDs', index=False)
+    clusterroles_df.to_excel(writer, sheet_name='ClusterRoles', index=False)
+    rolebindings_df.to_excel(writer, sheet_name='RoleBindings', index=False)
+    networkpolicies_df.to_excel(writer, sheet_name='NetworkPolicies', index=False)
+
+print(f"Data successfully written to {output_file}")
+EOF
+fi
+
+echo "Output written to cluster_info.xlsx"
