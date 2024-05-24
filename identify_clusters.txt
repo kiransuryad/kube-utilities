@@ -1,3 +1,63 @@
+
+#!/bin/bash
+
+output_file="output_current_context.json"
+results=()
+
+# Get current context name
+context_name=$(kubectl config current-context)
+if [ -z "$context_name" ]; then
+    echo "No current context set or unable to determine context name"
+    exit 1
+fi
+
+# Get cluster name from context
+cluster_name=$(kubectl config view -o jsonpath="{.contexts[?(@.name == \"$context_name\")].context.cluster}")
+cluster_name=${cluster_name##*/}  # Extract the actual cluster name from the full context
+
+# Check Kubernetes Version for the Cluster
+cluster_info=$(aws eks describe-cluster --name $cluster_name --query "cluster")
+if [ $? -ne 0 ]; then
+    echo "Error describing cluster $cluster_name. Please ensure the AWS credentials and region are set correctly."
+    exit 1
+fi
+
+version=$(echo $cluster_info | jq -r '.version')
+
+if [ "$version" == "1.21" ]; then
+    kubelet_versions=()
+    ami_types=()
+
+    # Get node information
+    nodes=$(kubectl get nodes -o json)
+    for node in $(echo $nodes | jq -r '.items[].metadata.name'); do
+        kubelet_version=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .status.nodeInfo.kubeletVersion')
+        ami_id=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .spec.providerID' | cut -d '/' -f5)
+        ami_type=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .metadata.labels["eks.amazonaws.com/nodegroup-image"] // "custom"')
+
+        kubelet_versions+=("$kubelet_version")
+        ami_types+=("$ami_id:$ami_type")
+    done
+
+    # Create a JSON object for the cluster
+    cluster_info=$(jq -n \
+        --arg cluster "$cluster_name" \
+        --arg version "$version" \
+        --argjson kubelet_versions "$(printf '%s\n' "${kubelet_versions[@]}" | jq -R . | jq -s .)" \
+        --argjson ami_types "$(printf '%s\n' "${ami_types[@]}" | jq -R . | jq -s .)" \
+        '{cluster: $cluster, version: $version, kubelet_versions: $kubelet_versions, ami_types: $ami_types}')
+
+    results+=("$cluster_info")
+fi
+
+# Output the results as JSON
+jq -n --argjson results "$(printf '%s\n' "${results[@]}" | jq -s .)" '{results: $results}' > $output_file
+
+echo "Output written to $output_file"
+
+
+
+
 ---
 formatted
 
