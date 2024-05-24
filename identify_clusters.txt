@@ -1,3 +1,65 @@
+---
+updated to solve invalidparameter exception
+----
+
+#!/bin/bash
+
+output_file="output_current_context.json"
+results=()
+
+# Get current cluster ARN from kubeconfig context
+cluster_arn=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+if [ -z "$cluster_arn" ]; then
+    echo "No current context set or unable to determine cluster ARN"
+    exit 1
+fi
+
+# Extract the cluster name from the ARN
+cluster_name=$(echo $cluster_arn | awk -F/ '{print $NF}')
+
+# Check Kubernetes Version for the Cluster
+cluster_info=$(aws eks describe-cluster --name $cluster_name --query "cluster")
+if [ $? -ne 0 ]; then
+    echo "Error describing cluster $cluster_name. Please ensure the AWS credentials and region are set correctly."
+    exit 1
+fi
+
+version=$(echo $cluster_info | jq -r '.version')
+
+if [ "$version" == "1.21" ]; then
+    kubelet_versions=()
+    ami_types=()
+
+    # Get node information
+    nodes=$(kubectl get nodes -o json)
+    for node in $(echo $nodes | jq -r '.items[].metadata.name'); do
+        kubelet_version=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .status.nodeInfo.kubeletVersion')
+        ami_id=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .spec.providerID' | cut -d '/' -f5)
+        ami_type=$(echo $nodes | jq -r --arg node "$node" '.items[] | select(.metadata.name == $node) | .metadata.labels["eks.amazonaws.com/nodegroup-image"] // "custom"')
+
+        kubelet_versions+=("$kubelet_version")
+        ami_types+=("$ami_id:$ami_type")
+    done
+
+    results+=($(jq -n \
+        --arg cluster "$cluster_name" \
+        --arg version "$version" \
+        --argjson kubelet_versions "$(jq -n '$ARGS.positional' --args "${kubelet_versions[@]}")" \
+        --argjson ami_types "$(jq -n '$ARGS.positional' --args "${ami_types[@]}")" \
+        '{cluster: $cluster, version: $version, kubelet_versions: $kubelet_versions, ami_types: $ami_types}'))
+fi
+
+# Output the results as JSON
+jq -n --argjson results "$(jq -n '$ARGS.positional' --args "${results[@]}")" '{results: $results}' > $output_file
+
+echo "Output written to $output_file"
+
+---
+---
+
+
+
+
 
 -----
 updated to read the current context and work on it
