@@ -1,3 +1,38 @@
+---
+updated:
+---
+
+import json
+import pandas as pd
+
+# Load the JSON data from the file
+with open('output_current_context.json') as f:
+    data = json.load(f)
+
+# Extract the results
+results = data['results']
+
+# Normalize the JSON data
+df = pd.json_normalize(results)
+
+# Explode the lists to create a row for each item in 'kubelet_versions' and 'ami_types'
+df = df.explode('kubelet_versions').explode('ami_types')
+
+# Split 'ami_types' into separate columns for AMI ID and AMI Type
+df[['ami_id', 'ami_type']] = df['ami_types'].str.split(':', expand=True)
+
+# Drop the original 'ami_types' column
+df = df.drop(columns=['ami_types'])
+
+# Save the DataFrame to an Excel file
+output_file = 'cluster_info.xlsx'
+df.to_excel(output_file, index=False)
+
+print(f"Data successfully written to {output_file}")
+
+
+
+----
 import json
 import pandas as pd
 
