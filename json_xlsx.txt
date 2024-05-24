@@ -1,0 +1,18 @@
+import json
+import pandas as pd
+
+# Load the JSON data from the file
+with open('output_current_context.json') as f:
+    data = json.load(f)
+
+# Extract the results
+results = data['results']
+
+# Convert the results to a DataFrame
+df = pd.json_normalize(results)
+
+# Save the DataFrame to an Excel file
+output_file = 'cluster_info.xlsx'
+df.to_excel(output_file, index=False)
+
+print(f"Data successfully written to {output_file}")
