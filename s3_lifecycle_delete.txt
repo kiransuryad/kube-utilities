@@ -1,3 +1,50 @@
+---
+python code to check s3 buckets
+--
+import boto3
+import botocore
+
+def check_buckets(file_path):
+    s3 = boto3.client('s3')
+    existing_buckets = []
+    
+    with open(file_path, 'r') as file:
+        bucket_names = file.readlines()
+    
+    for bucket_name in bucket_names:
+        bucket_name = bucket_name.strip()
+        try:
+            s3.head_bucket(Bucket=bucket_name)
+            existing_buckets.append(bucket_name)
+        except botocore.exceptions.ClientError as e:
+            error_code = int(e.response['Error']['Code'])
+            if error_code == 404:
+                # Bucket does not exist
+                continue
+            else:
+                # Some other error, re-raise
+                raise
+    
+    return existing_buckets
+
+def main():
+    bucket_list_file = 'buckets.txt'
+    existing_buckets = check_buckets(bucket_list_file)
+    
+    print("Existing buckets:")
+    for bucket in existing_buckets:
+        print(bucket)
+    
+    print(f"Total existing buckets: {len(existing_buckets)}")
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+-----
 s3 buckets availability check list
 --
 
