@@ -1,4 +1,10 @@
 
+
+# Replace ami-0abcdef1234567890 and ami-0123456789abcdef0 with your actual AMI IDs
+aws ec2 describe-images --image-ids ami-0abcdef1234567890 ami-0123456789abcdef0 --query "Images[*].{ImageId:ImageId,OwnerId:OwnerId}" --output table
+
+
+---
 #!/bin/bash
 
 output_file="output_current_context.json"
