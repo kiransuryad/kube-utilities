@@ -1,3 +1,23 @@
+#!/bin/bash
+
+# Files containing the list of S3 bucket names
+BUCKET_LIST_FILE1="buckets1.txt"
+BUCKET_LIST_FILE2="buckets2.txt"
+OUTPUT_FILE="buckets_not_in_second_list.txt"
+
+# Sort both files (optional but ensures the comparison is consistent)
+sort $BUCKET_LIST_FILE1 -o $BUCKET_LIST_FILE1
+sort $BUCKET_LIST_FILE2 -o $BUCKET_LIST_FILE2
+
+# Compare the files and write the result to the output file
+comm -23 $BUCKET_LIST_FILE1 $BUCKET_LIST_FILE2 > $OUTPUT_FILE
+
+# Print the output file contents
+echo "Buckets in $BUCKET_LIST_FILE1 but not in $BUCKET_LIST_FILE2:"
+cat $OUTPUT_FILE
+
+
+
 ---
 python code to check s3 buckets
 --
