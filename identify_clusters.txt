@@ -1,4 +1,28 @@
+#!/bin/bash
 
+# Get the instance IDs of the nodes in the EKS cluster
+instance_ids=$(kubectl get nodes -o jsonpath='{.items[*].spec.providerID}' | cut -d '/' -f5)
+
+if [ -z "$instance_ids" ]; then
+    echo "No instance IDs found. Please ensure you have nodes in your EKS cluster and that your kubeconfig is set correctly."
+    exit 1
+fi
+
+# Describe instances and get their AMI IDs
+echo "Retrieving AMI IDs for the following instance IDs: $instance_ids"
+aws ec2 describe-instances --instance-ids $instance_ids --query "Reservations[].Instances[].{InstanceId:InstanceId, ImageId:ImageId}" --output table
+
+
+----
+# Get the instance IDs of the nodes in the EKS cluster
+instance_ids=$(kubectl get nodes -o jsonpath='{.items[*].spec.providerID}' | cut -d '/' -f5)
+
+# Describe instances and get their AMI IDs
+aws ec2 describe-instances --instance-ids $instance_ids --query "Reservations[].Instances[].{InstanceId:InstanceId, ImageId:ImageId}" --output table
+
+
+-
+--
 #!/bin/bash
 
 # Read instance IDs from a file
