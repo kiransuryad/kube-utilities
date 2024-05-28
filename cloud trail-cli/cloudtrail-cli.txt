@@ -1,0 +1,6 @@
+aws cloudtrail lookup-events \
+    --lookup-attributes AttributeKey=ResourceName,AttributeValue=my-example-bucket \
+    --start-time 2023-05-01T00:00:00Z \
+    --end-time 2023-05-07T23:59:59Z \
+    --region us-east-1 \
+    | jq '.Events[] | select(.Resources[]?.ResourceName == "my-example-bucket") | {EventTime, EventName, EventSource, Resources, CloudTrailEvent}'
