@@ -7,7 +7,7 @@ aws ec2 describe-instances --query "Reservations[*].Instances[*].{InstanceID:Ins
 ami_ids=$(jq -r '.[].[].AMI' instances.json | sort | uniq)
 
 # Describe AMIs to get OS details
-aws ec2 describe-images --image-ids $ami_ids --query "Images[*].{ImageId:ImageId,Name:Name,Description:Description}" --output json > amis.json
+aws ec2 describe-images --image-ids $ami_ids --query "Images[*].{ImageId:ImageId,Description:Description}" --output json > amis.json
 
 # Join instance details with AMI details
 jq -s '
@@ -17,8 +17,16 @@ jq -s '
         InstanceID,
         Name,
         AMI,
-        OS: (.AMI as $ami | (.amis[] | select(.ImageId == $ami) | .Description))
-    }' instances.json amis.json --output table
+        OS: (.AMI as $ami | (.amis[] | select(.ImageId == $ami) | .Description // "Unknown"))
+    }' instances.json amis.json > combined.json
+
+# Format as a table
+jq -r '
+    ["InstanceID", "Name", "AMI", "OS"],
+    ["----------", "----", "---", "--"],
+    (.[] | [.InstanceID, .Name, .AMI, .OS])
+    | @tsv' combined.json | column -t
+
 
 
 ----
