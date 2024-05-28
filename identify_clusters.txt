@@ -1,3 +1,12 @@
+
+# Get the instance IDs of the nodes in the EKS cluster
+instance_ids=$(kubectl get nodes -o jsonpath='{.items[*].spec.providerID}' | sed 's|aws:///[^/]*/||g')
+
+# Describe instances and get their AMI IDs
+aws ec2 describe-instances --instance-ids $instance_ids --query "Reservations[].Instances[].{InstanceId:InstanceId, ImageId:ImageId}" --output table
+
+
+---
 #!/bin/bash
 
 # Get the instance IDs of the nodes in the EKS cluster
