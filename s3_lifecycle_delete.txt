@@ -1,3 +1,7 @@
+aws ec2 describe-instances --query "Reservations[*].Instances[*].{InstanceID:InstanceId,Name:Tags[?Key=='Name']|[0].Value,AMI:ImageId}" --output table
+
+
+---
 #!/bin/bash
 
 # Files containing the list of S3 bucket names
