@@ -1,3 +1,30 @@
+s3 buckets availability check list
+--
+
+#!/bin/bash
+
+# File containing the list of S3 bucket names
+BUCKET_LIST_FILE="buckets.txt"
+
+# Initialize the count
+count=0
+
+# Read each bucket name from the file
+while IFS= read -r bucket; do
+  # Check if the bucket exists
+  if aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+    echo "Bucket exists: $bucket"
+    count=$((count + 1))
+  else
+    echo "Bucket does not exist: $bucket"
+  fi
+done < "$BUCKET_LIST_FILE"
+
+# Print the total count of existing buckets
+echo "Total existing buckets: $count"
+
+
+---
 #!/bin/bash
 
 # Check if bucket name is provided
