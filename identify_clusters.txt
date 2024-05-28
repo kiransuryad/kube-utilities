@@ -1,4 +1,14 @@
 
+#!/bin/bash
+
+# Read instance IDs from a file
+instance_ids=$(cat instance_ids.txt | tr '\n' ' ')
+
+# Describe instances and get AMI IDs
+aws ec2 describe-instances --instance-ids $instance_ids --query "Reservations[].Instances[].{InstanceId:InstanceId, ImageId:ImageId}" --output json
+
+
+----
 
 # Replace ami-0abcdef1234567890 and ami-0123456789abcdef0 with your actual AMI IDs
 aws ec2 describe-images --image-ids ami-0abcdef1234567890 ami-0123456789abcdef0 --query "Images[*].{ImageId:ImageId,OwnerId:OwnerId}" --output table
