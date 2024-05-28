@@ -1,3 +1,27 @@
+#!/bin/bash
+
+# Fetch instance details
+aws ec2 describe-instances --query "Reservations[*].Instances[*].{InstanceID:InstanceId,Name:Tags[?Key=='Name']|[0].Value,AMI:ImageId}" --output json > instances.json
+
+# Extract AMI IDs
+ami_ids=$(jq -r '.[].[].AMI' instances.json | sort | uniq)
+
+# Describe AMIs to get OS details
+aws ec2 describe-images --image-ids $ami_ids --query "Images[*].{ImageId:ImageId,Name:Name,Description:Description}" --output json > amis.json
+
+# Join instance details with AMI details
+jq -s '
+    {instances:.[0], amis:.[1]} |
+    .instances[][] |
+    {
+        InstanceID,
+        Name,
+        AMI,
+        OS: (.AMI as $ami | (.amis[] | select(.ImageId == $ami) | .Description))
+    }' instances.json amis.json --output table
+
+
+----
 aws ec2 describe-instances --query "Reservations[*].Instances[*].{InstanceID:InstanceId,Name:Tags[?Key=='Name']|[0].Value,AMI:ImageId}" --output table
 
 
