@@ -1,6 +1,30 @@
+import boto3
+from botocore.exceptions import ClientError
+
+def empty_and_delete_bucket(bucket_name):
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(bucket_name)
+
+    try:
+        # Delete all versions and delete markers
+        bucket.object_versions.delete()
+
+        # Delete the bucket
+        bucket.delete()
+        print(f"Bucket {bucket_name} and all its contents have been deleted.")
+    except ClientError as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    # Replace 'your_bucket_name' with the actual bucket name
+    try:
+        empty_and_delete_bucket('your_bucket_name')
+    except Exception as e:
+        print(f"Failed to delete bucket: {e}")
 
 
 
+----
 #!/bin/bash
 
 # File containing the list of bucket names
