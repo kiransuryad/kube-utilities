@@ -1,3 +1,37 @@
+
+
+
+#!/bin/bash
+
+# File containing the list of bucket names
+BUCKET_LIST="buckets.txt"
+
+# Timeout duration in seconds
+TIMEOUT_DURATION=3600
+
+# Read each bucket name from the list
+while read -r bucket_name; do
+    echo "Starting deletion of bucket: $bucket_name"
+
+    # Run the deletion command with a timeout
+    timeout $TIMEOUT_DURATION aws s3 rb s3://$bucket_name --force
+
+    # Check the exit status of the deletion command
+    case $? in
+        124)
+            echo "The deletion command for $bucket_name timed out."
+            ;;
+        0)
+            echo "Deletion of $bucket_name completed successfully."
+            ;;
+        *)
+            echo "Deletion of $bucket_name failed."
+            ;;
+    esac
+done < "$BUCKET_LIST"
+
+
+----
 #!/bin/bash
 
 # Fetch instance details
