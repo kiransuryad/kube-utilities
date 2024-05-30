@@ -1,3 +1,27 @@
+
+Inform Users and Timebox the Issue
+Advantages: This approach encourages users to take responsibility for their resources, potentially reducing the administrative burden on you. It also establishes a clear deadline which can expedite compliance.
+Risks: Users may not meet the deadline or may lack the technical expertise to encrypt the volumes themselves, which could leave unencrypted volumes in your environment past your compliance date.
+2. Encrypt the Volumes Yourself
+Advantages: Direct control over the encryption process ensures that all volumes are encrypted according to best practices and within a known timeframe.
+Procedure:
+Create snapshots of existing unencrypted EBS volumes.
+Encrypt the snapshots.
+Create new EBS volumes from the encrypted snapshots.
+Swap the encrypted volumes with the original unencrypted ones.
+Risks: The process can be time-consuming and error-prone, especially if not automated. There's also the risk of application errors if the new encrypted volumes do not perform as expected.
+3. Automate Encryption with AWS Lambda
+Advantages: Automation reduces the manual workload and can be set to handle ongoing encryption needs, ensuring all new volumes are encrypted by default.
+Risks: Requires initial setup and testing to ensure that the automation scripts function correctly across your varied environments. Misconfigurations can lead to data loss or downtime.
+4. Delete Unencrypted Volumes After Warning
+Advantages: This is the most stringent method to enforce security compliance. It removes any unencrypted data from your environment.
+Procedure:
+Notify users with a specific timeframe to either migrate their data or encrypt their volumes.
+After the deadline, delete any remaining unencrypted volumes.
+Risks: High risk of data loss if users do not comply or misunderstand the instructions. It may also disrupt operations if critical data or services rely on those volumes.
+
+
+--
 aws ec2 describe-volumes --query "Volumes[?Encrypted==\`false\`].[VolumeId, Attachments[0].InstanceId, CreateTime]" --output json | jq -c '.[]'
 
 aws ec2 describe-instances --instance-ids <instance-id> --query "Reservations[*].Instances[*].[InstanceId, State.Name, LaunchTime]" --output json
