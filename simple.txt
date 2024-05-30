@@ -1,3 +1,38 @@
+
+Technical Complexity of Upgrading EKS from Version 1.21:
+
+Sequential Upgrade Process: Upgrades must be performed in a step-by-step manner, increasing the duration and complexity, with a heightened risk of system-wide disruptions.
+
+CRDs and API Changes:
+
+Necessitates updates to Custom Resource Definitions and Kubernetes APIs.
+Significant evolution in these areas since version 1.21 may lead to compatibility issues.
+Malfunctions or loss of functionality in managed services are potential risks if CRDs and APIs are not meticulously evaluated and matched with each upgrade step.
+Third-Party Dependencies:
+
+Cluster depends on third-party tools specific to current Kubernetes versions.
+Upgrading may cause compatibility issues, requiring assessments and potential replacements of these tools.
+Adds complexity and introduces multiple potential points of failure.
+Service Stability:
+
+Incremental upgrades could introduce transient incompatibilities or bugs.
+Potential service outages or degraded performance can affect the operational stability of the entire cluster.
+Outdated Custom AMIs:
+
+The cluster uses custom AMIs tailored to specific old Kubernetes versions.
+Upgrading these AMIs to align with new Kubernetes releases is crucial but complex, involving updates to underlying software and system configurations.
+Risk of breaking system functionality due to incompatibilities between updated AMIs and existing infrastructure setups.
+Resource and Time Intensive:
+
+Demands significant manpower and time investment.
+Distracts from other strategic initiatives without a commensurate return on investment.
+High risk of not achieving desired outcomes, given the outdated base version and extensive requirements for updating.
+Risk Highlight:
+
+High Breakage Potential: The upgrade path from such an outdated version introduces multiple breakage points throughout the process, with each step having the potential to disrupt current services due to incompatibilities or unforeseen issues.
+
+
+---
 Security Vulnerabilities:
 
 The cluster currently exhibits a significant number of security vulnerabilities, which are primarily due to deprecated software components and unpatched systems. These vulnerabilities expose the cluster to potential security breaches and data leakage, increasing the risk profile significantly. Immediate remediation is not feasible due to the obsolete nature of several components.
