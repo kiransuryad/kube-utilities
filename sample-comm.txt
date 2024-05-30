@@ -4,3 +4,6 @@
 aws ec2 describe-instances --instance-ids i-1234567890abcdef0 --query 'Reservations[*].Instances[*].{Instance:InstanceId,State:State.Name}'
 // ec2 stopping
   aws ec2 stop-instances --instance-ids i-1234567890abcdef0
+// ec2 insatnces & name in table format
+aws ec2 describe-instances --instance-ids i-1234567890abcdef0 i-0987654321abcdef0 --query 'Reservations[*].Instances[*].{Instance_ID:InstanceId, Name:Tags[?Key==`Name`].Value | [0], Status:State.Name}' --output table
+
