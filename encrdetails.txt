@@ -1,0 +1,24 @@
+aws ec2 describe-volumes --query "Volumes[?Encrypted==\`false\`].[VolumeId, Attachments[0].InstanceId, CreateTime]" --output json | jq -c '.[]'
+
+aws ec2 describe-instances --instance-ids <instance-id> --query "Reservations[*].Instances[*].[InstanceId, State.Name, LaunchTime]" --output json
+
+
+#!/bin/bash
+
+# Fetch all unencrypted volumes
+volumes=$(aws ec2 describe-volumes --query "Volumes[?Encrypted==\`false\`].[VolumeId, Attachments[0].InstanceId, CreateTime]" --output json | jq -r '.[] | @csv')
+
+# Read each line from the volumes
+echo "VolumeId,InstanceId,VolumeCreateTime,InstanceId,InstanceState,InstanceCreateTime"
+echo "$volumes" | while IFS= read -r line; do
+    # Extract Instance ID from the line (second element)
+    instance_id=$(echo $line | cut -d',' -f2 | tr -d '"')
+
+    # Get details for this instance
+    if [ ! -z "$instance_id" ] && [ "$instance_id" != "null" ]; then
+        instance_details=$(aws ec2 describe-instances --instance-ids $instance_id --query "Reservations[*].Instances[*].[InstanceId, State.Name, LaunchTime]" --output json | jq -r '.[][] | @csv')
+        echo "$line,$instance_details"
+    else
+        echo "$line,NA,NA,NA"
+    fi
+done
