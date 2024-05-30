@@ -2,6 +2,11 @@ aws ec2 describe-volumes --query "Volumes[?Encrypted==\`false\`].[VolumeId, Atta
 
 aws ec2 describe-instances --instance-ids <instance-id> --query "Reservations[*].Instances[*].[InstanceId, State.Name, LaunchTime]" --output json
 
+aws ec2 describe-volumes --query 'Volumes[*].{Name:Tags[?Key==`Name`].Value | [0]}' --output text > aws_names.txt
+
+grep -vxFf aws_names.txt local_names.txt
+
+
 
 #!/bin/bash
 
