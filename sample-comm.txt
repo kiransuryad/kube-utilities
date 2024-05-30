@@ -1,1 +1,6 @@
 
+// ec2
+// ec2 status
+aws ec2 describe-instances --instance-ids i-1234567890abcdef0 --query 'Reservations[*].Instances[*].{Instance:InstanceId,State:State.Name}'
+// ec2 stopping
+  aws ec2 stop-instances --instance-ids i-1234567890abcdef0
