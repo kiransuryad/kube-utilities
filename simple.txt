@@ -1,4 +1,13 @@
 
+
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,Tags[?Key==`Name`].Value|[0]]' --output table > ec2_instances.txt
+aws s3api list-buckets --query 'Buckets[*].[Name,CreationDate]' --output table > s3_buckets.txt
+aws rds describe-db-instances --query 'DBInstances[*].[DBInstanceIdentifier,DBInstanceClass,Engine,DBInstanceStatus]' --output table > rds_instances.txt
+aws lambda list-functions --query 'Functions[*].[FunctionName,Runtime,LastModified]' --output table > lambda_functions.txt
+aws dynamodb list-tables --query 'TableNames' --output table > dynamodb_tables.txt
+
+
+----
 Technical Complexity of Upgrading EKS from Version 1.21:
 
 Sequential Upgrade Process: Upgrades must be performed in a step-by-step manner, increasing the duration and complexity, with a heightened risk of system-wide disruptions.
