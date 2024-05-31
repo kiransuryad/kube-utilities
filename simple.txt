@@ -1,5 +1,8 @@
 
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,Tags,LaunchTime,SecurityGroups[*].GroupName,SecurityGroups[*].GroupId,IamInstanceProfile.Arn]' --output table > ec2_instances_detailed.txt
 
+
+---
 aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,Tags[?Key==`Name`].Value|[0]]' --output table > ec2_instances.txt
 aws s3api list-buckets --query 'Buckets[*].[Name,CreationDate]' --output table > s3_buckets.txt
 aws rds describe-db-instances --query 'DBInstances[*].[DBInstanceIdentifier,DBInstanceClass,Engine,DBInstanceStatus]' --output table > rds_instances.txt
