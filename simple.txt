@@ -1,4 +1,44 @@
 
+aws ec2 describe-instances --query "Reservations[*].Instances[*].[InstanceId, Tags, InstanceType, State.Name, PublicIpAddress]"
+
+aws eks list-clusters
+aws eks describe-cluster --name ClusterName --query "cluster.[name, arn, status, tags]"
+
+
+aws apigateway get-rest-apis --query "items[*].[id, name, createdDate, tags]"
+
+
+aws kms list-keys --query "Keys[*].KeyId"
+aws kms describe-key --key-id KeyId --query "KeyMetadata.[KeyId, Description, KeyState, Tags]"
+
+
+aws glue get-databases --query "DatabaseList[*].[Name, CreateTime, Description, Tags]"
+
+
+aws efs describe-file-systems --query "FileSystems[*].[FileSystemId, CreationTime, LifeCycleState, Tags]"
+
+
+aws lambda list-functions --query "Functions[*].[FunctionName, FunctionArn, Runtime, Tags]"
+
+
+aws sqs list-queues
+aws sqs get-queue-attributes --queue-url QueueUrl --attribute-names All
+
+
+aws sns list-topics
+aws sns get-topic-attributes --topic-arn TopicArn
+
+
+aws athena list-workgroups --query "WorkGroups[*].Name"
+
+
+aws elbv2 describe-load-balancers --query "LoadBalancers[*].[LoadBalancerArn, LoadBalancerName, Type, State.Code, Tags]"
+
+
+
+
+
+
 aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,Tags,LaunchTime,SecurityGroups[*].GroupName,SecurityGroups[*].GroupId,IamInstanceProfile.Arn]' --output table > ec2_instances_detailed.txt
 
 
