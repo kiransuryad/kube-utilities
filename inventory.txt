@@ -5,6 +5,60 @@ get_count() {
   local region=$1
   local service=$2
   local query=$3
+  local count=$(aws $service $query --region $region --output json | jq -r 'if . == null then "0" else length end')
+  echo $count
+}
+
+# Specify the services
+services=(
+  "EC2,ec2,ec2 describe-instances --query 'Reservations[].Instances' --output json"
+  "API Gateway,apigateway,apigateway get-rest-apis --query 'length(items)'"
+  "EKS Clusters,eks,eks list-clusters --query 'length(clusters)'"
+  "SQS,sqs,sqs list-queues --query 'length(QueueUrls)'"
+  "SNS,sns,sns list-topics --query 'length(Topics)'"
+  "EBS Volumes,ec2,ec2 describe-volumes --query 'length(Volumes)'"
+  "EBS Snapshots,ec2,ec2 describe-snapshots --query 'length(Snapshots)'"
+  "Route53 Hosted Zones,route53,route53 list-hosted-zones --query 'length(HostedZones)'"
+  "Athena,athena,athena list-workgroups --query 'length(Workgroups)'"
+  "Glue Jobs,glue,glue get-jobs --query 'length(Jobs)'"
+  "Secrets,secretsmanager,secretsmanager list-secrets --query 'length(SecretList)'"
+  "KMS Keys,kms,kms list-keys --query 'length(Keys)'"
+  "Load Balancers,elbv2,elbv2 describe-load-balancers --query 'length(LoadBalancers)'"
+  "RDS Instances,rds,rds describe-db-instances --query 'length(DBInstances)'"
+  "VPC Endpoint Services,ec2,ec2 describe-vpc-endpoint-services --query 'length(ServiceNames)'"
+)
+
+# Specify the regions
+regions="eu-west-2 eu-west-1 us-east-1"
+
+# Start CSV data
+csv_data="Service"
+for region in $regions; do
+  csv_data+=",$region"
+done
+csv_data+="\n"
+
+# Loop through each service
+for service_info in "${services[@]}"; do
+  IFS=',' read -r service_name service_region service_command <<< "$service_info"
+  csv_data+="$service_name"
+  for region in $regions; do
+    count=$(get_count $region $service_region "$service_command")
+    csv_data+=",$count"
+  done
+  csv_data+="\n"
+done
+
+echo -e $csv_data | column -t -s ","
+
+---
+#!/bin/bash
+
+# Function to get count for a specific service in a region
+get_count() {
+  local region=$1
+  local service=$2
+  local query=$3
   local count=$(aws $service $query --region $region --output text 2>/dev/null)
   if [ $? -ne 0 ]; then count=0; fi
   echo $count
