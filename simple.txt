@@ -10,6 +10,16 @@ aws ec2 describe-instances --query 'Reservations[*].Instances[*].[
 ]' --region eu-west-2 --output table
 
 
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[
+  InstanceId,
+  InstanceType,
+  State.Name,
+  (Tags[?Key==`Name`].Value | [0]) || `No Name Tag`,
+  (BlockDeviceMappings[0].Ebs.VolumeId || `No EBS Volume`) || `No Volume`,
+  (BlockDeviceMappings[0].DeviceName || `N/A`) || `N/A`
+]' --region eu-west-2 --output table
+
+
 
 aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId, InstanceType, State.Name, Tags[?Key==`Name`].Value | [0], BlockDeviceMappings[*].{DeviceName:DeviceName, VolumeId:Ebs.VolumeId}]' --output table
 
