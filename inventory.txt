@@ -1,4 +1,90 @@
 
+# 8. Route 53 Hosted Zones (Global Service)
+if [ "$region" == "us-east-1" ]; then
+    section_header "Route 53 Hosted Zones (Global)"
+    
+    # List all hosted zones
+    hosted_zones=$(aws route53 list-hosted-zones --query 'HostedZones[*].Id' --output text)
+    
+    if [ -n "$hosted_zones" ]; then
+        for zone in $hosted_zones; do
+            # Get basic zone info
+            aws route53 get-hosted-zone --id $zone --query '{
+                Name: HostedZone.Name,
+                Id: HostedZone.Id,
+                RecordCount: HostedZone.ResourceRecordSetCount,
+                Private: HostedZone.Config.PrivateZone || `false`,
+                Comment: HostedZone.Config.Comment || `No comment`
+            }' --output table
+            
+            # List record sets (first 5)
+            echo "  Record Sets (First 5):"
+            aws route53 list-resource-record-sets --hosted-zone-id $zone --max-items 5 --query 'ResourceRecordSets[*].{
+                Name: Name,
+                Type: Type,
+                TTL: TTL || `N/A (Alias)`,
+                Records: (ResourceRecords[*].Value) || join(`, `, AliasTarget.[DNSName, HostedZoneId])
+            }' --output table
+            
+            # List associated VPCs if it's a private zone
+            is_private=$(aws route53 get-hosted-zone --id $zone --query 'HostedZone.Config.PrivateZone' --output text)
+            if [ "$is_private" == "true" ]; then
+                echo "  Associated VPCs:"
+                aws route53 get-hosted-zone --id $zone --query 'VPCs[*].{VPC:VPCId, Region:VPCRegion}' --output table
+            fi
+            
+            echo ""  # Add a blank line for readability between zones
+        done
+    else
+        echo "No hosted zones found."
+    fi
+fi
+
+
+--
+# 15. VPC Endpoint Services (AWS PrivateLink)
+section_header "VPC Endpoint Services (AWS PrivateLink)"
+
+for region in "${regions[@]}"; do
+    echo -e "\nRegion: $region"
+
+    # List all VPC Endpoint Services
+    service_ids=$(aws ec2 describe-vpc-endpoint-service-configurations --region $region --query 'ServiceConfigurations[*].ServiceId' --output text)
+
+    if [ -n "$service_ids" ]; then
+        for service_id in $service_ids; do
+            # Get service details
+            aws ec2 describe-vpc-endpoint-service-configurations --service-ids $service_id --region $region --query 'ServiceConfigurations[0].{
+                Name: ServiceName,
+                Type: ServiceType,
+                State: ServiceState,
+                AvailabilityZones: AvailabilityZones[],
+                AcceptanceRequired: AcceptanceRequired,
+                AllowedPrincipals: join(`, `, AllowedPrincipals[] || [`Any Principal`]),
+                TargetServices: (ServiceProductName || `Self-Managed`) + ` (` + join(`, `, ServiceNames) + `)`
+            }' --output table
+
+            # Get service permissions
+            echo "  Service Permissions:"
+            aws ec2 describe-vpc-endpoint-service-permissions --service-id $service_id --region $region --query 'AllowedPrincipals[]' --output table
+
+            # List consumers (first 5)
+            echo "  Service Consumers (First 5):"
+            aws ec2 describe-vpc-endpoint-connections --filters Name=service-id,Values=$service_id --region $region --max-results 5 --query 'VpcEndpointConnections[*].{
+                EndpointID: VpcEndpointId,
+                OwnerID: VpcEndpointOwner,
+                State: State.Name
+            }' --output table
+
+            echo ""  # Add a blank line for readability between services
+        done
+    else
+        echo "No VPC Endpoint Services found."
+    fi
+done
+--
+
+
 # 9. Athena
 section_header "Athena Named Queries"
 named_query_ids=$(aws athena list-named-queries --region $region --query 'NamedQueryIds[]' --output text)
