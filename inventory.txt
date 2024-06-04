@@ -1,3 +1,7 @@
+aws kms list-keys --region $region --query 'Keys[*].[KeyId, KeyArn, AliasArn:DescribeKey[?TargetKeyId == KeyId].AliasName, Description, CreationDate]' --output table
+
+
+--
 section_header "Athena Query Executions (Last 5)"
 query_executions=$(aws athena list-query-executions --region $region --max-results 5 --query 'length(QueryExecutions)' --output text)
 
