@@ -1,4 +1,151 @@
+#!/bin/bash
 
+# Function to get count for a specific service in a region
+get_count() {
+  local region=$1
+  local service=$2
+  local query=$3
+  local count=$(aws $service $query --region $region --output text 2>/dev/null)
+  if [ $? -ne 0 ]; then count=0; fi
+  echo $count
+}
+
+# Specify the regions
+regions="eu-west-2 eu-west-1 us-east-1"
+
+# Start CSV data
+csv_data="Service,eu-west-2,eu-west-1,us-east-1\n"
+
+# EC2 Instances
+csv_data+="EC2 Instances"
+for region in $regions; do
+  count=$(get_count $region ec2 "describe-instances --query 'length(Reservations[].Instances[])'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# API Gateway
+csv_data+="API Gateway"
+for region in $regions; do
+  count=$(get_count $region apigateway "get-rest-apis --query 'length(items)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# EKS Clusters
+csv_data+="EKS Clusters"
+for region in $regions; do
+  count=$(get_count $region eks "list-clusters --query 'length(clusters)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# SQS Queues
+csv_data+="SQS Queues"
+for region in $regions; do
+  count=$(get_count $region sqs "list-queues --query 'length(QueueUrls)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# SNS Topics
+csv_data+="SNS Topics"
+for region in $regions; do
+  count=$(get_count $region sns "list-topics --query 'length(Topics)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# EBS Volumes
+csv_data+="EBS Volumes"
+for region in $regions; do
+  count=$(get_count $region ec2 "describe-volumes --query 'length(Volumes)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# EBS Snapshots
+csv_data+="EBS Snapshots"
+for region in $regions; do
+  count=$(get_count $region ec2 "describe-snapshots --owner-ids self --query 'length(Snapshots)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# Route53 Hosted Zones
+csv_data+="Route53 Hosted Zones"
+for region in $regions; do
+  if [ "$region" == "us-east-1" ]; then
+    count=$(get_count $region route53 "list-hosted-zones --query 'length(HostedZones)'")
+  else
+    count=0
+  fi
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# Athena Workgroups
+csv_data+="Athena Workgroups"
+for region in $regions; do
+  count=$(get_count $region athena "list-work-groups --query 'length(WorkGroups)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# Glue Jobs
+csv_data+="Glue Jobs"
+for region in $regions; do
+  count=$(get_count $region glue "get-jobs --query 'length(Jobs)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# Secrets Manager
+csv_data+="Secrets"
+for region in $regions; do
+  count=$(get_count $region secretsmanager "list-secrets --query 'length(SecretList)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# KMS Keys
+csv_data+="KMS Keys"
+for region in $regions; do
+  count=$(get_count $region kms "list-keys --query 'length(Keys)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# Load Balancers (ELB v2)
+csv_data+="Load Balancers"
+for region in $regions; do
+  count=$(get_count $region elbv2 "describe-load-balancers --query 'length(LoadBalancers)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# RDS Instances
+csv_data+="RDS Instances"
+for region in $regions; do
+  count=$(get_count $region rds "describe-db-instances --query 'length(DBInstances)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# VPC Endpoint Services
+csv_data+="VPC Endpoint Services"
+for region in $regions; do
+  count=$(get_count $region ec2 "describe-vpc-endpoint-services --query 'length(ServiceDetails)'")
+  csv_data+=",$count"
+done
+csv_data+="\n"
+
+# Write CSV data to a file
+echo -e $csv_data > aws_resources.csv
+echo "Data saved to aws_resources.csv"
+
+
+----
 aws kms list-keys --region $region --query '
   {
     "Keys": Keys[*].{
