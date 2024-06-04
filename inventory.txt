@@ -1,3 +1,6 @@
+aws kms list-keys --region $region --query 'Keys[*].[KeyId, KeyArn]' --output json | jq -r '.[] | "\(.[])"' | while read -r key_id key_arn; do alias=$(aws kms list-aliases --key-id $key_id --region $region --output json | jq -r '.Aliases[0].AliasName'); description=$(aws kms describe-key --key-id $key_id --region $region --query 'KeyMetadata.Description' --output text); creation_date=$(aws kms describe-key --key-id $key_id --region $region --query 'KeyMetadata.CreationDate' --output text); echo -e "$key_id\t$key_arn\t$alias\t$description\t$creation_date"; done | column -t -s $'\t'
+
+
 aws kms list-keys --region $region --query 'Keys[*].[KeyId, KeyArn]' --output table | while read -r key_id key_arn; do alias=$(aws kms list-aliases --key-id "$key_id" --region $region --query 'Aliases[0].AliasName' --output text); description=$(aws kms describe-key --key-id "$key_id" --region $region --query 'KeyMetadata.Description' --output text); creation_date=$(aws kms describe-key --key-id "$key_id" --region $region --query 'KeyMetadata.CreationDate' --output text); echo -e "$key_id\t$key_arn\t$alias\t$description\t$creation_date"; done | column -t -s $'\t' -N "KeyId,KeyArn,Alias,Description,CreationDate"
 
 
