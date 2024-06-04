@@ -4,6 +4,54 @@ section_header "SNS Topics"
 for region in "${regions[@]}"; do
     echo -e "\nRegion: $region"
 
+    # Create a JMESPath query to build our table
+    jq_query='
+    {
+      "TableData": Topics[].{
+        "TopicName": (TopicArn | split(":") | [5] | [0]),
+        "PrimaryRegion": (TopicArn | split(":") | [3] | [0]),
+        "TopicArn": TopicArn
+      }
+    }'
+
+    # List all SNS topics and transform the output
+    topics=$(aws sns list-topics --region $region --query "$jq_query" --output json)
+
+    if [ "$(echo $topics | jq '.TableData | length')" -gt 0 ]; then
+        # Initialize an empty array for rows
+        rows="[]"
+
+        # Iterate through each topic and add tags
+        while read -r topic; do
+            topic_arn=$(echo $topic | jq -r '.TopicArn')
+            tags=$(aws sns list-tags-for-resource --resource-arn "$topic_arn" --region $region --query 'Tags[*].{Key:Key,Value:Value}' --output json)
+            
+            # Format tags as "key1=value1, key2=value2" or "No Tags"
+            if [ "$tags" != "[]" ]; then
+                formatted_tags=$(echo $tags | jq -r 'map("\(.Key)=\(.Value)") | join(", ")')
+            else
+                formatted_tags="No Tags"
+            fi
+            
+            # Add formatted tags to the topic and append to rows
+            topic_with_tags=$(echo $topic | jq --argjson tags "\"$formatted_tags\"" '. + {Tags: $tags}')
+            rows=$(echo $rows $topic_with_tags | jq -s '.[0] + [.[1]]')
+        done < <(echo "$topics" | jq -c '.TableData[]')
+
+        # Output the final table
+        echo "$rows" | jq -r '["Topic Name","Primary Region","Tags"], ["---","---","---"], (.[] | [.TopicName, .PrimaryRegion, .Tags]) | @tsv' | column -t -s $'\t'
+    else
+        echo "No SNS topics found."
+    fi
+done
+
+---
+# 5. SNS Topics
+section_header "SNS Topics"
+
+for region in "${regions[@]}"; do
+    echo -e "\nRegion: $region"
+
     # List all SNS topics
     topic_arns=$(aws sns list-topics --region $region --query 'Topics[*].TopicArn' --output text)
 
