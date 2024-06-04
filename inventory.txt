@@ -1,3 +1,17 @@
+
+aws kms list-keys --region $region --query '
+  let aliases = list_aliases().Aliases;
+  Keys[*].{
+    "KeyId": KeyId,
+    "KeyArn": KeyArn,
+    "Alias": aliases[?TargetKeyId==KeyId]|[0].AliasName || `"-"`,
+    "Description": describe_key(KeyId).KeyMetadata.Description || `"-"`,
+    "CreationDate": describe_key(KeyId).KeyMetadata.CreationDate || `"-"`
+  }
+' --output table
+
+
+---
 aws kms list-keys --region $region --query '
   let keys = Keys[*].[KeyId, KeyArn];
   let aliases = from_entries(
