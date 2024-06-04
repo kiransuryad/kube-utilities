@@ -1,4 +1,42 @@
+# 5. SNS Topics
+section_header "SNS Topics"
 
+for region in "${regions[@]}"; do
+    echo -e "\nRegion: $region"
+
+    # List all SNS topics
+    topic_arns=$(aws sns list-topics --region $region --query 'Topics[*].TopicArn' --output text)
+
+    if [ -n "$topic_arns" ]; then
+        # Initialize an empty table
+        printf "%-36s %-30s %s\n" "Topic Name" "Primary Region" "Tags"
+        printf "%s %s %s\n" "$(printf '%0.s-' {1..36})" "$(printf '%0.s-' {1..30})" "$(printf '%0.s-' {1..50})"
+
+        for arn in $topic_arns; do
+            # Extract topic name and primary region from ARN
+            topic_name=$(echo $arn | awk -F: '{print $NF}')
+            primary_region=$(echo $arn | awk -F: '{print $4}')
+            
+            # Get tags for the topic
+            tags=$(aws sns list-tags-for-resource --resource-arn $arn --region $region --query 'Tags[*].{Key:Key,Value:Value}' --output json)
+            
+            # Format tags as "key1=value1, key2=value2"
+            if [ "$tags" != "[]" ]; then
+                formatted_tags=$(echo $tags | jq -r 'map("\(.Key)=\(.Value)") | join(", ")')
+            else
+                formatted_tags="No Tags"
+            fi
+            
+            # Print the table row
+            printf "%-36s %-30s %s\n" "$topic_name" "$primary_region" "$formatted_tags"
+        done
+    else
+        echo "No SNS topics found."
+    fi
+done
+
+
+---
 aws sns list-topics --output text | awk '{print $1}' | while read -r topicArn; do aws sns get-topic-attributes --topic-arn $topicArn | jq -r '.Attributes.TopicName,.Attributes.Tags'; done
 
 
