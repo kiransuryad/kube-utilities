@@ -1,3 +1,35 @@
+
+# 9. Athena
+section_header "Athena Named Queries"
+named_query_ids=$(aws athena list-named-queries --region $region --query 'NamedQueryIds[]' --output text)
+
+if [ -n "$named_query_ids" ]; then
+    echo "Named Queries:"
+    for query_id in $named_query_ids; do
+        aws athena get-named-query --named-query-id $query_id --region $region --query '{
+            Name: Name,
+            ID: NamedQueryId,
+            Database: Database,
+            Description: Description,
+            QueryString: substr(QueryString, 1, 50)
+        }' --output table
+    done
+else
+    echo "No named queries found."
+fi
+
+section_header "Athena Query Executions (Last 5)"
+aws athena list-query-executions --region $region --max-results 5 --query 'QueryExecutions[*].{
+    ID: QueryExecutionId,
+    Database: Database,
+    State: Status.State,
+    SubmittedAt: SubmissionDateTime,
+    QueryString: substr(Query, 1, 50)
+}' --output table
+
+
+
+---
 #!/bin/bash
 
 # List of regions
