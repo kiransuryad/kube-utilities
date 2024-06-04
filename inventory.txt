@@ -1,41 +1,49 @@
 
-aws kms list-keys --region $region --query '
-  let aliases = list_aliases().Aliases;
-  Keys[*].{
+aws kms list-aliases --region $region --query '
+  {
+    "Keys": Aliases[*].{
+      "KeyId": TargetKeyId,
+      "Alias": AliasName || `"-"`,
+      "Description": `"Fetching..."`,
+      "CreationDate": `"Fetching..."`
+    } | sort_by(@, &KeyId) | unique_by(@, &KeyId)
+  } | Keys[*].{
     "KeyId": KeyId,
-    "KeyArn": KeyArn,
-    "Alias": aliases[?TargetKeyId==KeyId]|[0].AliasName || `"-"`,
-    "Description": describe_key(KeyId).KeyMetadata.Description || `"-"`,
-    "CreationDate": describe_key(KeyId).KeyMetadata.CreationDate || `"-"`
+    "Alias": Alias,
+    "Description": `"Fetching..."`,
+    "CreationDate": `"Fetching..."`
   }
-' --output table
+' --output table | awk '
+  NR == 1 { header = $0; next }
+  {
+    key_id = substr($1, 2, length($1) - 2);
+    out = key_id "\t" $0;
+    if ($3 == "\"Fetching...\"") {
+      cmd = "aws kms describe-key --key-id " key_id " --region '$region' --query '\''KeyMetadata.[KeyArn, Description, CreationDate]'\'' --output text";
+      if ((cmd | getline result) > 0) {
+        split(result, parts, "\t");
+        gsub(/"/, "", $3); gsub(/"/, "", $4);
+        out = key_id "\t" substr($1, 1, 2) parts[1] substr($1, length($1) - 1) "\t" $2 "\t\"" (parts[2] ? parts[2] : "-") "\"\t\"" parts[3] "\"";
+      }
+      close(cmd);
+    }
+    print out;
+  }
+  END {
+    print header;
+  }' | sort | tail -n +2 | column -t -s $'\t'
+
 
 
 ---
-aws kms list-keys --region $region --query '
-  let keys = Keys[*].[KeyId, KeyArn];
-  let aliases = from_entries(
-    [].create_set(
-      list_aliases(Keys[].KeyId)[*].Aliases[*].[AliasName, TargetKeyId]
-    )[*].[1,0]
-  );
-  let descriptions = from_entries(
-    [].create_set(
-      describe_key(Keys[].KeyId)[*].[KeyMetadata.KeyId, KeyMetadata.Description]
-    )
-  );
-  let creation_dates = from_entries(
-    [].create_set(
-      describe_key(Keys[].KeyId)[*].[KeyMetadata.KeyId, to_string(KeyMetadata.CreationDate)]
-    )
-  );
-  keys[*].{
-    "KeyId": [0],
-    "KeyArn": [1],
-    "Alias": [0] | map(@) | map(aliases[*] | [?@] | [0][0] || `"-"`)[0],
-    "Description": [0] | map(@) | map(descriptions[*] | [?@] | [0][0] || `"-"`)[0],
-    "CreationDate": [0] | map(@) | map(creation_dates[*] | [?@] | [0][0] || `"-"`)[0]
-  }' --output table
+aws kms list-keys --region $region --output json | jq -r '
+  .Keys[] | 
+  .KeyId as $id | 
+  $id + "\t" + 
+  (.KeyArn // "-") + "\t" + 
+  (("[.AliasName] | select(.!=null) | .[0]" | gsub("[\\[\\]\"]";"")) as $q | $q | input_filename | $q | @sh | `aws kms list-aliases --key-id "$id" --region '"$region"' --query '"$q"' --output text` // "-") + "\t" + 
+  ([.Description, .CreationDate] | @sh | `aws kms describe-key --key-id "$id" --region '"$region"' --query '"@"' --output text` // "-\t-")
+' | column -t -s $'\t' -N "KeyId,KeyArn,Alias,Description,CreationDate"
 
 
 
