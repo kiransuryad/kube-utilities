@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# List of regions
+regions=("eu-west-2" "eu-west-1" "us-east-1")
+
+# Function to display section header
+section_header() {
+    echo -e "\n====== $1 ======"
+}
+
+# Loop through each region
+for region in "${regions[@]}"; do
+    echo -e "\n\n=========== Region: $region ===========\n"
+
+    # 1. EC2 Instances
+    section_header "EC2 Instances"
+    aws ec2 describe-instances --region $region --query 'Reservations[*].Instances[*].[InstanceId, State.Name, InstanceType, Tags[?Key==`Name`].Value | [0]]' --output table
+
+    # 2. API Gateway
+    section_header "API Gateways"
+    aws apigateway get-rest-apis --region $region
+
+    # 3. EKS Clusters
+    section_header "EKS Clusters"
+    aws eks list-clusters --region $region
+
+    # 4. SQS Queues
+    section_header "SQS Queues"
+    aws sqs list-queues --region $region
+
+    # 5. SNS Topics
+    section_header "SNS Topics"
+    aws sns list-topics --region $region
+
+    # 6. EBS Volumes
+    section_header "EBS Volumes"
+    aws ec2 describe-volumes --region $region --query 'Volumes[*].[VolumeId, Size, State, VolumeType]' --output table
+
+    # 7. EBS Snapshots
+    section_header "EBS Snapshots"
+    aws ec2 describe-snapshots --owner-ids self --region $region --query 'Snapshots[*].[SnapshotId, VolumeSize, State, StartTime]' --output table
+
+    # 8. Route 53 Hosted Zones (Note: Route 53 is a global service, not region-specific)
+    if [ "$region" == "us-east-1" ]; then
+        section_header "Route 53 Hosted Zones (Global)"
+        aws route53 list-hosted-zones --query 'HostedZones[*].[Name, Id, Config.PrivateZone]' --output table
+    fi
+
+    # 9. Athena Queries
+    section_header "Athena Queries"
+    aws athena list-queries --region $region --query 'QueryExecutions[*].[QueryExecutionId, QueryString, State.State]' --output table
+
+    # 10. Glue Jobs
+    section_header "Glue Jobs"
+    aws glue get-jobs --region $region --query 'Jobs[*].[Name, Command.Name, State]' --output table
+
+    # 11. Secrets
+    section_header "Secrets"
+    aws secretsmanager list-secrets --region $region --query 'SecretList[*].[Name, ARN]' --output table
+
+    # 12. KMS Keys
+    section_header "KMS Keys"
+    aws kms list-keys --region $region --query 'Keys[*].[KeyId, KeyArn]' --output table
+
+    # 13. Load Balancers
+    section_header "Load Balancers"
+    aws elbv2 describe-load-balancers --region $region --query 'LoadBalancers[*].[LoadBalancerName, Type, Scheme, State.Code]' --output table
+
+    # 14. RDS Instances
+    section_header "RDS Instances"
+    aws rds describe-db-instances --region $region --query 'DBInstances[*].[DBInstanceIdentifier, Engine, InstanceClass, DBInstanceStatus]' --output table
+done
