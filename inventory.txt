@@ -1,4 +1,8 @@
 
+aws sns list-topics --output text | awk '{print $1}' | while read -r topicArn; do aws sns get-topic-attributes --topic-arn $topicArn | jq -r '.Attributes.TopicName,.Attributes.Tags'; done
+
+
+---
 # 8. Route 53 Hosted Zones (Global Service)
 if [ "$region" == "us-east-1" ]; then
     section_header "Route 53 Hosted Zones (Global)"
