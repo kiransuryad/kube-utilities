@@ -1,3 +1,28 @@
+# 6. EBS Volumes
+section_header "EBS Volumes"
+
+aws ec2 describe-volumes --region $region --query '
+  Volumes[*].{
+    "VolumeId": VolumeId,
+    "Size (GiB)": Size,
+    "Type": VolumeType,
+    "State": State,
+    "Encrypted": Encrypted,
+    "IOPS": Iops,
+    "Throughput (MiB/s)": Throughput,
+    "Created": to_string(CreateTime)[0:10],
+    "AZ": AvailabilityZone,
+    "Instance": Attachments[0].{
+      "InstanceId": InstanceId,
+      "Device": Device,
+      "State": State
+    } || `Not Attached`,
+    "Name Tag": Tags[?Key==`Name`] | [0].Value || `No Name Tag`,
+    "Snapshot": SnapshotId || `None`
+  }
+' --output table
+
+---
 # 5. SNS Topics
 section_header "SNS Topics"
 
