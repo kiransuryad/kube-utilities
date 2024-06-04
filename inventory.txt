@@ -1,3 +1,13 @@
+section_header "Athena Query Executions (Last 5)"
+query_executions=$(aws athena list-query-executions --region $region --max-results 5 --query 'length(QueryExecutions)' --output text)
+
+if [ "$query_executions" -gt 0 ]; then
+  aws athena list-query-executions --region $region --max-results 5 --query 'QueryExecutions[*].{ ID: QueryExecutionId, Database: Database, State: Status.State, SubmittedAt: SubmissionDateTime, QueryString: substr(Query, 1, 50) }' --output table
+else
+  echo "No query executions found."
+fi
+
+---
 # 6. EBS Volumes
 section_header "EBS Volumes"
 
