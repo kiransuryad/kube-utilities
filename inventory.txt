@@ -1,3 +1,31 @@
+aws kms list-keys --region $region --query '
+  let keys = Keys[*].[KeyId, KeyArn];
+  let aliases = from_entries(
+    [].create_set(
+      list_aliases(Keys[].KeyId)[*].Aliases[*].[AliasName, TargetKeyId]
+    )[*].[1,0]
+  );
+  let descriptions = from_entries(
+    [].create_set(
+      describe_key(Keys[].KeyId)[*].[KeyMetadata.KeyId, KeyMetadata.Description]
+    )
+  );
+  let creation_dates = from_entries(
+    [].create_set(
+      describe_key(Keys[].KeyId)[*].[KeyMetadata.KeyId, to_string(KeyMetadata.CreationDate)]
+    )
+  );
+  keys[*].{
+    "KeyId": [0],
+    "KeyArn": [1],
+    "Alias": [0] | map(@) | map(aliases[*] | [?@] | [0][0] || `"-"`)[0],
+    "Description": [0] | map(@) | map(descriptions[*] | [?@] | [0][0] || `"-"`)[0],
+    "CreationDate": [0] | map(@) | map(creation_dates[*] | [?@] | [0][0] || `"-"`)[0]
+  }' --output table
+
+
+
+---
 aws kms list-keys --region $region --query 'Keys[*].[KeyId, KeyArn]' --output json | jq -r '.[] | "\(.[])"' | while read -r key_id key_arn; do alias=$(aws kms list-aliases --key-id $key_id --region $region --output json | jq -r '.Aliases[0].AliasName'); description=$(aws kms describe-key --key-id $key_id --region $region --query 'KeyMetadata.Description' --output text); creation_date=$(aws kms describe-key --key-id $key_id --region $region --query 'KeyMetadata.CreationDate' --output text); echo -e "$key_id\t$key_arn\t$alias\t$description\t$creation_date"; done | column -t -s $'\t'
 
 
