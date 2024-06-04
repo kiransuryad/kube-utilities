@@ -1,4 +1,43 @@
 
+aws kms list-keys --region $region --query '
+  {
+    "Keys": Keys[*].{
+      "KeyId": KeyId,
+      "KeyArn": KeyArn,
+      "Alias": `"Fetching..."`,
+      "Description": `"Fetching..."`,
+      "CreationDate": `"Fetching..."`
+    }
+  }
+' --output table | awk '
+  NR == 1 { header = $0; next }
+  {
+    key_id = substr($1, 2, length($1) - 2);
+    key_arn = substr($2, 2, length($2) - 2);
+    out = key_id "\t" $0;
+    if ($3 == "\"Fetching...\"") {
+      cmd1 = "aws kms list-aliases --key-id " key_id " --region '$region' --query '\''Aliases[0].AliasName'\'' --output text";
+      cmd2 = "aws kms describe-key --key-id " key_id " --region '$region' --query '\''KeyMetadata.[Description, CreationDate]'\'' --output text";
+      alias = (cmd1 | getline result) > 0 ? result : "-";
+      close(cmd1);
+      if ((cmd2 | getline result) > 0) {
+        split(result, parts, "\t");
+        desc = parts[1] ? parts[1] : "-";
+        date = parts[2] ? parts[2] : "-";
+      } else {
+        desc = "-"; date = "-";
+      }
+      close(cmd2);
+      gsub(/"/, "", $3); gsub(/"/, "", $4); gsub(/"/, "", $5);
+      out = key_id "\t\"" key_arn "\"\t\"" alias "\"\t\"" desc "\"\t\"" date "\"";
+    }
+    print out;
+  }
+  END {
+    print header;
+  }' | sort -k1,1 | column -t -s $'\t'
+
+--
 aws kms list-aliases --region $region --query '
   {
     "Keys": Aliases[*].{
