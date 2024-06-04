@@ -1,4 +1,8 @@
 
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId, InstanceType, State.Name, Tags[?Key==`Name`].Value | [0], BlockDeviceMappings[*].{DeviceName:DeviceName, VolumeId:Ebs.VolumeId}]' --output table
+
+
+---
 aws ec2 describe-instances --query "Reservations[*].Instances[*].[InstanceId, Tags, InstanceType, State.Name, PublicIpAddress]"
 
 aws eks list-clusters
