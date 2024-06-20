@@ -1,3 +1,20 @@
+# Download Terraform 1.0.10 binary
+curl -LO https://releases.hashicorp.com/terraform/1.0.10/terraform_1.0.10_darwin_amd64.zip
+
+# Unzip the downloaded file
+unzip terraform_1.0.10_darwin_amd64.zip
+
+# Move the Terraform binary to a directory in your PATH
+sudo mv terraform /usr/local/bin/
+
+# Verify the installation
+terraform version
+
+
+brew install warrensbox/tap/tfswitch
+
+
+-------------
 Summary of Tools and Steps
 Install Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 Install Make: brew install make
