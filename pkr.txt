@@ -1,0 +1,74 @@
+Summary of Tools and Steps
+Install Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+Install Make: brew install make
+Install Packer: brew tap hashicorp/tap && brew install hashicorp/tap/packer
+Install Ansible: brew install ansible
+Install Terraform: brew tap hashicorp/tap && brew install hashicorp/tap/terraform
+Install AWS CLI: brew install awscli
+Install jq: brew install jq
+Configure AWS CLI: aws configure
+Create and Configure the Script: Create run_packer.sh with the necessary environment variables and commands.
+Make the Script Executable: chmod +x run_packer.sh
+Run the Script: ./run_packer.sh
+
+
+
+script
+-----
+------
+
+
+#!/bin/bash
+
+# Assume the role and get temporary credentials
+ROLE_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::123456789012:role/YourRoleName --role-session-name YourSessionName)
+
+# Export the credentials as environment variables
+export AWS_ACCESS_KEY_ID=$(echo $ROLE_CREDENTIALS | jq -r '.Credentials.AccessKeyId')
+export AWS_SECRET_ACCESS_KEY=$(echo $ROLE_CREDENTIALS | jq -r '.Credentials.SecretAccessKey')
+export AWS_SESSION_TOKEN=$(echo $ROLE_CREDENTIALS | jq -r '.Credentials.SessionToken')
+
+# Verify the assumed role
+aws sts get-caller-identity
+
+# Set additional environment variables
+export ENVFILE="eda-mgmt-prod-276359202028.pkfvars.hcl"
+export PACKFILE="eks_worker.pkr.hcl"
+export ANSIBLE_REQS="ansible_requirements.yml"
+export RUNTYPE="Build"
+export AWS_ACCOUNT="your-aws-account-number"
+export AWS_REGION="your-aws-region"
+export EKS_VERSIONS="1.17 1.18"
+export AMI_USERS="user1 user2"
+export IAM_INSTANCE_PROFILE="your-instance-profile"
+export INSTANCE_TYPE="t2.micro"
+export CIDR_SIZE="24"
+export VPC_NAME="your-vpc-name"
+export SUBNET_NAME="your-subnet-name"
+export IS_PACKER_BUILD="true"
+
+# Navigate to the packer directory and run the Makefile targets
+cd packer
+
+# Run the Makefile targets
+make prep
+make format-check
+make validate
+make plan
+make build
+
+
+------
+
+
+Step 5: Make the Script Executable
+Make your script executable:
+
+
+chmod +x run_packer.sh
+Step 6: Run the Script
+
+
+Execute your script:
+./run_packer.sh
+
