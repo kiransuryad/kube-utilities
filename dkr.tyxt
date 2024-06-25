@@ -1,0 +1,40 @@
+# Use Red Hat Universal Base Image 9 Minimal as the base image
+FROM registry.access.redhat.com/ubi9/ubi-minimal
+
+# Set up the working directory
+WORKDIR /app
+
+# Install necessary packages using microdnf
+RUN microdnf update -y && \
+    microdnf install -y git bash curl openssl zip groff less python3 python3-pip tar gzip && \
+    microdnf clean all
+
+# Install aws-cli
+RUN pip3 install awscli
+
+# Install tfenv and a specific Terraform version
+RUN git clone https://github.com/tfutils/tfenv.git ~/.tfenv && \
+    ln -s ~/.tfenv/bin/* /usr/local/bin && \
+    tfenv install 0.11.13 && \
+    tfenv use 0.11.13
+
+# Install kubectl
+RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/v1.13.10/bin/linux/amd64/kubectl" && \
+    mv kubectl /usr/local/bin/kubectl && \
+    chmod +x /usr/local/bin/kubectl
+
+# Install helm
+RUN curl -LO "https://get.helm.sh/helm-v2.16.3-linux-amd64.tar.gz" && \
+    tar -xzvf helm-v2.16.3-linux-amd64.tar.gz && \
+    mv linux-amd64/helm /usr/local/bin/helm && \
+    chmod +x /usr/local/bin/helm && \
+    rm -rf linux-amd64 helm-v2.16.3-linux-amd64.tar.gz
+
+# Set the container image to use a generic non-root user for security reasons
+RUN mkdir /config && \
+    chown 10001:10001 /config && \
+    chown 10001:10001 /app
+USER 10001
+
+# Expose any ports needed (adjust this if you know ports you'll need)
+# EXPOSE 8080 443
