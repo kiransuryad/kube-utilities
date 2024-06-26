@@ -1,4 +1,30 @@
-whoami:
+#!/bin/bash
+
+# List of IP addresses
+IPS=("192.168.1.1" "192.168.1.2" "192.168.1.3") # Modify with your target IPs
+
+# Timeout for each Telnet attempt (in seconds)
+TIMEOUT=5
+
+# Loop through each IP and attempt a Telnet connection
+for IP in "${IPS[@]}"
+do
+    echo "Connecting to $IP..."
+    # Try to open a telnet connection with a timeout
+    telnet $IP $TIMEOUT
+    # Check the exit status
+    if [ $? -eq 0 ]; then
+        echo "Connection to $IP initiated."
+    else
+        echo "Failed to connect to $IP."
+    fi
+done | tee telnet_results.txt  # Log the output to a file
+
+
+
+
+---
+-whoami:
     @echo "Current user: `whoami`"
     @echo "User ID: `id -u`"
     @echo "Group ID: `id -g`"
