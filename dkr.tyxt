@@ -1,6 +1,30 @@
 # Use Red Hat Universal Base Image 9 Minimal as the base image
 FROM registry.access.redhat.com/ubi9/ubi-minimal
 
+# Install necessary packages using microdnf
+RUN microdnf update -y && \
+    microdnf install -y git bash curl openssl zip less python3 python3-pip tar gzip findutils wget && \
+    microdnf clean all
+
+# Create necessary directories and assign permissions
+RUN mkdir -p /.terraform.d/plugins/linux_amd64 && \
+    chown -R 1001:1001 /.terraform.d
+
+# Set user to non-root
+USER 1001
+
+# Set up the working directory (assuming /app is your working directory)
+WORKDIR /app
+
+# Further installation steps...
+
+
+
+
+---
+# Use Red Hat Universal Base Image 9 Minimal as the base image
+FROM registry.access.redhat.com/ubi9/ubi-minimal
+
 # Set up the working directory
 WORKDIR /app
 
