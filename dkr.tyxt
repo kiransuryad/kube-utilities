@@ -1,3 +1,32 @@
+whoami:
+    @echo "Current user: `whoami`"
+    @echo "User ID: `id -u`"
+    @echo "Group ID: `id -g`"
+
+
+check-tfenv-permissions:
+    @echo "Checking permissions for tfenv directories..."
+    @echo "Permissions for ~/.tfenv:"
+    @ls -ld ~/.tfenv || echo "Directory ~/.tfenv does not exist."
+    @echo "Permissions for tfenv binary:"
+    @ls -l ~/.tfenv/bin/tfenv || echo "tfenv binary does not exist."
+    @echo "Current user and permissions:"
+    @whoami
+    @id
+
+
+
+fix-tfenv-permissions:
+    @echo "Fixing permissions for the tfenv directory..."
+    @sudo chown -R `whoami` ~/.tfenv
+    @sudo chmod -R u+rwx ~/.tfenv
+    @echo "Permissions after modification:"
+    @ls -ld ~/.tfenv
+    @ls -l ~/.tfenv/bin/tfenv
+
+
+
+-----
 # Use Red Hat Universal Base Image 9 Minimal as the base image
 FROM registry.access.redhat.com/ubi9/ubi-minimal
 
