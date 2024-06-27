@@ -1,4 +1,20 @@
+import boto3
+from botocore.config import Config
 
+config = Config(
+    region_name='us-east-1',
+    connect_timeout=30,
+    retries={'max_attempts': 10},
+    signature_version='v4',
+    s3={'addressing_style': 'path'},
+    verify='/actual/path/to/cacert.pem'
+)
+
+# Use the configuration when creating your client
+ec2 = boto3.client('ec2', config=config)
+
+
+----
 import boto3
 
 def launch_instance(region, ami_id, instance_type, key_name, subnet_id):
