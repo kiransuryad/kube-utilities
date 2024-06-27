@@ -1,4 +1,30 @@
+#!/bin/bash
 
+# Variables
+REGION="us-east-1"
+AMI_ID="ami-0123456789abcdef0"  # Replace with your newly created AMI ID
+INSTANCE_TYPE="t3.micro"
+KEY_NAME="your-key-pair"  # Ensure you have this key pair created in your AWS account
+SUBNET_ID="subnet-12345678"  # Replace with your subnet ID
+KMS_KEY_ID="alias/aws/ebs"  # The KMS key ID used for encryption
+
+# Launch EC2 instance with specific EBS volume type gp3
+INSTANCE_ID=$(aws ec2 run-instances \
+  --image-id $AMI_ID \
+  --count 1 \
+  --instance-type $INSTANCE_TYPE \
+  --key-name $KEY_NAME \
+  --subnet-id $SUBNET_ID \
+  --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeType=gp3,VolumeSize=20,Encrypted=True,KmsKeyId=$KMS_KEY_ID,DeleteOnTermination=true}" \
+  --query 'Instances[0].InstanceId' \
+  --output text \
+  --region $REGION)
+
+echo "Launched EC2 instance with ID: $INSTANCE_ID"
+
+
+
+----
 #!/bin/bash
 
 # Variables
