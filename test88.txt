@@ -1,0 +1,30 @@
+
+#!/bin/bash
+
+# Variables
+REGION="us-east-1"
+AMI_ID="ami-0123456789abcdef0"  # Replace with your new AMI ID
+INSTANCE_TYPE="t3.micro"
+KEY_NAME="your-key-pair"  # Ensure you have this key pair created in your AWS account
+SUBNET_ID="subnet-12345678"  # Replace with your subnet ID
+
+# Launch EC2 instance
+INSTANCE_ID=$(aws ec2 run-instances --image-id $AMI_ID --count 1 --instance-type $INSTANCE_TYPE --key-name $KEY_NAME --subnet-id $SUBNET_ID --block-device-mappings DeviceName=/dev/sda1,Ebs={VolumeType=gp3,Encrypted=True} --query 'Instances[0].InstanceId' --output text --region $REGION)
+
+echo "Launched EC2 instance with ID: $INSTANCE_ID"
+
+
+
+----
+#!/bin/bash
+
+# Variables
+REGION="us-east-1"
+SOURCE_AMI_ID="ami-0abcdef1234567890"  # Replace with your source AMI ID
+KMS_KEY_ID="alias/aws/ebs"  # Your KMS key for encryption
+NEW_AMI_NAME="Encrypted-gp3-ami"
+
+# Copy AMI with encryption
+NEW_AMI_ID=$(aws ec2 copy-image --region $REGION --source-region $REGION --source-image-id $SOURCE_AMI_ID --name $NEW_AMI_NAME --encrypted --kms-key-id $KMS_KEY_ID --query 'ImageId' --output text)
+
+echo "New AMI ID: $NEW_AMI_ID"
