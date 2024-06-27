@@ -1,0 +1,70 @@
+
+import boto3
+
+def launch_instance(region, ami_id, instance_type, key_name, subnet_id):
+    ec2 = boto3.resource('ec2', region_name=region)
+    instance = ec2.create_instances(
+        ImageId=ami_id,
+        MinCount=1,
+        MaxCount=1,
+        InstanceType=instance_type,
+        KeyName=key_name,
+        SubnetId=subnet_id,
+        BlockDeviceMappings=[
+            {
+                'DeviceName': '/dev/sda1',
+                'Ebs': {
+                    'VolumeType': 'gp3',
+                    'Encrypted': True
+                },
+            },
+        ]
+    )
+    return instance[0].id
+
+def main():
+    region = 'us-east-1'
+    ami_id = 'ami-0123456789abcdef0'  # Replace with your new AMI ID
+    instance_type = 't3.micro'
+    key_name = 'your-key-pair'  # Ensure you have this key pair created in your AWS account
+    subnet_id = 'subnet-12345678'  # Replace with your subnet ID
+
+    instance_id = launch_instance(region, ami_id, instance_type, key_name, subnet_id)
+    print(f'Launched EC2 instance with ID: {instance_id}')
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+-----
+import boto3
+
+def copy_ami(region, source_ami_id, kms_key_id, name):
+    ec2 = boto3.client('ec2', region_name=region)
+    response = ec2.copy_image(
+        Name=name,
+        SourceImageId=source_ami_id,
+        SourceRegion=region,
+        Encrypted=True,
+        KmsKeyId=kms_key_id
+    )
+    return response['ImageId']
+
+def main():
+    region = 'us-east-1'
+    source_ami_id = 'ami-0abcdef1234567890'  # Replace with your source AMI ID
+    kms_key_id = 'alias/aws/ebs'  # Your KMS key for encryption
+    new_ami_name = 'Encrypted-gp3-ami'
+
+    new_ami_id = copy_ami(region, source_ami_id, kms_key_id, new_ami_name)
+    print(f'New AMI ID: {new_ami_id}')
+
+if __name__ == "__main__":
+    main()
+
+
+-----
+
+
