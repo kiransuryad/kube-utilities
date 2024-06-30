@@ -1,3 +1,134 @@
+Certainly! I'll provide you with the complete setup in sequential order.
+
+1. Makefile:
+
+```makefile
+AMI_SCRIPT := ./create_ami.sh
+AMI_LOG := ami_creation.log
+
+# Default values
+REGION ?= us-east-1
+KMS_KEY_ID ?= your-default-kms-key-id
+OWNER1 ?= amazon
+AMI_PATTERN1 ?= amzn2-ami-hvm-2.0.*-x86_64-gp2
+OWNER2 ?= 099720109477
+AMI_PATTERN2 ?= ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*
+
+.PHONY: get-ami
+
+get-ami:
+	@echo "Fetching and encrypting latest AMIs..."
+	@$(AMI_SCRIPT) \
+		"$(REGION)" \
+		"$(KMS_KEY_ID)" \
+		"$(OWNER1)" \
+		"$(AMI_PATTERN1)" \
+		"$(OWNER2)" \
+		"$(AMI_PATTERN2)" \
+		> $(AMI_LOG) 2>&1 || (cat $(AMI_LOG) && exit 1)
+	@echo "AMI creation completed. Results:"
+	@grep "New AMI ID:" $(AMI_LOG) | sed 's/^/  /'
+	@echo "Full log available in $(AMI_LOG)"
+	@echo "Latest Encrypted AMI ID: $$(tail -n1 $(AMI_LOG) | awk '{print $$NF}')"
+```
+
+2. Command to run the Makefile (with optional arguments):
+
+```bash
+make get-ami REGION=us-west-2 KMS_KEY_ID=your-custom-key OWNER1=self AMI_PATTERN1=your-custom-ami-*
+```
+
+3. create_ami.sh:
+
+```bash
+#!/bin/bash
+
+# Accept arguments
+REGION="$1"
+KMS_KEY_ID="$2"
+OWNER1="$3"
+AMI_PATTERN1="$4"
+OWNER2="$5"
+AMI_PATTERN2="$6"
+
+# Function to get the latest AMI ID based on filters
+get_latest_ami() {
+    local owner="$1"
+    local name_pattern="$2"
+
+    aws ec2 describe-images \
+        --owners "$owner" \
+        --filters "Name=name,Values=$name_pattern" \
+        --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+        --output text \
+        --region "$REGION"
+}
+
+# Function to copy and encrypt AMI
+copy_and_encrypt_ami() {
+    local name_pattern="$1"
+    local owner="$2"
+    local ami_name_pattern="$3"
+
+    # Get the source AMI
+    local source_ami=$(get_latest_ami "$owner" "$ami_name_pattern")
+    
+    if [ -z "$source_ami" ]; then
+        echo "No AMI found matching the specified criteria."
+        return 1
+    fi
+
+    local new_ami_name="${name_pattern}-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 4)"
+    
+    local new_ami_id=$(aws ec2 copy-image \
+        --region "$REGION" \
+        --source-region "$REGION" \
+        --source-image-id "$source_ami" \
+        --name "$new_ami_name" \
+        --encrypted \
+        --kms-key-id "$KMS_KEY_ID" \
+        --query 'ImageId' \
+        --output text)
+    
+    echo "Source AMI: $source_ami"
+    echo "New AMI Name: $new_ami_name"
+    echo "New AMI ID: $new_ami_id"
+    echo "-----------------------------"
+}
+
+# Call the function twice with different parameters
+copy_and_encrypt_ami "Encrypted" "$OWNER1" "$AMI_PATTERN1"
+copy_and_encrypt_ami "SecureAMI" "$OWNER2" "$AMI_PATTERN2"
+```
+
+To use this setup:
+
+1. Save the Makefile in your project directory.
+2. Save the `create_ami.sh` script in the same directory (or update the `AMI_SCRIPT` path in the Makefile if it's located elsewhere).
+3. Make sure `create_ami.sh` is executable: `chmod +x create_ami.sh`
+4. Run the make command, optionally specifying any variables you want to override:
+
+```bash
+make get-ami
+```
+
+or
+
+```bash
+make get-ami REGION=us-west-2 KMS_KEY_ID=your-custom-key OWNER1=self AMI_PATTERN1=your-custom-ami-*
+```
+
+This setup allows you to:
+- Easily run the AMI creation process with a single make command.
+- Override any of the default values directly from the command line.
+- Keep a log of the process and display relevant information.
+- Use the script to create encrypted copies of two different AMIs in one run.
+
+The script will output the results to the console and to the `ami_creation.log` file. If any errors occur during the process, the log will be displayed and the make command will exit with an error status.
+
+Would you like me to explain any part of this setup in more detail?
+
+----
 .PHONY: all get-ami packer-build
 
 OWNER="602401143452"
