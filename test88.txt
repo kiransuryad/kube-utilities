@@ -1,5 +1,25 @@
+.PHONY: all get-ami packer-build
+
+OWNER="602401143452"
+NAME_PATTERN="amazon-eks-node-1.27-*"
+ROOT_DEVICE_TYPE="ebs"
+VIRTUALIZATION_TYPE="hvm"
+
+all: get-ami packer-build
+
+get-ami:
+    @echo "Fetching latest AMI ID..."
+    $(eval EXPORTED_AMI_ID := $(shell ./fetch_ami.sh $(OWNER) $(NAME_PATTERN) $(ROOT_DEVICE_TYPE) $(VIRTUALIZATION_TYPE)))
+
+packer-build:
+    @echo "Running Packer with AMI ID $(EXPORTED_AMI_ID)"
+    packer build -var 'ami_id=$(EXPORTED_AMI_ID)' packer_template.json
 
 
+
+
+
+----
 #!/bin/bash
 
 # Variables
