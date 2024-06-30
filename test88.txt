@@ -4,6 +4,7 @@ OWNER="602401143452"
 NAME_PATTERN="amazon-eks-node-1.27-*"
 ROOT_DEVICE_TYPE="ebs"
 VIRTUALIZATION_TYPE="hvm"
+$(date +%Y%m%d-%H%M%S)
 
 all: get-ami packer-build
 
