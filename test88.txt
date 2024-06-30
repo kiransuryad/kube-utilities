@@ -1,3 +1,38 @@
+
+
+#!/bin/bash
+
+# Variables
+OWNER="602401143452"  # AWS account ID that owns the AMI
+NAME_PATTERN="amazon-eks-node-1.27-*"
+ROOT_DEVICE_TYPE="ebs"
+VIRTUALIZATION_TYPE="hvm"
+
+# Fetch the most recent AMI ID based on the filters
+AMI_ID=$(aws ec2 describe-images --owners $OWNER \
+         --filters "Name=name,Values=$NAME_PATTERN" \
+                   "Name=root-device-type,Values=$ROOT_DEVICE_TYPE" \
+                   "Name=virtualization-type,Values=$VIRTUALIZATION_TYPE" \
+         --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
+         --output text)
+
+echo "Most recent AMI ID: $AMI_ID"
+
+
+---
+.PHONY: all get-ami packer-build
+
+all: get-ami packer-build
+
+get-ami:
+    @echo "Fetching latest AMI ID..."
+    $(eval EXPORTED_AMI_ID := $(shell bash fetch_ami.sh))
+
+packer-build: 
+    @echo "Running Packer with AMI ID $(EXPORTED_AMI_ID)"
+    packer build -var 'ami_id=$(EXPORTED_AMI_ID)' packer_template.json
+
+---
 #!/bin/bash
 
 # Variables
