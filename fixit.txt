@@ -1,0 +1,14 @@
+.PHONY: test-kms-access
+test-kms-access:
+    @aws kms describe-key --key-id "alias/YourKeyAlias" || echo "Failed to access KMS key"
+
+
+.PHONY: check-aws-identity
+check-aws-identity:
+	@echo "Checking AWS Identity..."
+	@aws sts get-caller-identity
+	@echo "Checking environment variables..."
+	@echo "AWS_ACCESS_KEY_ID: $${AWS_ACCESS_KEY_ID}"
+	@echo "AWS_SECRET_ACCESS_KEY: [PROTECTED]"
+	@echo "AWS_SESSION_TOKEN: [PROTECTED]"
+	@echo "AWS_REGION: $${AWS_REGION}"
