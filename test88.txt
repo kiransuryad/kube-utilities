@@ -1,3 +1,10 @@
+# Adding tags to the new AMI
+    aws ec2 create-tags --resources "$new_ami_id" --tags Key=Project,Value="YourProject" Key=Application,Value="YourApplication" Key=Name,Value="$new_ami_name"
+
+    echo "Tags added to AMI ID: $new_ami_id"
+
+
+----
 #!/bin/sh
 
 # Validate inputs
