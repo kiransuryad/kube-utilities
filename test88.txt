@@ -1,3 +1,98 @@
+#!/bin/sh
+
+# Validate inputs
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ] || [ -z "$5" ] || [ -z "$6" ] || [ -z "$7" ] || [ -z "$8" ] || [ -z "$9" ]; then
+    echo "Error: All parameters (REGION, KMS_KEY_ID, OWNER1, AMI_PATTERN1, OWNER2, AMI_PATTERN2, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, ROLE_ARN) must be provided." >&2
+    exit 1
+fi
+
+REGION=$1
+KMS_KEY_ID=$2
+OWNER1=$3
+AMI_PATTERN1=$4
+OWNER2=$5
+AMI_PATTERN2=$6
+AWS_ACCESS_KEY_ID=$7
+AWS_SECRET_ACCESS_KEY=$8
+ROLE_ARN=$9
+
+# Export AWS credentials
+export AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY
+
+# Display current IAM role
+echo "Current IAM role:"
+aws sts get-caller-identity
+
+# Assume new role
+echo "Assuming role: $ROLE_ARN"
+ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ROLE_ARN" --role-session-name "AssumeRoleSession")
+export AWS_ACCESS_KEY_ID=$(echo $ASSUME_ROLE_OUTPUT | jq -r '.Credentials.AccessKeyId')
+export AWS_SECRET_ACCESS_KEY=$(echo $ASSUME_ROLE_OUTPUT | jq -r '.Credentials.SecretAccessKey')
+export AWS_SESSION_TOKEN=$(echo $ASSUME_ROLE_OUTPUT | jq -r '.Credentials.SessionToken')
+
+# Verify assumed role
+echo "Assumed IAM role:"
+aws sts get-caller-identity
+
+# Function to get the latest AMI ID based on filters
+get_latest_ami() {
+    owner="$1"
+    name_pattern="$2"
+    region="$3"
+    echo "Fetching latest AMI for owner: ${owner}, pattern: ${name_pattern}, in region: ${region}"
+    
+    ami_id=$(aws ec2 describe-images --owners "${owner}" \
+        --filters "Name=name,Values=${name_pattern}" \
+        --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+        --output text \
+        --region "${region}")
+
+    if [ "$ami_id" = "None" ] || [ -z "$ami_id" ]; then
+        echo "No AMI found matching the criteria: ${name_pattern}"
+        return 1
+    fi
+    echo "$ami_id"
+}
+
+# Function to copy and encrypt AMI
+copy_and_encrypt_ami() {
+    owner="$1"
+    ami_pattern="$2"
+    region="$3"
+    kms_key_id="$4"
+    
+    source_ami=$(get_latest_ami "$owner" "$ami_pattern" "$region")
+    if [ -z "$source_ami" ]; then
+        echo "Failed to retrieve source AMI."
+        return 1
+    fi
+
+    new_ami_name="Encrypted-${source_ami}-$(date +%Y%m%d-%H%M%S)"
+    
+    new_ami_id=$(aws ec2 copy-image \
+        --region "$region" \
+        --source-region "$region" \
+        --source-image-id "$source_ami" \
+        --name "$new_ami_name" \
+        --encrypted \
+        --kms-key-id "$kms_key_id" \
+        --query 'ImageId' \
+        --output text)
+
+    echo "Source AMI: $source_ami"
+    echo "New AMI Name: $new_ami_name"
+    echo "New AMI ID: $new_ami_id"
+}
+
+# Call function twice for different owner and patterns
+copy_and_encrypt_ami "$OWNER1" "$AMI_PATTERN1" "$REGION" "$KMS_KEY_ID"
+copy_and_encrypt_ami "$OWNER2" "$AMI_PATTERN2" "$REGION" "$KMS_KEY_ID"
+
+
+
+
+---------------
 #!/bin/bash
 
 # Validate inputs
