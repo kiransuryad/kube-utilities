@@ -1,4 +1,10 @@
 
+ # Wait for the new AMI to become available
+    echo "Waiting for the new AMI to become available..."
+    aws ec2 wait image-available --region "$region" --image-ids "$new_ami_id"
+
+
+-----
 base_name="${ami_pattern%\*}"
 ---
 # Adding tags to the new AMI
