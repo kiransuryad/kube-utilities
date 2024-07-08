@@ -1,3 +1,64 @@
+#!/bin/bash
+
+# Validate inputs
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ] || [ -z "$5" ] || [ -z "$6" ]; then
+    echo "Error: All parameters (REGION, KMS_KEY_ID, OWNER1, AMI_PATTERN1, OWNER2, AMI_PATTERN2) must be provided." >&2
+    exit 1
+fi
+
+# Environment variables for AWS credentials should be available here
+echo "Using AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
+echo "Using AWS_SECRET_ACCESS_KEY: [PROTECTED]"
+
+# Function to get the latest AMI ID based on filters
+function get_latest_ami {
+    local owner="$1"
+    local name_pattern="$2"
+    local region="$3"
+    echo "Fetching latest AMI for owner: ${owner}, pattern: ${name_pattern}, in region: ${region}"
+    
+    ami_id=$(aws ec2 describe-images --owners "${owner}" \
+        --filters "Name=name,Values=${name_pattern}" \
+        --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+        --output text \
+        --region "${region}")
+
+    if [[ "$ami_id" == "None" || -z "$ami_id" ]]; then
+        echo "No AMI found matching the criteria: ${name_pattern}"
+        return 1
+    fi
+    echo "$ami_id"
+}
+
+# Rest of your script...
+
+
+
+----
+include config.env
+
+AMI_SCRIPT := ./create_ami.sh
+AMI_LOG := ami_creation.log
+
+.PHONY: get-ami
+
+get-ami:
+	@echo "Fetching and encrypting latest AMIs..."
+	@AWS_ACCESS_KEY_ID="$(AWS_ACCESS_KEY_ID)" AWS_SECRET_ACCESS_KEY="$(AWS_SECRET_ACCESS_KEY)" $(AMI_SCRIPT) \
+		"$(REGION)" \
+		"$(KMS_KEY_ID)" \
+		"$(OWNER1)" \
+		"$(AMI_PATTERN1)" \
+		"$(OWNER2)" \
+		"$(AMI_PATTERN2)" \
+		> $(AMI_LOG) 2>&1 || (cat $(AMI_LOG) && exit 1)
+	@echo "AMI creation completed. Results:"
+	@grep "New AMI ID:" $(AMI_LOG) | sed 's/^/  /'
+	@echo "Full log available in $(AMI_LOG)"
+	@echo "Latest Encrypted AMI ID: $$(tail -n1 $(AMI_LOG) | awk '{print $$NF}')"
+
+
+---
 Certainly! I'll provide you with the complete setup in sequential order.
 
 1. Makefile:
