@@ -1,4 +1,12 @@
+aws kms decrypt --ciphertext-blob fileb://<(echo "your-base64-ciphertext" | base64 --decode) \
+                --output text \
+                --query Plaintext \
+                --profile your-profile-name \
+                --region your-region
 
+
+
+---
 aws kms encrypt --key-id "arn:aws:kms:us-west-2:1111:key/your-key-id" \
                 --plaintext "SGVsbG8sIFdvcmxkIQ==" \
                 --output text \
