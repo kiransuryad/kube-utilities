@@ -1,4 +1,13 @@
 
+aws kms encrypt --key-id "arn:aws:kms:us-west-2:1111:key/your-key-id" \
+                --plaintext "SGVsbG8sIFdvcmxkIQ==" \
+                --output text \
+                --query CiphertextBlob \
+                --profile your-profile-for-account-2222 \
+                --region us-west-2
+
+
+---
  # Wait for the new AMI to become available
     echo "Waiting for the new AMI to become available..."
     aws ec2 wait image-available --region "$region" --image-ids "$new_ami_id"
