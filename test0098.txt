@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Check if a cluster name argument is provided
@@ -11,11 +12,14 @@ fi
 # Read cluster name from arguments
 target_cluster="$1"
 
-# Function to verify current kubectl context
+# Function to verify current kubectl context is on the intended cluster
 function verify_context() {
-    current_context=$(kubectl config current-context)
-    if [[ "$current_context" != "$target_cluster" ]]; then
-        echo "Error: Current kubectl context is '$current_context', but expected '$target_cluster'."
+    # Extract the cluster name associated with the current context
+    current_cluster=$(kubectl config view -o jsonpath="{.contexts[?(@.name=='$(kubectl config current-context)')].context.cluster}")
+
+    # Compare the extracted cluster name to the target cluster name
+    if [[ "$current_cluster" != "$target_cluster" ]]; then
+        echo "Error: Current context is set to cluster '$current_cluster', but expected cluster is '$target_cluster'."
         exit 1
     fi
 }
