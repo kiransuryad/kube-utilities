@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Check if a cluster name argument is provided
+if [ $# -eq 0 ]
+then
+    echo "Error: No cluster name provided."
+    echo "Usage: ./scale_down_with_context_check.sh <cluster-name>"
+    exit 1
+fi
+
+# Read cluster name from arguments
+target_cluster="$1"
+
+# Function to verify current kubectl context
+function verify_context() {
+    current_context=$(kubectl config current-context)
+    if [[ "$current_context" != "$target_cluster" ]]; then
+        echo "Error: Current kubectl context is '$current_context', but expected '$target_cluster'."
+        exit 1
+    fi
+}
+
+# Verify the current kubectl context
+verify_context
+
+# File to store the initial state of deployments
+before_file="deployments_before_scaling.txt"
+# File to store the final state of deployments
+after_file="deployments_after_scaling.txt"
+
+# Function to log deployments in a namespace
+function log_deployments() {
+    local ns=$1
+    local file=$2
+    local state=$3
+
+    deployments=$(kubectl get deployments -n $ns -o jsonpath="{.items[*].metadata.name}")
+    for deploy in $deployments; do
+        replicas=$(kubectl get deployment $deploy -n $ns -o jsonpath="{.spec.replicas}")
+        echo "Namespace: $ns, Deployment: $deploy, Replicas: $replicas, State: $state" >> $file
+    done
+}
+
+# Clear previous logs
+echo "" > $before_file
+echo "" > $after_file
+
+# Get all namespaces
+namespaces=$(kubectl get namespaces -o jsonpath="{.items[*].metadata.name}")
+
+# Log and scale deployments
+for ns in $namespaces; do
+    # Log current state of deployments
+    log_deployments $ns $before_file "before"
+
+    # Scale down deployments and log
+    deployments=$(kubectl get deployments -n $ns -o jsonpath="{.items[*].metadata.name}")
+    for deploy in $deployments; do
+        # Scale down each deployment to zero replicas
+        kubectl scale --replicas=0 deployment/$deploy -n $ns
+        echo "Scaled down deployment $deploy in namespace $ns to 0 replicas."
+    done
+
+    # Log final state of deployments
+    log_deployments $ns $after_file "after"
+done
+
+echo "Scaling completed. Check '$before_file' and '$after_file' for details."
