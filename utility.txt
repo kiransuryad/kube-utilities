@@ -1,4 +1,11 @@
+aws ec2 describe-instances \
+    --query "Reservations[*].Instances[*].[InstanceId, Tags[?Key=='Name'].Value | [0], InstanceType]" \
+    --filters "Name=instance-state-name,Values=running" \
+    --output text
 
+
+
+----
 build_prompt() {
   # Load current AWS profile
   local current_profile=$AWS_PROFILE
