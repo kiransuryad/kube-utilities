@@ -1,3 +1,26 @@
+Subject: Immediate Action Required: RDS Certificate Update and Testing
+
+Dear [Database Owner/Application User],
+
+We are scheduled to update the SSL/TLS certificates for our AWS RDS instances starting next week, on July 29, 2024. This update is crucial for maintaining the highest standards of security and compliance, particularly as our current certificates are set to expire on August 22, 2024.
+
+What is required from you:
+
+Pre-Update Testing: Please conduct a thorough test of your applications using the current certificate setup and document the outcome before July 29, 2024. This test will serve as a baseline for post-update comparisons.
+
+Certificate Update Schedule: The updates will commence on July 29, 2024. You will receive a notification once the update is complete.
+
+Post-Update Testing: Immediately after the update, please test your applications again to ensure they operate seamlessly with the new certificate. Report any issues or discrepancies to the IT team immediately.
+
+Documentation: Please submit your test results along with any relevant observations here: [insert URL or email for submission].
+
+Your prompt attention to this process is essential for the seamless continuation of our services. Please ensure all tests and reports are completed by [insert specific deadline].
+
+Thank you for your cooperation and diligence in this matter.
+
+Best regards,
+
+---
 aws kms decrypt --ciphertext-blob fileb://<(echo "your-base64-ciphertext" | base64 --decode) \
                 --output text \
                 --query Plaintext \
