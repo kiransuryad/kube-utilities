@@ -1,3 +1,12 @@
+aws autoscaling update-auto-scaling-group \
+    --auto-scaling-group-name YourAutoScalingGroupName \
+    --desired-capacity 0 \
+    --min-size 0 \
+    --max-size 0
+
+
+
+---
 First, ensure you're using the same Dockerfile I described earlier. You can build the Docker image with Podman using this command:
 
 bash
