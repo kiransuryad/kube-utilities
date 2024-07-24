@@ -1,4 +1,39 @@
-Subject: Immediate Action Required: RDS Certificate Update and Testing
+# Use a base image with a JDK compatible with Keycloak 25.0
+FROM eclipse-temurin:17-jre as builder
+
+ARG CURL_VERSION
+ARG KEYCLOAK_VERSION=25.0.0
+ARG METRICS_SPI_VERSION
+
+# Download the Keycloak Metrics SPI extension jar to a temporary location
+RUN curl -L https://github.com/aerogear/keycloak-metrics-spi/releases/download/${METRICS_SPI_VERSION}/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar --output /tmp/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar && \
+    chmod +x /tmp/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar
+
+# Base image for the actual Keycloak deployment
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+
+ARG METRICS_SPI_VERSION
+
+USER root
+
+# Keycloak from version 15 onwards uses /opt/keycloak instead of /opt/jboss/keycloak
+RUN mkdir -p /opt/keycloak/providers
+
+# Copy the metrics SPI jar into the correct location
+COPY --from=builder /tmp/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar /opt/keycloak/providers/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar
+
+# Switch back to the Keycloak user
+USER 1000
+
+# The new entrypoint and command as per Keycloak 25's Quarkus-based image
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+CMD ["start"]
+
+# Healthcheck command adapted for Quarkus
+HEALTHCHECK --interval=30s --timeout=30s --retries=10 CMD curl --fail http://localhost:8080/health || exit 1
+
+-------
+----Subject: Immediate Action Required: RDS Certificate Update and Testing
 
 Dear [Database Owner/Application User],
 
