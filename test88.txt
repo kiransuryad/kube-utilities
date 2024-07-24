@@ -1,3 +1,23 @@
+First, ensure you're using the same Dockerfile I described earlier. You can build the Docker image with Podman using this command:
+
+bash
+Copy code
+podman build -t my-keycloak .
+If you need to override the default versions set in the Dockerfile, you can specify them as build arguments like this:
+
+bash
+Copy code
+podman build --build-arg KEYCLOAK_VERSION=25.0.0 --build-arg METRICS_SPI_VERSION=2.4.0 -t my-keycloak .
+Running the Docker Container for Local Testing with Podman
+After building the image, you can run the Keycloak container locally with Podman:
+
+bash
+Copy code
+podman run -p 8080:8080 -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin --name keycloak my-keycloak
+This command will:
+
+
+---
 # Use a base image with a JDK compatible with Keycloak 25.0
 FROM eclipse-temurin:17-jre as builder
 
