@@ -1,3 +1,17 @@
+Good morning all,
+
+Thank you, Courtney and Casey, for your valuable feedback. Regarding your question about updating Keycloak to a newer version, we face a challenge due to our current deployment on the Keycloak 18.0.3-legacy version, which requires migration to a newer version rather than a straightforward update.
+
+Rajesh, I would appreciate your insights and recommendations on migrating from Keycloak 18.0.3-legacy to the latest version, 25.0.2. Your expertise will be crucial in outlining our next steps.
+
+Manuel, in light of our discussions, could you please share your thoughts on the feasibility of the Keycloak upgrade or suggest any alternative solutions that might better suit our needs?
+
+Thanks for your cooperation.
+
+Best regards,
+Kiran
+
+---
 aws ec2 describe-instances \
     --query "Reservations[*].Instances[*].[InstanceId, Tags[?Key=='Name'].Value | [0], InstanceType]" \
     --filters "Name=instance-state-name,Values=running" \
