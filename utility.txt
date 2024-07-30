@@ -1,3 +1,19 @@
+Good afternoon Lokesh,
+
+I hope this message finds you well.
+
+As mentioned in the previous email, we have successfully updated the below RDS DB instance certificates.
+
+To ensure seamless operations, please verify that your applications in the NonProd ARIC Accounts (DEVL-ARIC) are functioning as expected with the new certificates. If you could provide confirmation by this Friday, that would be greatly appreciated. In the absence of any issues, we will proceed with the assumption that everything is operating smoothly.
+
+Additionally, we have scheduled the Prod Account (PPRD-ARIC) RDS Certificate renewals for early next week. Please note that if we do not hear back from you either positively or negatively by this Thursday, we will assume that as positive feedback and proceed with our changes from Monday.
+
+Thank you for your cooperation and understanding. We are committed to providing you with the best support and ensuring minimal disruption.
+
+Best regards,
+
+
+---
 Hi Team,
 
 I am pleased to inform you that the SSL certificate upgrade for our AWS RDS instances has been successfully completed as of July 26, 2024. This upgrade ensures continued security and compliance for our database interactions.
