@@ -1,3 +1,15 @@
+Hi Team,
+
+I am pleased to inform you that the SSL certificate upgrade for our AWS RDS instances has been successfully completed as of July 26, 2024. This upgrade ensures continued security and compliance for our database interactions.
+
+What You Need to Do:
+
+Please conduct a thorough test of your applications using the current RDS instances to confirm that they operate seamlessly with the updated certificates. This is crucial for ensuring that our applications maintain their functionality and performance standards.
+
+
+
+
+----
 Good morning all,
 
 Thank you, Courtney and Casey, for your valuable feedback. Regarding your question about updating Keycloak to a newer version, we face a challenge due to our current deployment on the Keycloak 18.0.3-legacy version, which requires migration to a newer version rather than a straightforward update.
