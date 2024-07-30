@@ -1,3 +1,11 @@
+Thank you so much for your confirmation!
+
+Could you please provide the details for our Prod deployment Readiness Checklist? I have prefilled some of the information and would appreciate your assistance in confirming and suggesting any necessary adjustments, especially regarding the impact on LOBs and their clients.
+
+Your support is greatly appreciated.
+
+
+---
 Good afternoon Lokesh,
 
 I hope this message finds you well.
