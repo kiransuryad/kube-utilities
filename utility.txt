@@ -1,3 +1,13 @@
+We are initiating an upgrade of the EKS clusters within our EDP management AWS Account. This is a critical step to maintain the integrity and security of our infrastructure.
+
+AWS has already upgraded the control plane to version 1.22, which has led to some potential application disruptions. To mitigate these issues and address security vulnerabilities, we are advancing to version 1.29. This upgrade is necessary to ensure compatibility with future AWS updates and to strengthen our overall system security.
+
+During this upgrade, we will focus primarily on Jenkins and Keycloak. Our team is prepared to handle any issues that arise in these applications as part of the EKS upgrade process.
+
+We are taking a proactive approach to resolve any disruptions and ensure a smooth transition. Your understanding and cooperation are appreciated as we work through these upgrades.
+
+
+----
 Thank you so much for your confirmation!
 
 Could you please provide the details for our Prod deployment Readiness Checklist? I have prefilled some of the information and would appreciate your assistance in confirming and suggesting any necessary adjustments, especially regarding the impact on LOBs and their clients.
