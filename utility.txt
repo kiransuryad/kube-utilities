@@ -1,3 +1,16 @@
+Team,
+
+We are undertaking a crucial upgrade of the EKS clusters within our EDP management AWS Account to enhance system integrity and security.
+
+AWS has upgraded to version 1.22, which has introduced potential disruptions. Although some end users are currently utilizing these applications without reported issues, we must remain vigilant. To preemptively address any disruptions and ensure a seamless transition, we are planning a proactive migration to version 1.29. This upgrade is essential for maintaining compatibility with upcoming AWS updates and bolstering our overall system security.
+
+While we anticipate that some applications may experience compatibility issues post-upgrade, we want to emphasize that resolving these issues may not always be within our control. The upgrade may result in certain applications breaking due to dependencies or compatibility problems. We will monitor the situation closely and address any issues that arise to the best of our abilities, but there may be limitations in our capacity to resolve all potential problems.
+
+
+
+
+
+-----
 We are initiating an upgrade of the EKS clusters within our EDP management AWS Account. This is a critical step to maintain the integrity and security of our infrastructure.
 
 AWS has already upgraded the control plane to version 1.22, which has led to some potential application disruptions. To mitigate these issues and address security vulnerabilities, we are advancing to version 1.29. This upgrade is necessary to ensure compatibility with future AWS updates and to strengthen our overall system security.
