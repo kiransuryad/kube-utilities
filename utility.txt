@@ -1,3 +1,18 @@
+aws ec2 describe-instances --instance-id i-0123456789abcdef0 --query 'Reservations[*].Instances[*].IamInstanceProfile' --output json
+
+aws ec2 disassociate-iam-instance-profile --association-id <association-id>
+
+
+# Disassociate the old IAM role (if needed)
+aws ec2 disassociate-iam-instance-profile --association-id <association-id>
+
+# Associate the new IAM role
+aws ec2 associate-iam-instance-profile --instance-id i-0123456789abcdef0 --iam-instance-profile Name=NewInstanceProfileName
+
+
+
+
+----
 Team,
 
 We are undertaking a crucial upgrade of the EKS clusters within our EDP management AWS Account to enhance system integrity and security.
