@@ -1,21 +1,12 @@
-Good Afternoon Team,
+Hi Chris,
 
-Thank you for your inputs and the details provided.
+Thank you for your email. I chose "None" as the correct answer regarding the type of service that could be impacted by this change due to the specific nature of the update being carried out.
 
-Please note the following updates:
+This change involves updating the RDS (Relational Database Service) certificates, which is a back-end infrastructure update. It's focused solely on the RDS component and doesn't impact any application logic or processing services.
 
-CR Implementation Date: The Change Request (CR) implementation is now scheduled for Monday, 19th August 2024.
-Updated CR Details:
-CR ID: CH24001658959
-Action Items:
-Testing Requirements: Please confirm if testing is required before and after the CR implementation.
-Testing Assignment: If testing is necessary, kindly specify who will be responsible for conducting the tests.
-Your prompt feedback is appreciated. Let me know if further information is required.
+Given this, I believe "None" is the appropriate classification, as there’s no anticipated risk or impact on any services within the scope of this update. That said, I'm absolutely open to any suggestions or further discussions if you think there might be areas we should revisit.
 
-Thank you,
-
-Regards,
-Kiran
+Please feel free to reach out if you need any further clarification or if there's anything else you'd like to discuss.
 
 
 ----
