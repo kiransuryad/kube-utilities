@@ -1,3 +1,24 @@
+Good Afternoon Team,
+
+Thank you for your inputs and the details provided.
+
+Please note the following updates:
+
+CR Implementation Date: The Change Request (CR) implementation is now scheduled for Monday, 19th August 2024.
+Updated CR Details:
+CR ID: CH24001658959
+Action Items:
+Testing Requirements: Please confirm if testing is required before and after the CR implementation.
+Testing Assignment: If testing is necessary, kindly specify who will be responsible for conducting the tests.
+Your prompt feedback is appreciated. Let me know if further information is required.
+
+Thank you,
+
+Regards,
+Kiran
+
+
+----
 I hope this message finds you well. We are in the process of the mandatory AWS RDS Certificate renewal and have successfully updated the certificates for our non-production and development environments earlier this week.
 
 We are now preparing to proceed with the renewal of the production RDS certificates and kindly request your approval to move forward. Additionally, we would appreciate your insights on the following queries to ensure seamless coordination and compliance:
