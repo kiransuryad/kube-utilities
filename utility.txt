@@ -1,3 +1,19 @@
+Context:
+
+Hello All,
+
+Today is the planned date for the CR: CH24001658959, which involves renewing the AWS RDS certificates. The initial plan was to proceed with the renewal and have your team assist with validation to ensure there were no impacts on other services.
+
+However, the Change Request (CR) was unexpectedly moved back to the "Assess" state. I’m not entirely sure of the reasons for this but plan to discuss it with the ServiceNow (SNOW) team later today.
+
+Request:
+
+To keep things on track, I have rescheduled the change for tomorrow at the same time. I kindly request your support in accepting and assisting with this task from your end.
+
+Thank you in advance for your cooperation.
+
+
+-----
 Hi Chris,
 
 Thank you for your email. I chose "None" as the correct answer regarding the type of service that could be impacted by this change due to the specific nature of the update being carried out.
