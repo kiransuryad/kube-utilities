@@ -1,3 +1,19 @@
+Good evening all,
+
+I hope this message finds you well.
+
+Could I kindly ask for your assistance in approving the following two Change Requests scheduled for tomorrow?
+
+CH24001646853
+CH24001658859
+These CRs pertain to the renewal of AWS RDS Certificates, and they were recently transitioned to the assessment stage.
+
+Your prompt attention to this would be greatly appreciated.
+
+Thank you so much for your support.
+
+
+-----
 Good Morning All,
 
 @Swapnil Rajgure, thank you for confirming the change state. I also appreciate your efforts in accepting the task and moving it to the accepted state.
