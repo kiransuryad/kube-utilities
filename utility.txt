@@ -1,3 +1,8 @@
+aws autoscaling describe-auto-scaling-instances --query "AutoScalingInstances[*].{InstanceID:InstanceId, Lifecycle:LifecycleState, InstanceType:InstanceType, LaunchTemplateConfiguration:LaunchConfigurationName, Version:LaunchTemplateVersion, AvailabilityZone:AvailabilityZone, HealthStatus:HealthStatus}" --output table
+
+
+
+---
 Good evening all,
 
 I hope this message finds you well.
