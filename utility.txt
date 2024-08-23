@@ -1,4 +1,72 @@
+Subject: Urgent: EKS Cluster Upgrade Required
 
+Context:
+
+The EKS cluster in question has not been upgraded or patched since its initial provisioning on July 3, 2019. The infrastructure, including the EDP Jenkins environment, has experienced significant manual interventions over the years due to breakages and the lack of automated maintenance. Importantly, the current EKS version (1.21) is approaching its end of support from AWS, which will result in the cessation of updates and support services from AWS. Consequently, we must perform an upgrade to EKS version 1.23 to ensure continued stability, security, and supportability of our infrastructure.
+
+Current State:
+
+Cluster: EKS Cluster
+Region: us-west-2
+Current EKS Version: 1.21
+Upgrade Target: EKS Version 1.23
+Risks and Challenges:
+
+Incompatibility Issues:
+Upgrading the Kubernetes version can introduce breaking changes that may not be compatible with existing applications or configurations. This could potentially require additional adjustments or patches to the current environment post-upgrade.
+Downtime:
+The upgrade process could lead to significant downtime, impacting all applications running within this cluster. While we will make efforts to minimize this, some level of service interruption is expected during the upgrade.
+No Rollback Option:
+Once the upgrade is initiated, it cannot be paused, canceled, or rolled back. This irreversible process means that any issues arising during the upgrade could potentially result in a prolonged outage or even permanent loss of applications if not properly managed.
+Applications Impacted:
+
+The following applications currently running in the cluster will be affected by the upgrade process:
+
+Application Name	Status	Age
+airflow-test	Active	4y21d
+amazon-cloudwatch	Active	3y154d
+awx-poc	Active	4y7d
+cattle-prometheus	Active	4y74d
+cert-manager	Active	4y224d
+data-exporter	Active	4y224d
+data-tools	Active	4y93d
+dev-csi	Active	4y450d
+ingress-nginx	Active	3y47d
+jenkins-test	Active	4y219d
+jmeter	Active	3y130d
+kube-public	Active	5y53d
+kube-system	Active	5y53d
+monitoring	Active	4y81d
+redshift-exporter	Active	4y292d
+tekton	Active	4y31d
+wc-test	Active	4y21d
+Action Plan:
+
+Pre-Upgrade Preparations:
+Backup: Ensure that a full backup of the current cluster state and all application data is completed before starting the upgrade.
+Testing: Conduct a thorough assessment of application compatibility with EKS version 1.23 in a staging environment to identify potential issues in advance.
+Communication: Notify all stakeholders and end-users about the expected downtime and its impact on services.
+Upgrade Execution:
+Proceed with the upgrade during off-peak hours to minimize disruption.
+Monitor the upgrade process closely, with team members on standby to address any issues immediately.
+Post-Upgrade Validation:
+Verify the stability and functionality of all applications post-upgrade.
+Perform a detailed assessment to ensure that no data loss or application issues occurred during the upgrade.
+Provide a detailed post-upgrade report to all stakeholders.
+Anticipated Outcomes:
+
+The successful upgrade will bring the cluster into a supported state, ensuring continued receipt of critical patches and support from AWS. It will also lay the groundwork for future upgrades and optimizations.
+
+Request for Approval:
+
+We request approval to proceed with the upgrade process on the proposed schedule, given the outlined risks and the mitigations in place. Please review and confirm.
+
+
+
+
+
+
+-----------
 aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names <AutoScalingGroupName> --query "AutoScalingGroups[0].Instances[*].{InstanceID:InstanceId, Lifecycle:LifecycleState, InstanceType:InstanceType, LaunchTemplateConfiguration:LaunchConfigurationName, Version:LaunchTemplateVersion, AvailabilityZone:AvailabilityZone, HealthStatus:HealthStatus}" --output table
 
 
