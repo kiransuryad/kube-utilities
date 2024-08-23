@@ -1,3 +1,32 @@
+Why Not Retire the EKS Cluster Instead?
+
+While retiring the EKS cluster and migrating services to a different platform is part of our long-term plan, it is not feasible to do so immediately due to ongoing dependencies by various teams and applications. The primary goal of this upgrade is to maintain a supported and stable environment for current users, ensuring that their operations are not disrupted during the transition to new clusters. This approach gives teams the necessary time to plan and execute their migrations effectively.
+
+Action Plan:
+
+Pre-Upgrade Preparations:
+Backup: Complete a full backup of the current cluster state and all application data before starting the upgrade.
+Testing: Perform thorough compatibility testing of all applications with EKS version 1.23 in a staging environment to identify and address potential issues.
+Communication: Notify all stakeholders and end-users about the planned downtime and its potential impact on services.
+Upgrade Execution:
+Schedule the upgrade during off-peak hours to minimize disruption.
+Monitor the upgrade process closely, with team members on standby to resolve any issues immediately.
+Post-Upgrade Validation:
+Verify the stability and functionality of all applications post-upgrade.
+Conduct a detailed assessment to ensure that no data loss or application issues occurred during the upgrade.
+Provide a comprehensive post-upgrade report to all stakeholders.
+Stakeholder Actions Needed:
+
+We request all stakeholders to promptly notify us if your team is currently using this EKS cluster. If you require additional time to migrate your applications to a different environment, please inform us as soon as possible. This will allow us to postpone the upgrade if necessary to accommodate your needs.
+
+If we do not receive timely notification, the upgrade will proceed as planned, and we will not be able to address any issues that may arise from the transition after the fact.
+
+Next Steps:
+
+Please respond at your earliest convenience if your team needs additional time or has concerns about this upgrade. Your feedback is crucial to ensure a smooth process and to avoid any unnecessary disruptions.
+
+
+---
 Context:
 
 Our EKS cluster, initially provisioned on July 3, 2019, has not received upgrades or patches since its deployment. Over the years, the infrastructure, including the EDP Jenkins environment, has required significant manual interventions due to breakages and the lack of automated maintenance. AWS has recently discontinued support for EKS version 1.21 and automatically migrated our cluster to version 1.22. This forced upgrade has introduced potential risks, particularly around application stability upon restart.
