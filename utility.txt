@@ -1,3 +1,100 @@
+Context:
+
+Our EKS cluster, initially provisioned on July 3, 2019, has not received upgrades or patches since its deployment. Over the years, the infrastructure, including the EDP Jenkins environment, has required significant manual interventions due to breakages and the lack of automated maintenance. AWS has recently discontinued support for EKS version 1.21 and automatically migrated our cluster to version 1.22. This forced upgrade has introduced potential risks, particularly around application stability upon restart.
+
+Given these developments, it is critical that we perform a planned upgrade to EKS version 1.23. This upgrade is necessary to ensure the continued stability, security, and supportability of our infrastructure, especially for those stakeholders who still rely on this cluster during our broader migration efforts to new clusters.
+
+Current State:
+
+Cluster: EKS Cluster
+Region: us-west-2
+Current EKS Version: 1.22 (after AWS's automatic upgrade)
+Upgrade Target: EKS Version 1.23
+Risks and Challenges:
+
+As with any major upgrade, there are several risks and challenges that we must anticipate and manage carefully:
+
+Incompatibility Issues:
+Potential Impact: Upgrading the Kubernetes version can introduce breaking changes that may be incompatible with existing applications or configurations.
+Mitigation: This could necessitate additional adjustments or patches post-upgrade to ensure all applications function correctly. We plan to conduct thorough testing in a staging environment to identify and resolve these issues before the upgrade.
+Downtime:
+Potential Impact: The upgrade process could result in significant downtime, impacting all applications running within this cluster. Even with careful planning, some service interruptions are expected during the upgrade.
+Mitigation: We will schedule the upgrade during off-peak hours to minimize disruption and will communicate the expected downtime well in advance to all stakeholders.
+No Rollback Option:
+Potential Impact: Once initiated, the upgrade process cannot be paused, canceled, or rolled back. Any issues encountered during the upgrade could result in prolonged outages or, in a worst-case scenario, permanent loss of applications.
+Mitigation: We will have a dedicated team on standby to address any issues that arise immediately during the upgrade, minimizing the risk of extended outages.
+Application Failures on Restart:
+Potential Impact: Some applications may fail to restart correctly due to compatibility issues with the newer Kubernetes version. This could lead to service disruptions and potentially impact business operations.
+Mitigation: By identifying and addressing these issues in a controlled staging environment before the upgrade, we aim to minimize this risk. Additionally, we will have rollback plans for individual applications where feasible, though a full rollback of the cluster is not possible.
+Resource Constraints:
+Potential Impact: The upgrade may place additional load on cluster resources, potentially leading to resource contention or performance degradation during the process.
+Mitigation: We will monitor resource utilization closely throughout the upgrade and be prepared to adjust resource allocations as needed to ensure stability.
+Data Integrity Risks:
+Potential Impact: During the upgrade process, there is a small risk of data corruption or loss, particularly if any applications are not fully compatible with the new Kubernetes version.
+Mitigation: We will perform comprehensive backups of all data and the cluster state prior to the upgrade, ensuring that we can restore any lost data if necessary.
+Applications Impacted:
+
+The following applications currently running in the cluster will be affected by the upgrade process:
+
+Application Name	Status	Age
+airflow-test	Active	4y21d
+amazon-cloudwatch	Active	3y154d
+awx-poc	Active	4y7d
+cattle-prometheus	Active	4y74d
+cert-manager	Active	4y224d
+data-exporter	Active	4y224d
+data-tools	Active	4y93d
+dev-csi	Active	4y450d
+ingress-nginx	Active	3y47d
+jenkins-test	Active	4y219d
+jmeter	Active	3y130d
+kube-public	Active	5y53d
+kube-system	Active	5y53d
+monitoring	Active	4y81d
+redshift-exporter	Active	4y292d
+tekton	Active	4y31d
+wc-test	Active	4y21d
+Need for This Upgrade and Why Now:
+
+AWS's recent forced upgrade to EKS version 1.22 has highlighted the urgent need to maintain an actively supported and stable environment. Some applications may fail on restart due to compatibility issues with the newer Kubernetes version. If we do not proactively upgrade to EKS version 1.23, we risk further instability, security vulnerabilities, and operational challenges.
+
+Additionally, this upgrade ensures that we continue to provide a stable and supported environment for stakeholders who still depend on this cluster, allowing them to transition smoothly to alternative clusters at their own pace.
+
+Why Not Retire the EKS Cluster Instead?
+
+While retiring the EKS cluster and migrating services to a different platform is part of our long-term plan, it is not feasible to do so immediately due to ongoing dependencies by various teams and applications. The primary goal of this upgrade is to maintain a supported and stable environment for current users, ensuring that their operations are not disrupted during the transition to new clusters. This approach gives teams the necessary time to plan and execute their migrations effectively.
+
+Action Plan:
+
+Pre-Upgrade Preparations:
+Backup: Complete a full backup of the current cluster state and all application data before starting the upgrade.
+Testing: Perform thorough compatibility testing of all applications with EKS version 1.23 in a staging environment to identify and address potential issues.
+Communication: Notify all stakeholders and end-users about the planned downtime and its potential impact on services.
+Upgrade Execution:
+Schedule the upgrade during off-peak hours to minimize disruption.
+Monitor the upgrade process closely, with team members on standby to resolve any issues immediately.
+Post-Upgrade Validation:
+Verify the stability and functionality of all applications post-upgrade.
+Conduct a detailed assessment to ensure that no data loss or application issues occurred during the upgrade.
+Provide a comprehensive post-upgrade report to all stakeholders.
+Anticipated Outcomes:
+
+A successful upgrade to EKS version 1.23 will bring the cluster into a fully supported state, ensuring the continued receipt of critical patches and support from AWS. This upgrade will also lay the groundwork for future optimizations and provide a stable environment for users as they plan their migrations to new clusters.
+
+What We Expect from Stakeholders:
+
+Review Your Usage:
+We ask all stakeholders to review their current usage of this EKS cluster. If your team requires additional time to migrate to a different environment, please notify us immediately. We are open to postponing the upgrade if necessary to accommodate your needs.
+Provide Approval and Feedback:
+We need your approval to proceed with the upgrade on the proposed schedule. If there are any concerns or if the timing conflicts with your team’s operations, please let us know as soon as possible so we can make necessary adjustments.
+Request for Approval:
+
+To ensure continued support and minimize risks, we request your approval to proceed with the upgrade to EKS version 1.23. Your prompt feedback and approval are crucial for scheduling and executing this upgrade with minimal impact on operations.
+
+
+
+
+---
 Subject: Urgent: EKS Cluster Upgrade Required
 
 Context:
