@@ -1,0 +1,29 @@
+keycloak:
+  replicas: 2
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1024Mi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+  extraEnv: |
+    - name: KC_DB_USERNAME
+      value: "keycloak"
+    - name: KC_DB_PASSWORD
+      value: "password"
+    - name: KC_HOSTNAME
+      value: "keycloak.example.com"
+  service:
+    type: LoadBalancer
+    port: 80
+
+
+
+
+---
+
+helm repo add codecentric https://codecentric.github.io/helm-charts
+helm repo update
+
+helm install keycloak codecentric/keycloak -f values.yaml -n keycloak
