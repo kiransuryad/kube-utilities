@@ -1,3 +1,20 @@
+I am writing to update you on a significant enhancement to our authentication system infrastructure, specifically concerning our ongoing efforts to upgrade our Keycloak service from version 18.0.2-legacy to 24.0.
+
+Context & Progress: As part of our system improvements, we have successfully deployed the new Keycloak version 24.0 in our development environment. This update is a crucial step toward enhancing our system's reliability, security features, and performance.
+
+Current Phase – Data Migration: To ensure that the new system reflects our operational environment accurately, we are planning to export data from our non-production environment and import it into the upgraded development instance. This procedure is pivotal for validating the new version under realistic data conditions.
+
+Your Participation:
+
+Approval for Data Export: Before proceeding, we need your approval to export the non-production data. Your confirmation will ensure compliance with our data governance policies and respect for the integrity of the data handling processes.
+Testing and Validation: Once the data is migrated to the development environment, we crucially need your assistance in testing the updated system. Your insights are invaluable, and your approval on the migration's accuracy will be pivotal in moving forward with full confidence. Could you please confirm your availability and readiness to perform this testing?
+Next Steps: Upon receiving your approval, we will initiate the data export and inform you once the import into the development environment is complete. We aim to provide all necessary support for you during the testing phase to ensure a smooth transition.
+
+Your collaboration and timely responses are crucial to keeping this upgrade on track and minimizing any potential disruptions. Please let us know your decision at your earliest convenience.
+
+
+
+----
 AWS's recent forced upgrade of one of our EKS clusters to version 1.22 has highlighted the urgent need to maintain an actively supported and stable environment. We have already observed issues with some applications during restarts due to compatibility challenges with the new Kubernetes version. In light of these issues, we are proactively recommending an upgrade to EKS version 1.23 to mitigate further potential instability, security vulnerabilities, and operational challenges.
 
 AWS's recent forced upgrade of our EKS cluster to version 1.22 has highlighted the importance of maintaining an actively supported and stable environment. As some applications may encounter restart issues due to compatibility with the new Kubernetes version, it is essential that we take proactive steps. Upgrading to EKS version 1.23 will help us avoid potential instability, security risks, and operational challenges.
