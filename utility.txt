@@ -1,3 +1,7 @@
+AWS's recent forced upgrade of our EKS cluster to version 1.22 has highlighted the importance of maintaining an actively supported and stable environment. As some applications may encounter restart issues due to compatibility with the new Kubernetes version, it is essential that we take proactive steps. Upgrading to EKS version 1.23 will help us avoid potential instability, security risks, and operational challenges.
+
+
+
 Why Not Retire the EKS Cluster Instead?
 
 While retiring the EKS cluster and migrating services to a different platform is part of our long-term plan, it is not feasible to do so immediately due to ongoing dependencies by various teams and applications. The primary goal of this upgrade is to maintain a supported and stable environment for current users, ensuring that their operations are not disrupted during the transition to new clusters. This approach gives teams the necessary time to plan and execute their migrations effectively.
