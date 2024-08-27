@@ -1,3 +1,5 @@
+AWS's recent forced upgrade of one of our EKS clusters to version 1.22 has highlighted the urgent need to maintain an actively supported and stable environment. We have already observed issues with some applications during restarts due to compatibility challenges with the new Kubernetes version. In light of these issues, we are proactively recommending an upgrade to EKS version 1.23 to mitigate further potential instability, security vulnerabilities, and operational challenges.
+
 AWS's recent forced upgrade of our EKS cluster to version 1.22 has highlighted the importance of maintaining an actively supported and stable environment. As some applications may encounter restart issues due to compatibility with the new Kubernetes version, it is essential that we take proactive steps. Upgrading to EKS version 1.23 will help us avoid potential instability, security risks, and operational challenges.
 
 
