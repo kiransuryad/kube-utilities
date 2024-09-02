@@ -1,3 +1,48 @@
+
+#!/bin/bash
+
+# Path to the realms JSON file
+REALMS_FILE="keycloak_realms.json"
+
+# Initialize counters
+total_realms=0
+total_clients=0
+total_users=0
+
+echo "------------------------------------"
+echo "Keycloak Realms Analysis"
+echo "------------------------------------"
+
+# Loop through each realm in the JSON file
+total_realms=$(jq '. | length' $REALMS_FILE)
+
+for ((i=0; i<$total_realms; i++)); do
+  # Extract the realm name
+  realm=$(jq -r ".[$i].realm" $REALMS_FILE)
+  
+  # Count clients in this realm
+  client_count=$(jq ".[$i].clients | length" $REALMS_FILE)
+  total_clients=$((total_clients + client_count))
+
+  # Count users in this realm (assuming users are listed in the "users" field)
+  user_count=$(jq ".[$i].users | length" $REALMS_FILE)
+  total_users=$((total_users + user_count))
+
+  echo "Realm: $realm"
+  echo "  Number of Clients: $client_count"
+  echo "  Number of Users: $user_count"
+  echo "------------------------------------"
+done
+
+# Display overall statistics
+echo "Total Realms: $total_realms"
+echo "Total Clients across all Realms: $total_clients"
+echo "Total Users across all Realms: $total_users"
+
+
+
+
+--------------
 #!/bin/bash
 
 # Set Keycloak server and admin credentials
