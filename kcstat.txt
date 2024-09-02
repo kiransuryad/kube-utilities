@@ -1,5 +1,48 @@
 #!/bin/bash
 
+# Variables
+LOCAL_FOLDER="/path/to/local/folder"
+POD_NAME="your-pod-name"
+NAMESPACE="your-pod-namespace"
+DESTINATION_FOLDER="/path/in/pod"
+
+# Ensure kubectl is available
+if ! command -v kubectl &> /dev/null
+then
+    echo "kubectl could not be found, please install it and retry."
+    exit
+fi
+
+# Loop through each file in the local folder
+for file in "$LOCAL_FOLDER"/*; do
+    filename=$(basename -- "$file")
+    echo "Processing $filename"
+
+    # Step 1: Encode the file in base64
+    base64 "$file" > "$file.base64"
+    echo "Encoded $filename to base64"
+
+    # Step 2: Copy the base64 file to the pod
+    cat "$file.base64" | kubectl exec -i -n "$NAMESPACE" "$POD_NAME" -- /bin/sh -c "cat > \"$DESTINATION_FOLDER/$filename.base64\""
+    echo "Copied $filename.base64 to pod"
+
+    # Step 3: Decode the file inside the pod
+    kubectl exec -i -n "$NAMESPACE" "$POD_NAME" -- /bin/sh -c "base64 -d \"$DESTINATION_FOLDER/$filename.base64\" > \"$DESTINATION_FOLDER/$filename\""
+    echo "Decoded $filename in pod"
+
+    # Optional: Remove the local base64 file to clean up
+    rm "$file.base64"
+    echo "Cleaned up local base64 file for $filename"
+done
+
+echo "All files processed."
+
+
+
+
+--------
+#!/bin/bash
+
 # Variables (Update these with your actual values)
 KEYCLOAK_URL="http://<your-server-url>:8080/auth"
 ADMIN_USERNAME="<admin-username>"
