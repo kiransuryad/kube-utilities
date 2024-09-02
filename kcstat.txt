@@ -1,5 +1,119 @@
 #!/bin/bash
 
+# Variables (Update these with your actual values)
+KEYCLOAK_URL="http://<your-server-url>:8080/auth"
+ADMIN_USERNAME="<admin-username>"
+ADMIN_PASSWORD="<admin-password>"
+REALM_NAME="<realm-name>"
+EXPORT_DIR="/path/to/export-directory"
+
+# Path to kcadm.sh
+KCADM_PATH="/opt/keycloak/bin/kcadm.sh"
+
+# Step 1: Authenticate with the New Keycloak Instance
+$KCADM_PATH config credentials --server $KEYCLOAK_URL --realm master --user $ADMIN_USERNAME --password $ADMIN_PASSWORD
+
+if [ $? -ne 0 ]; then
+  echo "Authentication failed"
+  exit 1
+fi
+
+# Step 2: Import Realm Settings
+$KCADM_PATH create realms -s realm=$REALM_NAME -f $EXPORT_DIR/$REALM_NAME-realm-settings.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import realm settings"
+  exit 1
+fi
+
+# Step 3: Import Clients
+$KCADM_PATH create clients -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-clients.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import clients"
+  exit 1
+fi
+
+# Step 4: Import Client Scopes
+$KCADM_PATH create client-scopes -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-client-scopes.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import client scopes"
+  exit 1
+fi
+
+# Step 5: Import Roles
+$KCADM_PATH create roles -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-roles.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import roles"
+  exit 1
+fi
+
+# Step 6: Import Identity Providers
+$KCADM_PATH create identity-provider/instances -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-identity-providers.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import identity providers"
+  exit 1
+fi
+
+# Step 7: Import User Federation
+$KCADM_PATH create components -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-user-federation.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import user federation"
+  exit 1
+fi
+
+# Step 8: Import Authentication Flows
+$KCADM_PATH create authentication/flows -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-authentication-flows.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import authentication flows"
+  exit 1
+fi
+
+# Step 9: Import Groups
+$KCADM_PATH create groups -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-groups.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import groups"
+  exit 1
+fi
+
+# Step 10: Import Users
+$KCADM_PATH create users -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-users.json
+if [ $? -ne 0 ]; then
+  echo "Failed to import users"
+  exit 1
+fi
+
+# Step 11: Optional Imports (Sessions, Events)
+
+# Import Sessions (Optional)
+if [ -f $EXPORT_DIR/$REALM_NAME-sessions.json ]; then
+  $KCADM_PATH create sessions -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-sessions.json
+  if [ $? -ne 0 ]; then
+    echo "Failed to import sessions"
+    exit 1
+  fi
+fi
+
+# Import Events (Optional)
+if [ -f $EXPORT_DIR/$REALM_NAME-events.json ]; then
+  $KCADM_PATH create events -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-events.json
+  if [ $? -ne 0 ]; then
+    echo "Failed to import events"
+    exit 1
+  fi
+fi
+
+echo "Realm import completed successfully"
+
+
+
+
+
+
+
+
+
+-------------
+#!/bin/bash
+
 # Set Keycloak server and admin credentials
 KEYCLOAK_URL="http://<your-server-url>:8080/auth"
 ADMIN_USERNAME="<admin-username>"
