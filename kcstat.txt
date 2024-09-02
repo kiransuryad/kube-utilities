@@ -1,4 +1,74 @@
+#!/bin/bash
 
+# Set Keycloak server and admin credentials
+KEYCLOAK_URL="http://<your-server-url>:8080/auth"
+ADMIN_USERNAME="<admin-username>"
+ADMIN_PASSWORD="<admin-password>"
+REALM_NAME="<realm-name>"
+
+# Path to kcadm.sh
+KCADM_PATH="/opt/jboss/keycloak/bin/kcadm.sh"
+
+# Authenticate with Keycloak
+$KCADM_PATH config credentials --server $KEYCLOAK_URL --realm master --user $ADMIN_USERNAME --password $ADMIN_PASSWORD
+
+# Create a directory to store the exported data
+EXPORT_DIR="/tmp/$REALM_NAME-export"
+mkdir -p $EXPORT_DIR
+
+echo "Exporting realm: $REALM_NAME"
+
+# Export Realm Settings
+$KCADM_PATH get realms/$REALM_NAME > $EXPORT_DIR/$REALM_NAME-realm-settings.json
+echo "Exported realm settings."
+
+# Export Clients
+$KCADM_PATH get clients -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-clients.json
+echo "Exported clients."
+
+# Export Client Scopes
+$KCADM_PATH get client-scopes -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-client-scopes.json
+echo "Exported client scopes."
+
+# Export Roles
+$KCADM_PATH get roles -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-roles.json
+echo "Exported roles."
+
+# Export Identity Providers
+$KCADM_PATH get identity-provider/instances -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-identity-providers.json
+echo "Exported identity providers."
+
+# Export User Federation Providers
+$KCADM_PATH get components -r $REALM_NAME --query "providerType=user-federation" > $EXPORT_DIR/$REALM_NAME-user-federation.json
+echo "Exported user federation."
+
+# Export Authentication Flows
+$KCADM_PATH get authentication/flows -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-authentication-flows.json
+echo "Exported authentication flows."
+
+# Export Groups
+$KCADM_PATH get groups -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-groups.json
+echo "Exported groups."
+
+# Export Users
+$KCADM_PATH get users -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-users.json
+echo "Exported users."
+
+# Export User Sessions (Optional, may not be needed)
+$KCADM_PATH get sessions -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-sessions.json
+echo "Exported sessions."
+
+# Export Events (Optional, may not be needed)
+$KCADM_PATH get events -r $REALM_NAME > $EXPORT_DIR/$REALM_NAME-events.json
+echo "Exported events."
+
+echo "Export complete. Files saved in $EXPORT_DIR"
+
+
+
+
+
+------------
 #!/bin/bash
 
 # Path to the realms JSON file
