@@ -5,6 +5,67 @@ KEYCLOAK_URL="http://<your-server-url>:8080/auth"
 ADMIN_USERNAME="<admin-username>"
 ADMIN_PASSWORD="<admin-password>"
 
+# Path to kcadm.sh
+KCADM_PATH="/opt/jboss/keycloak/bin/kcadm.sh"
+
+# Authenticate with Keycloak
+$KCADM_PATH config credentials --server $KEYCLOAK_URL --realm master --user $ADMIN_USERNAME --password $ADMIN_PASSWORD
+
+# Get the list of all realms
+$KCADM_PATH get realms > /tmp/keycloak_realms.json
+
+# Initialize output file for clients and users data
+echo "[]" > /tmp/keycloak_clients.json
+echo "[]" > /tmp/keycloak_users.json
+
+# Iterate over each realm and export clients and users
+realms=$($KCADM_PATH get realms | grep -Po '"realm": *\K"[^"]*"' | tr -d '"')
+
+for realm in $realms; do
+  # Export clients for this realm
+  $KCADM_PATH get clients -r $realm >> /tmp/keycloak_clients.json
+
+  # Export users for this realm
+  $KCADM_PATH get users -r $realm >> /tmp/keycloak_users.json
+done
+
+echo "Export complete. Files saved to /tmp/keycloak_realms.json, /tmp/keycloak_clients.json, and /tmp/keycloak_users.json"
+
+
+---
+
+#!/bin/bash
+
+# Path to the JSON files
+REALMS_FILE="keycloak_realms.json"
+CLIENTS_FILE="keycloak_clients.json"
+USERS_FILE="keycloak_users.json"
+
+# Count the number of realms
+realm_count=$(cat $REALMS_FILE | jq '. | length')
+
+# Count the number of clients
+client_count=$(cat $CLIENTS_FILE | jq '. | length')
+
+# Count the number of users
+user_count=$(cat $USERS_FILE | jq '. | length')
+
+# Display results
+echo "Number of Realms: $realm_count"
+echo "Number of Clients: $client_count"
+echo "Number of Users: $user_count"
+
+
+
+
+--------
+#!/bin/bash
+
+# Set Keycloak server and admin credentials
+KEYCLOAK_URL="http://<your-server-url>:8080/auth"
+ADMIN_USERNAME="<admin-username>"
+ADMIN_PASSWORD="<admin-password>"
+
 # Authenticate with Keycloak
 ./kcadm.sh config credentials --server $KEYCLOAK_URL --realm master --user $ADMIN_USERNAME --password $ADMIN_PASSWORD
 
