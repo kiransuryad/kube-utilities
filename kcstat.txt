@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Set Keycloak server and admin credentials
+KEYCLOAK_URL="http://<your-server-url>:8080/auth"
+ADMIN_USERNAME="<admin-username>"
+ADMIN_PASSWORD="<admin-password>"
+
+# Authenticate with Keycloak
+./kcadm.sh config credentials --server $KEYCLOAK_URL --realm master --user $ADMIN_USERNAME --password $ADMIN_PASSWORD
+
+# Get the list of all realms
+realms=$(./kcadm.sh get realms | jq -r '.[].realm')
+
+# Initialize counters
+total_realms=0
+total_clients=0
+total_users=0
+
+echo "------------------------------------"
+echo "Keycloak Realms and Configuration Stats"
+echo "------------------------------------"
+
+# Iterate over each realm
+for realm in $realms; do
+  total_realms=$((total_realms + 1))
+
+  # Get the number of clients in the realm
+  client_count=$(./kcadm.sh get clients -r $realm | jq '. | length')
+  total_clients=$((total_clients + client_count))
+
+  # Get the number of users in the realm
+  user_count=$(./kcadm.sh get users -r $realm | jq '. | length')
+  total_users=$((total_users + user_count))
+
+  # Get realm configuration details
+  realm_config=$(./kcadm.sh get realms/$realm)
+
+  echo "Realm: $realm"
+  echo "  Number of Clients: $client_count"
+  echo "  Number of Users: $user_count"
+  echo "  Realm Configuration:"
+  echo "$realm_config" | jq '{id, realm, displayName, enabled, sslRequired, registrationAllowed, ssoSessionIdleTimeout, ssoSessionMaxLifespan, accessTokenLifespan}'
+  echo "------------------------------------"
+done
+
+# Display overall statistics
+echo "Total Realms: $total_realms"
+echo "Total Clients across all Realms: $total_clients"
+echo "Total Users across all Realms: $total_users"
