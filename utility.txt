@@ -1,3 +1,11 @@
+We are pausing services in the following EKS clusters as part of the EKS decommissioning:
+
+airflow2-cdp-pci-prod in AWS account 771019490822 (dts-transatlanticexpress-elementals) in region US EAST 1
+cdp-pci-prod in AWS account 771019490822 (dts-transatlanticexpress-elementals) in region US EAST 1
+fisid-dts-management in AWS account 561037286955 (PRRD-ARIC) in region US EAST 1
+eks-cluster in AWS account 776419728769 (EDP-Management) in region EU WEST 2
+
+---
 Quick question — I noticed that the URL https://teleport.dts-management.wfps.worldpay.com/ isn’t accessible right now. Can you check if it’s down on your side too?
 
 Also, it looks like the URL is hosted on dts-management (PPRD-ARIC). Any idea what the current use case is for the EC2 with Teleport? Just want to see if there’s another way to access it and confirm the setup.
