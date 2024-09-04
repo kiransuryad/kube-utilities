@@ -1,3 +1,8 @@
+Quick question — I noticed that the URL https://teleport.dts-management.wfps.worldpay.com/ isn’t accessible right now. Can you check if it’s down on your side too?
+
+Also, it looks like the URL is hosted on dts-management (PPRD-ARIC). Any idea what the current use case is for the EC2 with Teleport? Just want to see if there’s another way to access it and confirm the setup.
+
+--
 I am writing to update you on a significant enhancement to our authentication system infrastructure, specifically concerning our ongoing efforts to upgrade our Keycloak service from version 18.0.2-legacy to 24.0.
 
 Context & Progress: As part of our system improvements, we have successfully deployed the new Keycloak version 24.0 in our development environment. This update is a crucial step toward enhancing our system's reliability, security features, and performance.
