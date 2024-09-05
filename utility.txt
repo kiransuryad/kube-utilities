@@ -1,12 +1,9 @@
-I hope you’re doing well. I wanted to follow up on a few items regarding the Keycloak migration. I also tried reaching out through Teams but wanted to make sure you have all the details in case the message was missed.
+Sure, thank you for confirming.
 
-In Non-Prod, we’ve deployed a new Keycloak version (Keycloak 24 with PostgreSQL 16). Now, we’re preparing to migrate data from the old Keycloak to the new one, and I would appreciate your input on a few points:
-
-Are there any approvals required before we proceed with migrating data from the old non-prod Keycloak instance to the new one within the same cluster (whether in non-prod or prod)?
-For the migration itself, we’ll need to access the new Keycloak as an admin to execute some export and import scripts. Could you guide us on how to manage admin access and any particular steps we should follow?
-After the migration is complete, we would appreciate your assistance in verifying that the data transfer was successful.
-Could you also confirm the current status of SIEM, including the URL or any configurations we need to be mindful of during this migration? Are there any additional steps or considerations we should take into account for SIEM as part of this process?
-Please let me know your thoughts on these items. I’m happy to adjust our plan based on your recommendations.
+We will proceed with the nonprod environment, and for production, we will go ahead with a Change Request (CR) as you suggested.
+Yes, my user had admin access, but I am unable to access it through the CLI. I’m interested to know if there is a separate admin account you are aware of for the master realm that I could use.
+Thank you for confirming your assistance with the migration. Additionally, could you provide the URL and details regarding the current SIEM, along with the access and working condition, if you have that information?
+Thank you!
 
 ---
 We are pausing services in the following EKS clusters as part of the EKS decommissioning:
