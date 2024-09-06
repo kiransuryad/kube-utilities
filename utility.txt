@@ -1,9 +1,17 @@
-Sure, thank you for confirming.
+Here's your revised update with the additional section on pending tasks:
 
-We will proceed with the nonprod environment, and for production, we will go ahead with a Change Request (CR) as you suggested.
-Yes, my user had admin access, but I am unable to access it through the CLI. I’m interested to know if there is a separate admin account you are aware of for the master realm that I could use.
-Thank you for confirming your assistance with the migration. Additionally, could you provide the URL and details regarding the current SIEM, along with the access and working condition, if you have that information?
-Thank you!
+Keycloak Migration Feedback: Casey responded positively to the migration plans. He has approved making the necessary changes to the nonprod admin account as required.
+SIEM Log Group: Casey mentioned he is only aware of the SIEM log group and does not have further information. We might need to contact the SIEM team for more details; please let me know if you have contact information for them.
+URL Sharing: Casey has requested the new URL to be shared for testing in the nonprod environment once the data migration is complete. I confirmed that we would provide the URL for their testing before the official switch over.
+Current Data Migration Tasks: I'm working on data migration in the nonprod environment and exploring two paths:
+I have prepared export scripts and tried them in the dev environment, but now there seems to be an issue with the nonprod admin login from the backend.
+I am currently creating a new Keycloak environment manually and running export scripts during startup from the restored and backup environment.
+Additional Pending Tasks:
+Update certificates for external access with key factor.
+Confirm the current status of SIEM updates, as the existing SIEM does not seem to be functioning properly. Coordination with the SIEM team is needed.
+Update Keycloak themes.
+Update Keycloak DBA image.
+Next Update: I will provide a more detailed update on the data migration process early next week.
 
 ---
 We are pausing services in the following EKS clusters as part of the EKS decommissioning:
