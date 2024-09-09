@@ -1,3 +1,47 @@
+Step-by-Step Tasks
+1. List All Namespaces
+
+First, list all the namespaces in your cluster to identify where your workloads are running.
+Command: kubectl get namespaces
+2. Scale Down Deployments
+
+For each namespace, scale down all deployments to zero pods.
+
+# Replace <namespace> with the actual namespace
+command:
+kubectl get deployments -n <namespace> | awk '{if(NR>1)print $1}' | xargs -I {} kubectl scale deployment {} --replicas=0 -n <namespace>
+
+Repeat this for each namespace where you want to pause services.
+
+3. Scale Down StatefulSets
+
+Scale down all StatefulSets to zero pods.
+
+
+# Replace <namespace> with the actual namespace
+Command:
+kubectl get statefulsets -n <namespace> | awk '{if(NR>1)print $1}' | xargs -I {} kubectl scale statefulset {} --replicas=0 -n <namespace>
+
+Repeat for each relevant namespace.
+
+4. Scale Down DaemonSets
+
+DaemonSets typically run a pod on every node, so you might want to consider whether you need to scale these down, depending on your use case.
+
+# Replace <namespace> with the actual namespace
+Command:
+kubectl get daemonsets -n <namespace> | awk '{if(NR>1)print $1}' | xargs -I {} kubectl scale daemonset {} --replicas=0 -n <namespace>
+
+1. Verify Scaling
+
+After scaling down, verify that there are no running pods left in the affected namespaces.
+
+Command:
+kubectl get pods -n <namespace>
+
+Repeat the check for each namespace.
+
+---
 For EKS clusters, AWS-managed KMS keys can be used, but we can also use Customer Managed Keys (CMKs) if we need more control over the encryption keys. 
 AWS-Managed KMS Keys: These are managed entirely by AWS and offer a simpler solution if we do not need to manage the lifecycle of the key directly. 
 Customer Managed KMS Keys (CMKs): If we have specific compliance, security, or auditing requirements that require direct control over the encryption keys.
