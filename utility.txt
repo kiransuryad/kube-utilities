@@ -1,3 +1,11 @@
+For EKS clusters, AWS-managed KMS keys can be used, but we can also use Customer Managed Keys (CMKs) if we need more control over the encryption keys. 
+AWS-Managed KMS Keys: These are managed entirely by AWS and offer a simpler solution if we do not need to manage the lifecycle of the key directly. 
+Customer Managed KMS Keys (CMKs): If we have specific compliance, security, or auditing requirements that require direct control over the encryption keys.
+EKS does not have a hard requirement for using CMKs like EC2 may in certain situations, and we can use either AWS-managed keys or CMKs, depending on our needs. If compliance or strict key control is necessary, then using CMKs would be the way to go.
+
+----
+
+
 Here's your revised update with the additional section on pending tasks:
 
 Keycloak Migration Feedback: Casey responded positively to the migration plans. He has approved making the necessary changes to the nonprod admin account as required.
