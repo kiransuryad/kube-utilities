@@ -1,3 +1,22 @@
+Hi Casey,
+
+As discussed earlier, below is the new URL for Keycloak in the non-prod environment:
+
+[Insert URL here]
+
+Please review the data and other configurations to ensure everything is as expected. If you notice any discrepancies, kindly let us know so we can address them promptly.
+
+We are aware that the Keycloak theme still needs to be updated. Once your validation is complete, we will proceed with updating the theme as part of the next steps.
+
+Additionally, we are continuing discussions regarding the SIEM logs in a parallel thread.
+
+Thanks for your support, and I look forward to your feedback.
+
+Best regards,
+
+
+
+-------
 Step-by-Step Tasks
 1. List All Namespaces
 
