@@ -25,6 +25,168 @@ if [ $? -eq 0 ]; then
 else
   $KCADM_PATH create realms -s realm=$REALM_NAME -f $EXPORT_DIR/$REALM_NAME-realm-settings.json
   if [ $? -ne 0 ]; then
+    echo "Failed to import realm settings, continuing..."
+  fi
+fi
+
+# Step 3: Check and Import Clients
+existing_clients=$($KCADM_PATH get clients -r $REALM_NAME --fields clientId | grep '"clientId"' | sed 's/"clientId": "//g' | sed 's/",//g')
+while IFS= read -r client; do
+  if echo "$existing_clients" | grep -q "$client"; then
+    echo "Client $client already exists, skipping client import."
+  else
+    $KCADM_PATH create clients -r $REALM_NAME -s clientId="$client" -f $EXPORT_DIR/$REALM_NAME-clients.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import client $client, continuing..."
+    fi
+  fi
+done < <(grep '"clientId"' $EXPORT_DIR/$REALM_NAME-clients.json | sed 's/"clientId": "//g' | sed 's/",//g')
+
+# Step 4: Check and Import Client Scopes
+existing_scopes=$($KCADM_PATH get client-scopes -r $REALM_NAME --fields name | grep '"name"' | sed 's/"name": "//g' | sed 's/",//g')
+while IFS= read -r scope; do
+  if echo "$existing_scopes" | grep -q "$scope"; then
+    echo "Client Scope $scope already exists, skipping client scope import."
+  else
+    $KCADM_PATH create client-scopes -r $REALM_NAME -s name="$scope" -f $EXPORT_DIR/$REALM_NAME-client-scopes.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import client scope $scope, continuing..."
+    fi
+  fi
+done < <(grep '"name"' $EXPORT_DIR/$REALM_NAME-client-scopes.json | sed 's/"name": "//g' | sed 's/",//g')
+
+# Step 5: Check and Import Roles
+existing_roles=$($KCADM_PATH get roles -r $REALM_NAME --fields name | grep '"name"' | sed 's/"name": "//g' | sed 's/",//g')
+while IFS= read -r role; do
+  if echo "$existing_roles" | grep -q "$role"; then
+    echo "Role $role already exists, skipping role import."
+  else
+    $KCADM_PATH create roles -r $REALM_NAME -s name="$role" -f $EXPORT_DIR/$REALM_NAME-roles.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import role $role, continuing..."
+    fi
+  fi
+done < <(grep '"name"' $EXPORT_DIR/$REALM_NAME-roles.json | sed 's/"name": "//g' | sed 's/",//g')
+
+# Step 6: Check and Import Identity Providers
+existing_idps=$($KCADM_PATH get identity-provider/instances -r $REALM_NAME --fields alias | grep '"alias"' | sed 's/"alias": "//g' | sed 's/",//g')
+while IFS= read -r idp; do
+  if echo "$existing_idps" | grep -q "$idp"; then
+    echo "Identity Provider $idp already exists, skipping identity provider import."
+  else
+    $KCADM_PATH create identity-provider/instances -r $REALM_NAME -s alias="$idp" -f $EXPORT_DIR/$REALM_NAME-identity-providers.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import identity provider $idp, continuing..."
+    fi
+  fi
+done < <(grep '"alias"' $EXPORT_DIR/$REALM_NAME-identity-providers.json | sed 's/"alias": "//g' | sed 's/",//g')
+
+# Step 7: Check and Import User Federation
+existing_federations=$($KCADM_PATH get components -r $REALM_NAME --query providerType=user-federation --fields name | grep '"name"' | sed 's/"name": "//g' | sed 's/",//g')
+while IFS= read -r federation; do
+  if echo "$existing_federations" | grep -q "$federation"; then
+    echo "User Federation $federation already exists, skipping user federation import."
+  else
+    $KCADM_PATH create components -r $REALM_NAME -s name="$federation" -f $EXPORT_DIR/$REALM_NAME-user-federation.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import user federation $federation, continuing..."
+    fi
+  fi
+done < <(grep '"name"' $EXPORT_DIR/$REALM_NAME-user-federation.json | sed 's/"name": "//g' | sed 's/",//g')
+
+# Step 8: Check and Import Authentication Flows
+existing_flows=$($KCADM_PATH get authentication/flows -r $REALM_NAME --fields alias | grep '"alias"' | sed 's/"alias": "//g' | sed 's/",//g')
+while IFS= read -r flow; do
+  if echo "$existing_flows" | grep -q "$flow"; then
+    echo "Authentication Flow $flow already exists, skipping authentication flow import."
+  else
+    $KCADM_PATH create authentication/flows -r $REALM_NAME -s alias="$flow" -f $EXPORT_DIR/$REALM_NAME-authentication-flows.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import authentication flow $flow, continuing..."
+    fi
+  fi
+done < <(grep '"alias"' $EXPORT_DIR/$REALM_NAME-authentication-flows.json | sed 's/"alias": "//g' | sed 's/",//g')
+
+# Step 9: Check and Import Groups
+existing_groups=$($KCADM_PATH get groups -r $REALM_NAME --fields name | grep '"name"' | sed 's/"name": "//g' | sed 's/",//g')
+while IFS= read -r group; do
+  if echo "$existing_groups" | grep -q "$group"; then
+    echo "Group $group already exists, skipping group import."
+  else
+    $KCADM_PATH create groups -r $REALM_NAME -s name="$group" -f $EXPORT_DIR/$REALM_NAME-groups.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import group $group, continuing..."
+    fi
+  fi
+done < <(grep '"name"' $EXPORT_DIR/$REALM_NAME-groups.json | sed 's/"name": "//g' | sed 's/",//g')
+
+# Step 10: Check and Import Users
+existing_users=$($KCADM_PATH get users -r $REALM_NAME --fields username | grep '"username"' | sed 's/"username": "//g' | sed 's/",//g')
+while IFS= read -r user; do
+  if echo "$existing_users" | grep -q "$user"; then
+    echo "User $user already exists, skipping user import."
+  else
+    $KCADM_PATH create users -r $REALM_NAME -s username="$user" -f $EXPORT_DIR/$REALM_NAME-users.json
+    if [ $? -ne 0 ]; then
+      echo "Failed to import user $user, continuing..."
+    fi
+  fi
+done < <(grep '"username"' $EXPORT_DIR/$REALM_NAME-users.json | sed 's/"username": "//g' | sed 's/",//g')
+
+# Step 11: Optional Imports (Sessions, Events)
+
+# Import Sessions (Optional)
+if [ -f $EXPORT_DIR/$REALM_NAME-sessions.json ]; then
+  echo "Importing Sessions..."
+  $KCADM_PATH create sessions -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-sessions.json
+  if [ $? -ne 0 ]; then
+    echo "Failed to import sessions, continuing..."
+  fi
+fi
+
+# Import Events (Optional)
+if [ -f $EXPORT_DIR/$REALM_NAME-events.json ]; then
+  echo "Importing Events..."
+  $KCADM_PATH create events -r $REALM_NAME -f $EXPORT_DIR/$REALM_NAME-events.json
+  if [ $? -ne 0 ]; then
+    echo "Failed to import events, continuing..."
+  fi
+fi
+
+echo "Realm import completed with checks and fault tolerance."
+
+
+
+
+
+----------
+#!/bin/bash
+
+# Variables (Update these with your actual values)
+KEYCLOAK_URL="http://<your-server-url>:8080/auth"
+ADMIN_USERNAME="<admin-username>"
+ADMIN_PASSWORD="<admin-password>"
+REALM_NAME="<realm-name>"
+EXPORT_DIR="/path/to/export-directory"
+
+# Path to kcadm.sh
+KCADM_PATH="/opt/keycloak/bin/kcadm.sh"
+
+# Step 1: Authenticate with the New Keycloak Instance
+$KCADM_PATH config credentials --server $KEYCLOAK_URL --realm master --user $ADMIN_USERNAME --password $ADMIN_PASSWORD
+
+if [ $? -ne 0 ]; then
+  echo "Authentication failed"
+  exit 1
+fi
+
+# Step 2: Check and Import Realm Settings
+$KCADM_PATH get realms/$REALM_NAME &> /dev/null
+if [ $? -eq 0 ]; then
+  echo "Realm $REALM_NAME already exists, skipping realm creation."
+else
+  $KCADM_PATH create realms -s realm=$REALM_NAME -f $EXPORT_DIR/$REALM_NAME-realm-settings.json
+  if [ $? -ne 0 ]; then
     echo "Failed to import realm settings"
     exit 1
   fi
