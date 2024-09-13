@@ -1,3 +1,19 @@
+Log in to the AWS Management Console and locate the EKS Cluster by navigating to the Elastic Kubernetes Service (EKS).
+Identify the Node Group and corresponding Auto Scaling Group (ASG) for the EKS cluster.
+Open the EC2 Console to verify the correct ASG associated with the nodes (under Auto Scaling Groups).
+Use the following AWS CLI command to set the Auto Scaling Group's desired, minimum, and maximum capacities to 0:
+bash
+Copy code
+aws autoscaling update-auto-scaling-group \
+    --auto-scaling-group-name <ASG-NAME> \
+    --min-size 0 --max-size 0 --desired-capacity 0
+After running the command, verify that the EC2 instances are terminating by checking the EC2 Instances in the AWS Console.
+Go back to the EKS Console under the Nodes tab and confirm that the node group has no active nodes.
+Optionally, delete the node group in EKS by selecting it and choosing Delete in the Node Groups tab.
+Monitor the status in both the EC2 and EKS consoles to ensure the nodes have been fully scaled down or deleted as required.
+
+
+---
 Hi Casey,
 
 As discussed earlier, below is the new URL for Keycloak in the non-prod environment:
