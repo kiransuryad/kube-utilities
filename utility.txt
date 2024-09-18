@@ -1,3 +1,6 @@
+The proxy URL proxy.cdp-pci-prod.us-east-1.edp.awscloud.worldpay.com is currently non-functional because we paused the service deployed in the dts-management EKS cluster (us-east-1 region) today as part of the Change Request (CR: CH24001687338). The new proxy URL, proxy-dts-services.cdp-pci-prod.us-east-1.edp.awscloud.worldpay.com, had been deployed some time ago in the dis-management-services EKS cluster (us-east-1 region) in the same AWS account, PPRD-ARIC. Since the services were paused today, this caused the connectivity issue you encountered. Now that you have switched to the new URL, the issue has been resolved, and everything should be functioning properly.
+
+---
 Log in to the AWS Management Console and locate the EKS Cluster by navigating to the Elastic Kubernetes Service (EKS).
 Identify the Node Group and corresponding Auto Scaling Group (ASG) for the EKS cluster.
 Open the EC2 Console to verify the correct ASG associated with the nodes (under Auto Scaling Groups).
