@@ -1,3 +1,15 @@
+output_file="iam_access_keys.txt"
+echo "IAM Access Keys Information" > $output_file
+echo "==========================" >> $output_file
+
+aws iam list-users --query 'Users[*].UserName' --output text | tr '\t' '\n' | while read user; do
+  echo "Access Keys for User: $user" >> $output_file
+  aws iam list-access-keys --user-name $user --query 'AccessKeyMetadata[*].[AccessKeyId,Status,CreateDate]' --output table >> $output_file
+  echo "" >> $output_file
+done
+
+
+---
 aws iam list-users --query 'Users[*].UserName' --output text | tr '\t' '\n' | while read user; do
   echo "Access Keys for User: $user"
   aws iam list-access-keys --user-name $user --query 'AccessKeyMetadata[*].[AccessKeyId,Status,CreateDate]' --output table
