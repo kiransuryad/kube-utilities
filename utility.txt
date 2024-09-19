@@ -1,3 +1,43 @@
+As part of the ongoing efforts to decommission AWS account WUAT-ARIC, we are executing Change Request CH24001690506, which involves pausing services prior to full decommissioning. This is a critical step to ensure smooth deactivation with minimal disruption to ongoing operations.
+
+Key Activities:
+Pausing AWS Services:
+We have identified multiple services and resources across the WUAT-ARIC account. These include EC2 instances, EKS clusters, and AWS IAM Access Keys, among others.
+As part of this CR, the following services have been paused or are scheduled for pausing:
+EKS Clusters:
+cdp-prod (us-east-1) and cdp-prod (eu-west-1) have been decommissioned as of now.
+EC2 Instances:
+Instances like P-SEC-PRI-QUALYS-EC2, kali-linux-ec2, PROD-HTTP-PROXY-ASG, Squid-proxy, among others, across regions eu-west-1, eu-west-2, and us-east-1 are still running. We are in the process of pausing them in a phased manner to ensure system integrity.
+AWS IAM Access Keys:
+Various IAM users with access keys that are still active, such as srv-cdp-tableau-prod, swc-cdp-accurate-control-hub-prod, and swc-WUAT-ARIC will be reviewed and deactivated systematically in the next phase.
+High-Level Impact:
+Service Availability:
+Services linked to the EKS clusters and EC2 instances mentioned above will experience a controlled pause as part of the decommissioning process. Any active workloads will be halted according to the predefined recovery and rollback plans.
+Security Measures:
+Active IAM keys are being systematically deactivated to prevent unauthorized access. All security protocols are adhered to in this transition.
+Next Steps:
+Once services are paused, we will proceed with a final validation to ensure all essential resources have been successfully decommissioned.
+Further communications will follow as we progress into the subsequent phases of decommissioning.
+Timeline:
+The service pausing will be completed by [insert expected date], after which full decommissioning tasks will follow.
+We will provide updates as we complete each phase. Please feel free to reach out if you have any questions or concerns about the process.
+
+
+Important Notes:
+EC2 Instances:
+The EC2 instances being paused as part of this decommissioning process may not be recoverable or may not start again after pausing. Please ensure that any critical data or configurations associated with these instances have been backed up, as their state post-decommissioning is not guaranteed.
+EKS Clusters:
+Both cdp-prod clusters have already been decommissioned and are no longer available.
+IAM Access Keys:
+IAM access keys for users across various regions will be systematically deactivated. Please note that once deactivated, these users will no longer have access to AWS services or resources within this account.
+Next Steps:
+Once the pausing and decommissioning tasks are completed, we will conduct a final review to ensure all services have been properly decommissioned. Further communications will follow as we progress through these phases.
+
+If you have any questions or need assistance with specific resources, please don't hesitate to reach out.
+
+
+
+-----
 Task 1: Stop EC2 Instances and Deactivate AWS IAM Access Keys
 Step-by-Step Technical Steps:
 
