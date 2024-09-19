@@ -1,3 +1,56 @@
+High-Level Process for AWS Account Decommissioning
+Stop EC2 Instances:
+Identify Instances: List all active EC2 instances in the account.
+Notify Stakeholders: Inform all relevant teams about the scheduled downtime.
+Stop Instances: Use AWS CLI/console to stop EC2 instances.
+Validate: Confirm that all instances have stopped by checking their status.
+Deactivate AWS IAM Access Keys:
+List Active Keys: Identify all active IAM access keys in the account.
+Notify Users: Inform users of impending key deactivation.
+Deactivate Keys: Use AWS CLI/console to deactivate (not delete) access keys.
+Verify: Ensure that all access keys are marked as “Inactive”.
+Remove EKS Clusters:
+Identify Clusters: List all active EKS clusters.
+Backup Data: If needed, back up critical data, configurations, and node groups.
+Delete EKS Clusters: Use AWS CLI/console to delete the EKS clusters.
+Cleanup Resources: Ensure associated resources like node groups, security groups, and load balancers are cleaned up.
+Verify: Confirm that the clusters and resources have been removed.
+Change Plan
+Pre-Change Notifications:
+Notify all stakeholders and AWS account users regarding the decommissioning process, including the date, time, and expected impact.
+Change Execution:
+Stop EC2 Instances: Confirm no critical services are running and stop all instances.
+Deactivate IAM Keys: Ensure all access keys are properly deactivated without disrupting remaining resources.
+Remove EKS Clusters: Ensure proper backup and data transfer, followed by EKS cluster deletion.
+Communication Plan:
+Establish communication channels (Slack, email) for immediate status updates during the process.
+Post-Change Review:
+Review the decommissioning steps to ensure everything was executed as planned.
+Blackout/Recovery Plan
+Blackout Period Planning:
+Define a blackout period when the decommissioning will take place.
+Ensure no major deployments, updates, or changes will occur in the account during this period.
+Notify stakeholders about the blackout window.
+Recovery Steps:
+EC2 Instance Restart: If necessary, EC2 instances can be restarted by simply starting them from the AWS console/CLI.
+Reactivating IAM Keys: Reactivate deactivated IAM keys if access is required by restoring the key status to "Active".
+Restore EKS Cluster: If EKS clusters need to be re-created, ensure backed-up configurations and data are used for redeployment.
+Backup & Failover Plans:
+Maintain backups of important EKS configurations and EC2 snapshots to ensure a quick recovery in case of failure.
+Technical Validation Plan
+Pre-Validation:
+Identify Critical Services: Ensure no critical services are running on the EC2 instances.
+Validate IAM Key Usage: Ensure IAM keys being deactivated are not being actively used by critical processes.
+EKS Dependencies: Check for any services that rely on the EKS clusters before deletion.
+Post-Validation:
+Validate EC2 Shutdown: Verify that no EC2 instances are running post-shutdown.
+IAM Key Deactivation: Confirm that all IAM keys have been successfully deactivated and that no access is possible.
+Confirm EKS Removal: Ensure that the EKS clusters are no longer available and no associated resources are left behind.
+Monitoring:
+Use CloudWatch to monitor for any unexpected errors, resource usage, or unauthorized access attempts following the decommissioning.
+
+
+-----
 output_file="iam_access_keys.txt"
 echo "IAM Access Keys Information" > $output_file
 echo "==========================" >> $output_file
