@@ -1,3 +1,130 @@
+Task 1: Stop EC2 Instances and Deactivate AWS IAM Access Keys
+Step-by-Step Technical Steps:
+
+List and Stop EC2 Instances:
+Identify Active EC2 Instances:
+bash
+Copy code
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,State.Name,Tags[?Key==`Name`].Value]' --output table
+Stop EC2 Instances:
+bash
+Copy code
+aws ec2 stop-instances --instance-ids <instance_id1> <instance_id2> ...
+Replace <instance_id1> <instance_id2> with the instance IDs obtained from the above command.
+Validate EC2 Instances are Stopped:
+bash
+Copy code
+aws ec2 describe-instances --instance-ids <instance_id1> <instance_id2> ... --query 'Reservations[*].Instances[*].State.Name' --output text
+Check that the status is stopped for each instance.
+List and Deactivate AWS IAM Access Keys:
+List IAM Users:
+bash
+Copy code
+aws iam list-users --query 'Users[*].UserName' --output table
+List Active Access Keys for Each User:
+bash
+Copy code
+aws iam list-access-keys --user-name <username> --query 'AccessKeyMetadata[*].[AccessKeyId,Status]' --output table
+Replace <username> with the IAM user name obtained from the above list.
+Deactivate Access Keys (Mark as Inactive):
+bash
+Copy code
+aws iam update-access-key --user-name <username> --access-key-id <access_key_id> --status Inactive
+Replace <access_key_id> and <username> with appropriate values.
+Validate Access Keys are Deactivated:
+bash
+Copy code
+aws iam list-access-keys --user-name <username> --query 'AccessKeyMetadata[*].[AccessKeyId,Status]' --output table
+Ensure the status is Inactive.
+Task 2: Remove EKS Clusters
+Step-by-Step Technical Steps:
+
+List EKS Clusters:
+Identify Existing EKS Clusters:
+bash
+Copy code
+aws eks list-clusters --output table
+This command lists all active EKS clusters.
+Delete EKS Node Groups (if present):
+List Node Groups for the Cluster:
+bash
+Copy code
+aws eks list-nodegroups --cluster-name <cluster_name> --output table
+Replace <cluster_name> with the name of the EKS cluster.
+Delete Node Groups:
+bash
+Copy code
+aws eks delete-nodegroup --cluster-name <cluster_name> --nodegroup-name <nodegroup_name>
+Replace <cluster_name> and <nodegroup_name> with respective values.
+Delete EKS Cluster:
+Delete the EKS Cluster:
+bash
+Copy code
+aws eks delete-cluster --name <cluster_name>
+Replace <cluster_name> with the appropriate cluster name.
+Clean Up Resources Associated with the EKS Cluster:
+Delete Associated Load Balancers: List load balancers associated with the cluster and manually delete them if they do not auto-clean.
+bash
+Copy code
+aws elb describe-load-balancers --query 'LoadBalancerDescriptions[*].[LoadBalancerName]' --output table
+Then, delete using:
+bash
+Copy code
+aws elb delete-load-balancer --load-balancer-name <load_balancer_name>
+Delete Security Groups: Identify and delete security groups associated with the EKS cluster.
+bash
+Copy code
+aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName]' --output table
+Then delete:
+bash
+Copy code
+aws ec2 delete-security-group --group-id <security_group_id>
+Task 3: Technical Validation of the Decommissioning Process
+Step-by-Step Validation:
+
+Validate EC2 Instances are Stopped:
+Check the Status of EC2 Instances:
+bash
+Copy code
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,State.Name]' --output table
+Ensure all instances are in the stopped state.
+Validate IAM Keys are Deactivated:
+List and Check Access Key Status:
+bash
+Copy code
+aws iam list-access-keys --user-name <username> --query 'AccessKeyMetadata[*].[AccessKeyId,Status]' --output table
+Ensure that all keys have a status of Inactive.
+Validate EKS Clusters and Resources are Deleted:
+Check for Remaining EKS Clusters:
+bash
+Copy code
+aws eks list-clusters --output table
+Ensure no clusters are listed.
+Check for Remaining Node Groups:
+bash
+Copy code
+aws eks list-nodegroups --cluster-name <cluster_name> --output table
+Ensure no node groups are listed for the deleted cluster.
+Check for Remaining Load Balancers:
+bash
+Copy code
+aws elb describe-load-balancers --output table
+Ensure no associated load balancers exist.
+Check for Orphaned Security Groups:
+bash
+Copy code
+aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName]' --output table
+Ensure all unused security groups are deleted.
+Monitor CloudWatch Logs for Anomalies:
+Check for any unauthorized access or failures during decommissioning via CloudWatch logs:
+bash
+Copy code
+aws logs describe-log-groups --query 'logGroups[*].logGroupName' --output table
+This step-by-step approach covers the technical process for stopping EC2 instances, deactivating IAM keys, removing EKS clusters, and then validating the success of these actions to ensure a smooth decommissioning process.
+
+
+
+----
 High-Level Process for AWS Account Decommissioning
 Stop EC2 Instances:
 Identify Instances: List all active EC2 instances in the account.
