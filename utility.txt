@@ -72,6 +72,12 @@ kubectl create namespace external-dns
 Deploy External-DNS with Helm: Configure the correct DNS provider (AWS Route 53, Google Cloud DNS, etc.), and replace <provider-credentials> with your actual provider credentials.
 Example for AWS Route 53:
 
+helm repo add external-dns https://kubernetes-sigs.github.io/external-dns/
+helm repo update
+helm install external-dns external-dns/external-dns --namespace external-dns
+
+
+
 bash
 Copy code
 helm repo add bitnami https://charts.bitnami.com/bitnami
