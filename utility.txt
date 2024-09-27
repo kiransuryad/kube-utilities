@@ -1,3 +1,100 @@
+2. Add the Helm Repository for Keycloak:
+
+The official Codecentric Helm chart is a good starting point. Add the repository:
+
+bash
+Copy code
+helm repo add codecentric https://codecentric.github.io/helm-charts
+helm repo update
+3. Prepare a Custom values.yaml File:
+
+Create a values.yaml file to override the default settings for the Keycloak Helm chart. Here’s an example of what this file could look like, focusing on the ingress and connecting it to the existing ELB.
+
+yaml
+Copy code
+keycloak:
+  replicas: 2
+  baseUrl: https://keycloak.yourdomain.com  # Base URL to be used for Keycloak
+
+ingress:
+  enabled: true
+  hosts:
+    - host: keycloak.yourdomain.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  annotations:
+    # Adjust annotations based on your ingress controller and AWS settings
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # Add any additional annotations as needed for your existing ELB settings
+
+service:
+  type: ClusterIP  # Do not create a new load balancer
+Set the host to the domain name that will be pointed to your ELB.
+Add any necessary annotations based on your ingress controller and ELB configuration.
+If you are using Nginx as the ingress controller, ensure the nginx.ingress.kubernetes.io/backend-protocol matches your protocol (HTTP/HTTPS).
+4. Deploy the Keycloak Helm Chart in the New Namespace:
+
+Use Helm to deploy the Keycloak instance into the keycloak namespace with your custom values.yaml file.
+
+bash
+Copy code
+helm upgrade --install keycloak codecentric/keycloak -f values.yaml -n keycloak
+5. Set Up DNS to Point to the Existing ELB:
+
+If you haven't already, configure your DNS (e.g., using Route 53) to point the domain (keycloak.yourdomain.com) to the existing ELB's DNS name. This will route traffic from your domain to the ELB, and then to the Keycloak ingress.
+
+6. Verify the Ingress Configuration:
+
+Check that the ingress resource has been correctly created and is pointing to the ELB. Use the following command:
+
+bash
+Copy code
+kubectl get ingress -n keycloak
+You should see an ingress resource with the host configured as keycloak.yourdomain.com.
+
+7. Check the Keycloak Pods and Services:
+
+Confirm that the Keycloak pods are running successfully:
+
+bash
+Copy code
+kubectl get pods -n keycloak
+And verify the services:
+
+bash
+Copy code
+kubectl get svc -n keycloak
+8. Access Keycloak through the ELB and Domain:
+
+You should now be able to access Keycloak through the domain https://keycloak.yourdomain.com. The ingress will route traffic from the ELB to your Keycloak service.
+
+Optional Steps (For Further Customization):
+TLS Configuration: If you want to enable TLS for secure connections, ensure your ingress has the correct certificate setup. You can add this under ingress.tls in the values.yaml:
+yaml
+Copy code
+ingress:
+  tls:
+    - hosts:
+        - keycloak.yourdomain.com
+      secretName: keycloak-tls-secret  # Replace with your TLS secret name
+Scaling and Resource Limits: Modify the replica count and resource limits as per your workload:
+yaml
+Copy code
+keycloak:
+  replicas: 3
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+
+
+--------
 Step-by-Step Deployment Process
 1. Deploy Cert-Manager
 
