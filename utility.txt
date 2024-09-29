@@ -1,4 +1,19 @@
 controller:
+  # Unique name for the ingress class
+  ingressClassResource:
+    name: internal-nginx-new-class
+    enabled: true
+
+  admissionWebhooks:
+    enabled: true  # Enable the admission webhooks
+    patch:
+      enabled: true  # Ensure that the webhook patching is enabled
+      failurePolicy: Fail  # Set failure policy; Fail makes it stricter and safer
+
+
+
+----
+controller:
   service:
     type: LoadBalancer
     annotations:
