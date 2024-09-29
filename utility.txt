@@ -1,3 +1,45 @@
+controller:
+  service:
+    type: LoadBalancer
+    annotations:
+      # Use AWS NLB (Network Load Balancer) instead of the default ALB/CLB
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+
+      # Point to the existing NLB ARN
+      service.beta.kubernetes.io/aws-load-balancer-arn: "arn:aws:elasticloadbalancing:<region>:<account-id>:loadbalancer/net/<nlb-name>"
+
+      # If the NLB is internal (optional)
+      service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+
+    # Specify ports and their respective nodePorts
+    ports:
+      - name: http
+        port: 80
+        targetPort: http
+        protocol: TCP
+        nodePort: 31650  # Custom nodePort for HTTP
+
+      - name: https
+        port: 443
+        targetPort: https
+        protocol: TCP
+        nodePort: 30818  # Custom nodePort for HTTPS
+
+    # External traffic policy to preserve client IP (optional)
+    externalTrafficPolicy: Local
+
+  # Adjust other settings like replica count, resources, etc., as necessary
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+
+---
 Great approach! Below is a step-by-step guide on how to proceed with uninstalling your current ingress-nginx Helm release and then reinstalling it to use an existing AWS Network Load Balancer (NLB):
 
 Step 1: Uninstall the Existing ingress-nginx Helm Chart
