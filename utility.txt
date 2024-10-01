@@ -1,3 +1,48 @@
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+
+extraEnv: |
+  - name: KEYCLOAK_ADMIN
+    value: admin  # Replace with secure values in production
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin  # Replace with secure values in production
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+
+# Service configuration
+service:
+  type: ClusterIP  # Use ClusterIP since you are exposing through an Ingress
+  port: 8080
+
+# Ingress configuration
+ingress:
+  enabled: true
+  ingressClassName: "nginx"  # Ensure this matches your ingress class name
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: <your-domain>  # Replace with your domain
+      paths:
+        - path: /alb-path/keycloak-new
+          pathType: Prefix
+  tls: []  # Optional: add TLS configuration if you want HTTPS
+
+# Additional resources and settings (optional)
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+
+
+-------
 Hi Casey and Rajesh,
 
 Thank you, Casey, for testing the new non-productive deployment of Keycloak. Your efforts have been crucial in moving this forward.
