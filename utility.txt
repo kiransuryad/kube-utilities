@@ -1,3 +1,26 @@
+Hi Casey and Rajesh,
+
+Thank you, Casey, for testing the new non-productive deployment of Keycloak. Your efforts have been crucial in moving this forward.
+
+Next Steps:
+
+As we discussed, the next step is to switch the non-prod URLs, test them, and confirm everything is working as expected.
+Once the non-prod URLs are verified, we can proceed to plan for the production deployment and swap the prod URLs accordingly.
+Request for Support:
+
+I can take care of changing the internal URL. However, we will need assistance from your team, Casey, for swapping the external URLs.
+Can you please share and suggest the process for this?
+Rajesh:
+
+Could you please review and confirm the process for Keycloak swapping/migrating to the new setup for both non-prod and prod environments?
+Looking forward to your input and guidance on the next steps.
+
+Best regards,
+Kiran
+
+
+
+---------------
 controller:
   # Unique name for the ingress class
   ingressClassResource:
