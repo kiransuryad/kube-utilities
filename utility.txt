@@ -1,3 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak-ingress
+  namespace: keycloak-new  # Use the same namespace as your Keycloak deployment
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  ingressClassName: nginx  # Replace with your actual ingress class name if different
+  rules:
+    - host: <your-domain>  # Replace with your domain or NLB DNS
+      http:
+        paths:
+          - path: /alb-path/keycloak-new  # Path for accessing Keycloak
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak  # This should match the name of your Keycloak service
+                port:
+                  number: 8080  # The port your Keycloak service is listening on
+
+
+
+
+-----
 command:
   - "/opt/keycloak/bin/kc.sh"
   - "start"
