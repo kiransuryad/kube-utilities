@@ -1,3 +1,67 @@
+Option 1: Using a Self-Signed ClusterIssuer with cert-manager
+You can create a self-signed certificate using cert-manager with a ClusterIssuer of type selfSigned.
+
+Step 1: Create a Self-Signed ClusterIssuer
+
+Apply the following YAML to create a ClusterIssuer that will generate self-signed certificates:
+
+yaml
+Copy code
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+Save this to a file (e.g., selfsigned-issuer.yaml) and apply it:
+
+bash
+Copy code
+kubectl apply -f selfsigned-issuer.yaml
+Step 2: Create a Certificate Resource Using the Self-Signed Issuer
+
+Use this ClusterIssuer to create a certificate for your Keycloak ingress:
+
+yaml
+Copy code
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: keycloak-selfsigned-cert
+  namespace: keycloak-edp  # Your Keycloak namespace
+spec:
+  secretName: keycloak-tls  # The secret where the certificate will be stored
+  duration: 8760h # 1 year
+  renewBefore: 360h # 15 days before expiration
+  commonName: <your-domain>  # Replace with your domain
+  dnsNames:
+    - <your-domain>  # Replace with your domain
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+Save this as keycloak-selfsigned-certificate.yaml and apply it:
+
+bash
+Copy code
+kubectl apply -f keycloak-selfsigned-certificate.yaml
+Step 3: Use the Generated Secret in Your Ingress
+
+Once the certificate is generated, update your ingress resource to use the keycloak-tls secret:
+
+yaml
+Copy code
+tls:
+  - hosts:
+      - <your-domain>  # Replace with your domain
+    secretName: keycloak-tls
+Apply your ingress resource:
+
+bash
+Copy code
+kubectl apply -f keycloak-ingress.yaml
+
+
+-----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
