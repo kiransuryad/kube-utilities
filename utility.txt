@@ -1,3 +1,30 @@
+SELECT 
+  kgm.GROUP_ID, 
+  kg.ID, 
+  kg.REALM_ID, 
+  kg.PARENT_GROUP, 
+  kg.NAME
+FROM 
+  KEYCLOAK_GROUP_ROLE_MAPPING kgm
+JOIN 
+  KEYCLOAK_GROUP kg ON kgm.GROUP_ID = kg.ID
+WHERE 
+  kg.ID IN (
+    SELECT 
+      ID
+    FROM 
+      KEYCLOAK_GROUP
+    GROUP BY 
+      REALM_ID, 
+      PARENT_GROUP, 
+      NAME
+    HAVING 
+      COUNT(*) > 1
+  );
+
+
+
+--------
 Steps to Assess and Minimize Impact
 Identify Foreign Key Constraints To find out which tables have foreign key relationships to KEYCLOAK_GROUP, you can query the INFORMATION_SCHEMA in MySQL:
 sql
