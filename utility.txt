@@ -1,3 +1,11 @@
+DELETE FROM KEYCLOAK_GROUP
+WHERE REALM_ID = 'duplicate_realm_id'
+  AND PARENT_GROUP = 'duplicate_parent_group'
+  AND NAME = 'duplicate_name'
+LIMIT 1;
+
+
+---
 SELECT 
   REALM_ID, 
   PARENT_GROUP, 
