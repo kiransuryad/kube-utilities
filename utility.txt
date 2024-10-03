@@ -1,3 +1,51 @@
+Steps to Identify the Troubled Table
+Search for Tables with a SIBLING_NAMES Constraint or Similar Columns You can search through the tables to find those that have columns related to sibling_name or similar names. To check the structure of each table:
+sql
+Copy code
+SHOW CREATE TABLE table_name;
+Look for a column or constraint related to sibling_name or anything that matches the context of master-SG_EU_DEV_JIRA_Developers.
+Look for Common Keycloak Tables That Might Relate to Groups or Roles Since the error message indicates a naming conflict, focus on tables that are likely to store groups, roles, or permissions. Common tables in Keycloak that could be related include:
+GROUP
+ROLE
+REALM
+CLIENT_ROLE
+REALM_ROLE
+Check these tables specifically by describing their structure and looking for constraints or indices that match SIBLING_NAMES.
+
+For example:
+
+sql
+Copy code
+SHOW CREATE TABLE GROUP;
+sql
+Copy code
+SHOW CREATE TABLE ROLE;
+Search for Constraints or Indexes by Name If you suspect that the SIBLING_NAMES might be a constraint or index name, you can run a query to list all indexes and constraints in your schema:
+sql
+Copy code
+SELECT 
+  TABLE_NAME, CONSTRAINT_NAME, CONSTRAINT_TYPE
+FROM 
+  INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+WHERE 
+  CONSTRAINT_SCHEMA = 'keycloak_database_name' 
+  AND CONSTRAINT_NAME LIKE '%SIBLING_NAMES%';
+Replace keycloak_database_name with your schema name. This query will list any constraints or indexes that have a name similar to SIBLING_NAMES.
+Identify Duplicate Data in the Problematic Table Once you have identified the table associated with SIBLING_NAMES, find the duplicate entries that are causing the error. For example, if you identified the GROUP table as problematic:
+sql
+Copy code
+SELECT sibling_name_column, COUNT(*)
+FROM GROUP
+GROUP BY sibling_name_column
+HAVING COUNT(*) > 1;
+Replace sibling_name_column with the actual column name causing the duplicate issue. This will give you a list of duplicate entries.
+Review and Resolve Duplicate Data Once you identify the problematic table and column:
+Review the duplicate entries and decide whether to remove or modify them to ensure uniqueness.
+Remove or Update Duplicates using DELETE or UPDATE queries as appropriate.
+
+
+
+------
 Option 1: Using a Self-Signed ClusterIssuer with cert-manager
 You can create a self-signed certificate using cert-manager with a ClusterIssuer of type selfSigned.
 
