@@ -1,4 +1,21 @@
 SELECT 
+  REALM_ID, 
+  PARENT_GROUP, 
+  NAME, 
+  COUNT(*) as count
+FROM 
+  KEYCLOAK_GROUP
+GROUP BY 
+  REALM_ID, 
+  PARENT_GROUP, 
+  NAME
+HAVING 
+  COUNT(*) > 1;
+
+
+
+-----------
+SELECT 
   kgm.GROUP_ID, 
   kg.ID, 
   kg.REALM_ID, 
