@@ -1,3 +1,8 @@
+As part of our ongoing decommissioning efforts, we have paused all applications running within this cluster and removed the associated nodes. However, the cluster itself hasn't been deleted yet, and some resources linked to it, such as CloudWatch log groups, S3 buckets used for storing backups, as well as certain network components like load balancers, may still be active.
+
+Since these resources could continue to incur costs, and now that we’ve completed the decommissioning process, we believe it would be a good time to plan the removal of the EKS clusters and any related components. Please feel free to share any thoughts or suggestions on how we can proceed with this exercise.
+
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
