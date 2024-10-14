@@ -1,3 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-gde-jenkins-jcasc-config
+  namespace: gde
+data:
+  jcasc-default-config.yaml: |
+    jenkins:
+      disableRememberMe: false
+      remotingSecurity: false
+      useSecurity: true # Enabling security if required later
+      numExecutors: 0
+      projectNamingStrategy: "standard"
+      markupFormatter: "plainText"
+      clouds:
+        - kubernetes:
+            containerCapStr: "10"
+            connectTimeout: "5"
+            readTimeout: "15"
+            jenkinsUrl: "http://jenkins-gde:8080/"
+            jenkinsTunnel: "jenkins-gde-agent:50000"
+            maxRequestsPerHostStr: "32"
+            name: "kubernetes"
+            namespace: "gde"
+            serverUrl: "https://kubernetes.default"
+            podLabels:
+              - key: "jenkins/jenkins-gde-jenkins-slave"
+            templates:
+              - name: "default"
+                containers:
+                  - name: "jnlp"
+                    alwaysPullImage: false
+                    args: "\$(computer.jnlpmac) \$(computer.name)"
+                    envVars:
+                      - key: "JENKINS_URL"
+                        value: "http://jenkins-gde.gde.svc.cluster.local:8080"
+                    image: "776419728769.dkr.ecr.eu-west-2.amazonaws.com/inbound-agent:4.13-1-jdk11"
+                    resourceLimitMemory: 512Mi
+                    resourceLimitCpu: 512m
+                    resourceRequestMemory: 512Mi
+                    resourceRequestCpu: 512m
+                privileged: false
+                runAsUser: 1000
+                runAsGroup: 1000
+                workingDir: "/home/jenkins"
+                idleMinutes: 10
+                instanceCap: 32
+                label: "jenkins-gde=jenkins-slave"
+                mode: "NORMAL"
+                nodeUsageMode: "NORMAL"
+                podRetention: "Never"
+                showRawYaml: true
+      serviceAccount: "jenkins"
+      slaveConnectTimeoutStr: "100"
+      crumbIssuer:
+        standard:
+          excludeClientIPFromCrumb: true # Ensures crumb issuer works across different IPs (proxy or NAT handling)
+          proxyCompatability: true # Added for compatibility when using Jenkins behind a proxy
+      yamlMergeStrategy: "override"
+      unclassified:
+        location:
+          adminAddress: "admin@localhost"
+          url: "https://jenkins-gde.wfps.worldpay.com"
+        apiToken:
+          creationOfLegacyTokenEnabled: false
+          tokenGenerationOnCreationEnabled
+
+
+
+----
 DELETE FROM KEYCLOAK_GROUP
 WHERE REALM_ID = 'duplicate_realm_id'
   AND PARENT_GROUP = 'duplicate_parent_group'
