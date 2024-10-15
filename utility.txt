@@ -12,7 +12,7 @@ controller:
   adminPassword:
     valueFrom:
       secretKeyRef:
-        name: jenkins-admin-secret  # You will create this secret in the next step
+        name: jenkins-admin-secret  # You will create this secret manually
         key: jenkins-admin-password
 
   # Persistence setup with a new PVC
@@ -31,14 +31,13 @@ controller:
       cpu: "4000m"
       memory: "8Gi"
 
-  # Enable ingress for external access, leveraging existing AWS NLB
+  # Enable ingress for external access using Nginx Ingress controller
   ingress:
     enabled: true
+    ingressClassName: "nginx"  # Specify the Nginx ingress class
     annotations:
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-      alb.ingress.kubernetes.io/scheme: "internet-facing"  # AWS NLB scheme
-      alb.ingress.kubernetes.io/load-balancer-arn: "<EXISTING_AWS_NLB_ARN>"  # Replace with your AWS NLB ARN
     hosts:
       - jenkins.example.com  # Replace with your actual Route53 DNS entry
     tls:
@@ -75,6 +74,7 @@ controller:
   securityContext:
     runAsUser: 1000
     fsGroup: 1000
+
 
 
 -------------
