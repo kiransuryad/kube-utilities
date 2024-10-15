@@ -1,3 +1,64 @@
+controller:
+  JCasC:
+    configScripts:
+      seed-job-config: |
+        jobs:
+          - script: >
+              pipelineJob('example-pipeline') {
+                  definition {
+                      cpsScm {
+                          scm {
+                              git {
+                                  remote {
+                                      url('https://github.com/your-org/example-pipeline.git')  # Replace with your repo URL
+                                  }
+                                  branch('main')  # Replace with your desired branch
+                              }
+                          }
+                      }
+                  }
+              }
+
+  # Add the seed job that will create Jenkins jobs based on your DSL script in Git
+  seedJobs:
+    enabled: true
+    jobs:
+      - id: "my-seed-job"
+        targets: "jobs/*.groovy"  # Path to DSL scripts in your repo
+        description: "Seed job to create Jenkins jobs"
+        repositoryBranch: "main"  # Branch in your Git repo
+        repositoryUrl: "https://github.com/your-org/jenkins-dsl-scripts.git"  # Replace with your repo
+        credentialId: "git-credentials"  # Replace with your secret name if private
+
+# If Git access requires credentials, include them here
+credentials:
+  - id: "git-credentials"
+    usernamePassword:
+      username: "${GIT_USERNAME}"
+      password: "${GIT_PASSWORD}"
+
+  # Optionally, you can configure SSH key authentication
+  - id: "git-ssh-key-secret"
+    secretFile:
+      file: "/var/jenkins_home/.ssh/id_rsa"
+
+-----
+
+kubectl create secret generic git-ssh-key-secret \
+  --from-file=ssh-privatekey=/path/to/privatekey \
+  --namespace jenkins-new
+
+
+-------------
+
+kubectl create secret generic git-credentials \
+  --from-literal=username='your-git-username' \
+  --from-literal=password='your-git-token' \
+  --namespace jenkins-new
+
+
+
+---------
 kubectl create secret generic jenkins-admin-secret \
   --from-literal=jenkins-admin-password='your-secure-password' \
   --namespace jenkins-new
