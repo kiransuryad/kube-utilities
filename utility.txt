@@ -1,3 +1,65 @@
+To authenticate Jenkins using Keycloak as an OpenID Connect (OIDC) provider, follow these steps:
+
+Prerequisites:
+Keycloak deployed and accessible.
+Jenkins deployed in a separate namespace.
+Admin access to both Jenkins and Keycloak.
+Steps:
+1. Configure Keycloak:
+
+Create a Realm in Keycloak (if not already created):
+Go to the Keycloak Admin Console.
+Click on Add Realm and provide a name for the realm.
+Create a Client for Jenkins:
+Inside the realm, go to Clients and click Create.
+Set the Client ID to something like jenkins-client.
+Set the Client Protocol to openid-connect.
+Set the Access Type to confidential (since Jenkins will be acting as a confidential client).
+Set Valid Redirect URIs to the Jenkins URL (e.g., http://<jenkins-url>/securityRealm/finishLogin).
+Set Base URL and Admin URL (e.g., Jenkins URL).
+After creating the client, go to the Credentials tab and note down the Client Secret.
+Create a Keycloak User (optional):
+If you want to test with a specific user, create a user in Keycloak under the Users section.
+Ensure the user is assigned to the default group or another appropriate group and assign necessary roles under the Role Mappings tab.
+2. Configure Jenkins:
+
+Install the OpenID Connect Plugin:
+Go to Manage Jenkins > Manage Plugins > Available tab.
+Search for the OpenID Connect Authentication Plugin and install it.
+Configure Jenkins Security:
+Go to Manage Jenkins > Configure Global Security.
+Under Security Realm, choose OpenID Connect.
+Configure the following fields:
+Discovery endpoint: This is your Keycloak OIDC discovery URL, typically http://<keycloak-url>/auth/realms/<realm-name>/.well-known/openid-configuration.
+Client ID: The Client ID you configured in Keycloak (e.g., jenkins-client).
+Client Secret: The Client Secret you obtained from Keycloak.
+Token endpoint: It should be automatically fetched from the discovery endpoint, but you can manually set it to http://<keycloak-url>/auth/realms/<realm-name>/protocol/openid-connect/token.
+Authorization endpoint: It should also be automatically fetched but can be manually set to http://<keycloak-url>/auth/realms/<realm-name>/protocol/openid-connect/auth.
+User Info endpoint: Typically fetched automatically from http://<keycloak-url>/auth/realms/<realm-name>/protocol/openid-connect/userinfo.
+Set the Post-login redirect URL to the Jenkins URL (e.g., http://<jenkins-url>).
+Test Authentication:
+Log out of Jenkins and attempt to log back in.
+You should now be redirected to Keycloak's login page.
+After successful login via Keycloak, you will be redirected to Jenkins.
+3. Set Role-Based Access Control (Optional but Recommended):
+
+Install the Role-Based Authorization Strategy plugin in Jenkins.
+Define roles in Jenkins (e.g., Admin, Developer, etc.) and map them to the Keycloak groups/roles.
+4. Set OIDC Client Scopes (Optional):
+
+If you need to pass additional claims (like email or groups), ensure that the client in Keycloak has proper client scopes configured for Jenkins.
+Notes:
+Ensure Jenkins and Keycloak are both accessible via the correct URLs.
+The redirect URIs should exactly match what you set in Keycloak, as mismatched URIs will cause authentication failures.
+Enable HTTPS for production environments to secure the OIDC flow.
+With this setup, Jenkins users will authenticate through Keycloak via OpenID Connect, ensuring a centralized identity management approach.
+
+Would you like more information on role mapping or advanced configuration in Keycloak?
+
+
+
+
+---------------
 To use IAM Roles for Service Accounts (IRSA) in EKS, Jenkins pods need to authenticate using the web identity token mechanism. This process is automatically handled by Kubernetes and AWS when you set up IRSA, but it requires some configuration on both the EKS cluster side and the Helm chart side (in the values.yaml file).
 
 Since you mentioned that you haven’t explicitly set up a web identity token, I'll guide you through setting up IRSA and configuring it correctly in your Jenkins Helm chart.
