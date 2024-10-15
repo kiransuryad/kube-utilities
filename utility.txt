@@ -2,22 +2,39 @@ controller:
   JCasC:
     configScripts:
       seed-job-config: |
-        jobs:
-          - script: >
-              pipelineJob('example-pipeline') {
+        jenkins:
+          jobs:
+            - script: >
+                folder('seedJobs') {
+                  displayName('Seed Jobs')
+                  description('Folder for JobDSL Seed Jobs')
+                }
+            - script: >
+                pipelineJob('seedJobs/createJobs') {
                   definition {
-                      cpsScm {
-                          scm {
-                              git {
-                                  remote {
-                                      url('https://github.com/your-org/example-pipeline.git')  # Replace with your repo URL
-                                  }
-                                  branch('main')  # Replace with your desired branch
-                              }
+                    cpsScm {
+                      scm {
+                        git {
+                          id = 'DTS/CI/Server'
+                          remote {
+                            url('https://github.worldpay.com/DTS/gde-wfps-jenkins-jobdsl.git')
+                            credentials('SVC_DTS_JENKINS')  # Ensure this credential exists in Jenkins
                           }
+                          branch('master')  # Replace with the desired branch
+                          extensions {
+                            wipeOutWorkspace()
+                            localBranch()
+                          }
+                        }
                       }
+                      scriptPath('jenkins/JenkinsFile')  # Path to Jenkinsfile in the repo
+                    }
                   }
-              }
+                  triggers {
+                    cron('@daily')  # Set the cron schedule as needed
+                  }
+                }
+
 
   # Add the seed job that will create Jenkins jobs based on your DSL script in Git
   seedJobs:
