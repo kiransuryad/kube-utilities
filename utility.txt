@@ -1,3 +1,133 @@
+To use IAM Roles for Service Accounts (IRSA) in EKS, Jenkins pods need to authenticate using the web identity token mechanism. This process is automatically handled by Kubernetes and AWS when you set up IRSA, but it requires some configuration on both the EKS cluster side and the Helm chart side (in the values.yaml file).
+
+Since you mentioned that you haven’t explicitly set up a web identity token, I'll guide you through setting up IRSA and configuring it correctly in your Jenkins Helm chart.
+
+Steps to Set Up IAM Roles for Service Accounts (IRSA)
+1. Verify OIDC Provider in Your EKS Cluster
+
+To use IRSA, your EKS cluster must have an OIDC provider configured, which is required for Kubernetes to issue the web identity token that allows your Jenkins pods to assume the IAM role.
+
+Check if your cluster has an OIDC provider: You can verify this using the AWS CLI:
+bash
+Copy code
+aws eks describe-cluster --name your-cluster-name --query "cluster.identity.oidc.issuer" --output text
+The output should be a URL like https://oidc.eks.<region>.amazonaws.com/id/<eks-cluster-id>.
+
+If your cluster doesn’t have an OIDC provider, you need to create one.
+Create OIDC Provider (if it doesn’t exist): If the command above returns empty, you can associate an OIDC provider with your EKS cluster by running the following command:
+bash
+Copy code
+eksctl utils associate-iam-oidc-provider \
+  --region <your-region> \
+  --cluster <your-cluster-name> \
+  --approve
+2. Create an IAM Role for Your ServiceAccount
+
+You need to create an IAM role that allows the Jenkins pod to assume it via the OIDC provider.
+
+Create the IAM Role with EKS OIDC Trust Policy: Create a trust relationship between the IAM role and the OIDC provider, which allows the ServiceAccount to assume the role. The following trust policy specifies that only the jenkins ServiceAccount in the jenkins-new namespace can assume this role:
+Trust Policy JSON:
+
+json
+Copy code
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/oidc.eks.<region>.amazonaws.com/id/<eks-cluster-id>"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.<region>.amazonaws.com/id/<eks-cluster-id>:sub": "system:serviceaccount:jenkins-new:jenkins"
+        }
+      }
+    }
+  ]
+}
+Replace:
+
+YOUR_ACCOUNT_ID with your AWS account ID.
+<region> with your AWS region.
+<eks-cluster-id> with your EKS cluster ID.
+jenkins-new:jenkins with the namespace and ServiceAccount name for Jenkins.
+Attach a Policy to the Role: Attach a policy to the role that grants access to AWS Secrets Manager. Here's an example policy that grants access to specific secrets in Secrets Manager:
+json
+Copy code
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:ListSecrets"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:<region>:<account-id>:secret:<secret-id>"
+      ]
+    }
+  ]
+}
+Attach this policy to the IAM role you just created. You can do this via the AWS Management Console or by using the AWS CLI.
+3. Annotate the Jenkins ServiceAccount
+
+In your values.yaml file for Jenkins, ensure that the ServiceAccount is correctly annotated with the IAM role you created. This tells Kubernetes to use the IAM role via the OIDC provider.
+
+Here’s the configuration for the ServiceAccount in your values.yaml:
+
+yaml
+Copy code
+serviceAccount:
+  create: true
+  name: jenkins
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<your-account-id>:role/<your-iam-role-name>
+Make sure you replace the placeholders (<your-account-id> and <your-iam-role-name>) with your actual AWS account ID and IAM role name.
+
+4. Deploy the ServiceAccount and Jenkins
+
+After updating the values.yaml file, run the Helm upgrade command:
+
+bash
+Copy code
+helm upgrade jenkins jenkins/jenkins -n jenkins-new -f values.yaml
+5. Verify IRSA Setup
+
+Once the Helm upgrade is complete, verify that the Jenkins pod is using the correct IAM role.
+
+Check the Environment Variables in the Pod: Execute the following command to check if the pod has the correct environment variables for IRSA:
+bash
+Copy code
+kubectl exec -it <jenkins-pod-name> -n jenkins-new -- env | grep AWS
+You should see the following variables:
+
+ruby
+Copy code
+AWS_ROLE_ARN=arn:aws:iam::<your-account-id>:role/<your-iam-role-name>
+AWS_WEB_IDENTITY_TOKEN_FILE=/var/run/secrets/eks.amazonaws.com/serviceaccount/token
+Check if the Token File Exists: Verify that the token file (used for assuming the IAM role) exists inside the pod:
+bash
+Copy code
+kubectl exec -it <jenkins-pod-name> -n jenkins-new -- ls /var/run/secrets/eks.amazonaws.com/serviceaccount/
+You should see a file named token. This is the web identity token that is needed for Jenkins to assume the role.
+Check Logs: Finally, check the logs in Jenkins to verify that the pod is now assuming the correct IAM role and accessing AWS Secrets Manager.
+bash
+Copy code
+kubectl logs <jenkins-pod-name> -n jenkins-new
+Final Note:
+OIDC Provider: Ensure the OIDC provider is set up in your EKS cluster.
+IAM Role: Create an IAM role with the appropriate trust policy and permissions.
+ServiceAccount: Annotate the Jenkins ServiceAccount with the role ARN.
+Helm Deployment: Ensure that the correct values are applied via the Helm chart.
+Let me know how this works out for you, or if you need further clarification!
+
+
+
+
+---------
 controller:
   installPlugins:
     - kubernetes:1.30.1
