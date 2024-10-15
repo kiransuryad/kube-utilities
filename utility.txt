@@ -1,3 +1,26 @@
+#!/bin/bash
+# Backup the old plugins.txt
+cp /var/jenkins_home/plugins.txt /var/jenkins_home/plugins_bkp.txt
+
+# Create a new plugins.txt with updated plugin versions
+> /var/jenkins_home/plugins_updated.txt
+
+while IFS= read -r line; do
+  PLUGIN_NAME=$(echo $line | cut -d':' -f1)
+  # Fetch the latest version of the plugin
+  LATEST_VERSION=$(jenkins-plugin-cli --available-updates | grep "^$PLUGIN_NAME " | awk '{print $2}')
+  # If no latest version is found, use the current one
+  if [ -z "$LATEST_VERSION" ]; then
+    LATEST_VERSION=$(echo $line | cut -d':' -f2)
+  fi
+  echo "${PLUGIN_NAME}:${LATEST_VERSION}" >> /var/jenkins_home/plugins_updated.txt
+done < /var/jenkins_home/plugins.txt
+
+# Replace the old plugins.txt with the updated one
+mv /var/jenkins_home/plugins_updated.txt /var/jenkins_home/plugins.txt
+
+
+----
 # Assuming your plugins are backed up in a folder called "plugins_bkp"
 PLUGIN_BACKUP_DIR="/path/to/plugins_bkp"
 
