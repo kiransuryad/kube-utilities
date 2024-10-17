@@ -1,3 +1,19 @@
+h1. EKS Cluster Support Handover Document
+
+h2. 1. Cluster Overview
+* *Cluster Name*:  
+* *Cluster Region*:  
+* *Cluster Version*:  
+* *VPC ID*:  
+* *Subnets*:
+  * Public: 
+  * Private: 
+* *Cluster Creation Date*:  
+* *Primary Contact for Cluster* (if applicable):  
+
+
+
+---
 # EKS Cluster Support Handover Document
 
 ## 1. Cluster Overview
