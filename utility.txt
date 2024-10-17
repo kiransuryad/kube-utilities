@@ -1,3 +1,17 @@
+# EKS Cluster Support Handover Document
+
+## 1. Cluster Overview
+- **Cluster Name**:  
+- **Cluster Region**:  
+- **Cluster Version**:  
+- **VPC ID**:  
+- **Subnets**:  
+  - Public: 
+  - Private: 
+- **Cluster Creation Date**:  
+- **Primary Contact for Cluster** (if applicable):  
+
+----
 To authenticate Jenkins using Keycloak as an OpenID Connect (OIDC) provider, follow these steps:
 
 Prerequisites:
