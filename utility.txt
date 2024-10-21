@@ -1,3 +1,85 @@
+controller:
+  JCasC:
+    configScripts:
+      keycloak-config: |
+        jenkins:
+          securityRealm:
+            keycloak:
+              keycloakJson: |
+                {
+                  "realm": "dts-mgt",
+                  "auth-server-url": "https://id.edp-mgt.wfps.worldpay.com/",
+                  "ssl-required": "none",
+                  "resource": "Jenkins-ade.wfps",
+                  "credentials": {
+                    "secret": "${KEYCLOAK_CLIENT_SECRET}"  # Referencing the secret
+                  },
+                  "confidential-port": 0
+                }
+              keycloakRespectAccessTokenTimeout: false
+              keycloakValidate: false
+  env:
+    - name: KEYCLOAK_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-client-secret  # The name of the Kubernetes secret created earlier
+          key: keycloak-secret
+
+# Additional configurations (unchanged from your current values file)
+  admin:
+    user: admin
+    password: admin-password
+    existingSecret: true
+  ingress:
+    enabled: true
+    ingressClassName: "internal-nginx-new-class"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    hosts:
+      - jenkins.example.com
+    tls:
+      - hosts:
+          - jenkins.example.com
+        secretName: jenkins-tls
+  persistence:
+    enabled: true
+    storageClass: "gp2"
+    size: "8Gi"
+    accessMode: "ReadWriteOnce"
+  agent:
+    enabled: true
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 5
+  installPlugins:
+    - kubernetes:1.30.0
+    - keycloak:4.1.0
+    - workflow-aggregator:2.6
+    - git:4.8.2
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+---
+
+kubectl create secret generic keycloak-client-secret \
+  --from-literal=keycloak-secret=f344af7c-8b2e-48bd-b71a-564395a58b81 \
+  -n jenkins-new
+
+
+---
+
+helm upgrade jenkins <your-helm-chart-repo> -f values.yaml -n jenkins-new
+
+
+------
+
+---
 1. Design and Architecture
 Architect, design, and implement scalable, reliable, and efficient cloud infrastructure solutions to support large-scale data processing.
 Design CI/CD pipelines for automated application builds, testing, and deployments, focusing on scalability, reliability, and security.
