@@ -1,3 +1,65 @@
+JCasC:
+  configScripts:
+    keycloak-config: |
+      jenkins:
+        securityRealm:
+          keycloak:
+            keycloakJson: |
+              {
+                "realm": "dts-mgt",
+                "auth-server-url": "https://id.edp-mgt.wfps.worldpay.com/",
+                "ssl-required": "none",
+                "resource": "Jenkins-ade.wfps",
+                "credentials": {
+                  "secret": "${KEYCLOAK_CLIENT_SECRET}"  # Referencing the secret
+                },
+                "confidential-port": 0
+              }
+            keycloakRespectAccessTokenTimeout: false
+            keycloakValidate: false
+  seed-job-config: |
+    jenkins:
+      jobs:
+        - script: >
+            folder('seedJobs') {
+              displayName('Seed Jobs')
+              description('Folder for JobDSL Seed Jobs')
+            }
+        - script: >
+            pipelineJob('seedJobs/createJobs') {
+              definition {
+                cpsScm {
+                  scm {
+                    git {
+                      remote {
+                        url('https://github.worldpay.com/DTS/gde-wfps-jenkins-jobdsl.git')
+                        credentials('SVC_DTS_JENKINS')  # Ensure this credential exists in Jenkins
+                      }
+                      branch('master')
+                      extensions {
+                        wipeOutWorkspace()
+                        localBranch()
+                      }
+                    }
+                  }
+                  scriptPath('jenkins/JenkinsFile')
+                }
+              }
+              triggers {
+                cron('@daily')
+              }
+            }
+
+controller:
+  env:
+    - name: KEYCLOAK_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-client-secret
+          key: keycloak-secret
+
+
+----
 controller:
   JCasC:
     configScripts:
