@@ -1,3 +1,4 @@
+EKS Cluster Support Handover Document
 1. Cluster Overview
 
 Cluster Name:
@@ -9,21 +10,130 @@ Public:
 Private:
 Cluster Creation Date:
 Primary Contact for Cluster (if applicable):
+2. Nodes and Compute Resources
 
+Number of Nodes:
+Node Type (EC2, Fargate, etc.):
+Instance Type:
+AMI Used:
+Auto-scaling Configurations:
+Min Instances:
+Max Instances:
+Desired Instances:
+Worker Node Groups:
+Node Group Names:
+Scaling Policies:
+GPU/Other Special Node Types (if applicable):
+3. Networking
 
----
-# EKS Cluster Support Handover Document
+Cluster Networking CNI Version:
+Networking Plugins (e.g., Calico, Cilium):
+Service CIDR:
+Pod CIDR:
+NAT Gateway Configuration:
+Load Balancer Configurations:
+ALBs/NLBs in use:
+External/Internal Load Balancers:
+Ingress Configurations:
+Controller:
+SSL/TLS Configurations:
+4. Security & Access Control
 
-## 1. Cluster Overview
-- **Cluster Name**:  
-- **Cluster Region**:  
-- **Cluster Version**:  
-- **VPC ID**:  
-- **Subnets**:  
-  - Public: 
-  - Private: 
-- **Cluster Creation Date**:  
-- **Primary Contact for Cluster** (if applicable):  
+IAM Roles:
+Cluster Role:
+Node Roles:
+Additional Roles:
+Kubernetes RBAC Configurations:
+Admin Groups/Users:
+Service Accounts with elevated privileges:
+Security Groups:
+Nodes:
+Control Plane:
+Vulnerability Scanning:
+Current Tools (e.g., Aqua, Falco, etc.):
+Encryption at Rest:
+KMS Keys in Use:
+5. Storage
+
+Persistent Volume Claims (PVCs):
+Attached Persistent Volumes (EBS, EFS, etc.):
+Storage Classes in Use:
+Data Retention Policies:
+Backup Strategies:
+Retention Period:
+6. Monitoring & Logging
+
+Monitoring Tools (CloudWatch, Prometheus, Grafana, etc.):
+Dashboards:
+URLs:
+Key Metrics Tracked (CPU, Memory, Network, etc.):
+Logging Tools (CloudWatch, Fluentd, etc.):
+Log Retention Policies:
+7. Workloads
+
+Namespaces:
+Purpose of each namespace:
+Critical Deployments:
+Number of replicas, types of pods (e.g., stateful sets, daemon sets):
+CronJobs/Jobs:
+Scheduled Jobs:
+Backup/Restore Jobs:
+HPA (Horizontal Pod Autoscaling):
+Configured Metrics:
+Min/Max Pods:
+Ingress Services:
+URLs, Certificates:
+Architecture Diagrams for Workloads:
+Provide a description or upload architecture diagrams for each critical workload (if applicable).
+8. Add-ons and Integrations
+
+Kubernetes Add-ons:
+CoreDNS Version:
+Kube-proxy Version:
+Any other custom add-ons (e.g., service mesh, logging, etc.):
+Third-party Integrations:
+Tools like ArgoCD, Helm, Jenkins, Keycloak, etc.
+Links to Add-on Documentation (if applicable):
+Provide documentation links for key add-ons or integrations.
+9. Backups & Disaster Recovery
+
+Backup Strategy:
+Frequency:
+Backup Retention:
+Backup Tool:
+Disaster Recovery Plan:
+Key Contacts:
+Procedures for Failover/Recovery:
+Recovery Time Objective (RTO) and Recovery Point Objective (RPO):
+10. Current Issues and Risks
+
+Known Issues:
+Open Bugs:
+Pending Upgrades:
+Temporary Fixes:
+Technical Debt:
+Areas in need of improvement:
+Deprecated APIs or services:
+Monitoring Alerts:
+Current active alerts and their severity:
+11. Maintenance and Support Procedures
+
+Regular Maintenance Tasks:
+EKS Version Upgrades:
+Node Group Updates:
+Security Patch Application:
+Support Escalation Procedures:
+Key Contacts:
+Slack/Email/Phone for High-Severity Issues:
+Change Management Process:
+Approval Requirements:
+Maintenance Windows:
+Additional Recommendations:
+Diagram Slots: For each major component, provide a space or link for architecture diagrams (e.g., network topology, workload architectures, etc.).
+Links to Documentation: Add links to external documentation (AWS docs, Kubernetes official docs, etc.) or internal knowledge base articles where needed.
+Workload Descriptions: Ensure each workload is described clearly, with its dependencies, critical configurations, and SLA information.
+Performance and Cost Optimization: Consider documenting any strategies or tools used to monitor performance and cost optimizations for the cluster.
+
 
 ----
 To authenticate Jenkins using Keycloak as an OpenID Connect (OIDC) provider, follow these steps:
