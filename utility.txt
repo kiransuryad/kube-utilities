@@ -1,3 +1,16 @@
+aws secretsmanager create-secret \
+    --name keycloak-client-secret \
+    --description "Keycloak client secret for Jenkins authentication" \
+    --secret-string '{"secret":"f344af7c-8b2e-48bd-b71a-564395a58b81"}' \
+    --region eu-west-2
+
+
+------
+
+aws secretsmanager get-secret-value --secret-id keycloak-client-secret --region eu-west-2
+
+
+---
 JCasC:
   configScripts:
     keycloak-config: |
