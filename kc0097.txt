@@ -1,0 +1,138 @@
+Option 1: Using the AWS CLI
+The AWS CLI provides a single command to request a certificate with DNS validation:
+
+Request the Certificate:
+bash
+Copy code
+aws acm request-certificate \
+    --domain-name "auth.example.com" \
+    --validation-method "DNS" \
+    --idempotency-token "keycloak-cert-request" \
+    --region "<your-region>"
+Replace auth.example.com with your actual domain.
+Use the --idempotency-token option to avoid duplicate requests if re-running the command.
+Retrieve the DNS Validation CNAME:
+After running the command, you’ll receive an output with an Arn for the certificate. Use this to fetch the DNS validation details:
+
+bash
+Copy code
+aws acm describe-certificate \
+    --certificate-arn "<your-certificate-arn>" \
+    --query "Certificate.DomainValidationOptions[0].ResourceRecord" \
+    --region "<your-region>"
+This command outputs the CNAME record needed for validation, which you’ll add to Route 53.
+Add CNAME Record in Route 53:
+Finally, add the CNAME record to Route 53:
+
+bash
+Copy code
+aws route53 change-resource-record-sets \
+    --hosted-zone-id "<route53-zone-id>" \
+    --change-batch '{
+        "Changes": [{
+            "Action": "UPSERT",
+            "ResourceRecordSet": {
+                "Name": "<validation-cname>",
+                "Type": "CNAME",
+                "TTL": 60,
+                "ResourceRecords": [{"Value": "<validation-value>"}]
+            }
+        }]
+    }'
+Replace <validation-cname> and <validation-value> with the CNAME details obtained from the previous step. ACM will validate the certificate once this record is set up.
+
+
+
+Step 1: Launch a Default EC2 Instance
+Launch an EC2 instance in a private subnet (or a public subnet temporarily if you need easier SSH access). Choose the AMI and instance type that best fits your needs, such as Amazon Linux 2 with a minimum of m5.large for Keycloak.
+bash
+Copy code
+aws ec2 run-instances \
+    --image-id <your-ami-id> \
+    --instance-type m5.large \
+    --key-name <your-key-pair> \
+    --security-group-ids <your-security-group-id> \
+    --subnet-id <your-subnet-id> \
+    --associate-public-ip-address
+Note: For initial setup and testing, you may want to temporarily allow SSH access by including port 22 in the security group.
+Connect to the EC2 Instance:
+Once the instance is running, connect via SSH:
+
+bash
+Copy code
+ssh -i <path-to-your-key.pem> ec2-user@<instance-public-ip>
+Step 2: Install Dependencies (Java, wget, unzip)
+Update the Instance:
+bash
+Copy code
+sudo yum update -y
+Install Java, wget, and unzip:
+bash
+Copy code
+sudo amazon-linux-extras enable corretto11
+sudo yum install -y java-11-openjdk wget unzip
+Confirm Java installation:
+
+bash
+Copy code
+java -version
+Step 3: Retrieve Secrets from AWS Secrets Manager
+Install the AWS CLI (if not already installed):
+bash
+Copy code
+sudo yum install -y aws-cli
+Retrieve Secrets:
+To retrieve secrets for Keycloak (e.g., database URL, username, password), use the AWS CLI. For this example, let’s assume you’ve stored the database URL, username, and password in Secrets Manager under Keycloak/DBUrl, Keycloak/DBUser, and Keycloak/DBPassword respectively.
+
+bash
+Copy code
+DB_URL=$(aws secretsmanager get-secret-value --secret-id Keycloak/DBUrl --query SecretString --output text)
+DB_USER=$(aws secretsmanager get-secret-value --secret-id Keycloak/DBUser --query SecretString --output text)
+DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id Keycloak/DBPassword --query SecretString --output text)
+KEYCLOAK_ADMIN_USER=$(aws secretsmanager get-secret-value --secret-id Keycloak/AdminUser --query SecretString --output text)
+KEYCLOAK_ADMIN_PASSWORD=$(aws secretsmanager get-secret-value --secret-id Keycloak/AdminPassword --query SecretString --output text)
+Verify Variables:
+Run echo $DB_URL (or any variable name) to verify that the secrets were fetched correctly.
+Step 4: Download and Install Keycloak
+Download Keycloak:
+Visit Keycloak's GitHub releases page to find the latest version, then replace <version> below with the correct version number.
+
+bash
+Copy code
+wget https://github.com/keycloak/keycloak/releases/download/<version>/keycloak-<version>.zip
+Unzip and Move Keycloak:
+bash
+Copy code
+unzip keycloak-<version>.zip
+sudo mv keycloak-<version> /opt/keycloak
+rm keycloak-<version>.zip
+Configure Keycloak Environment Variables:
+Set up environment variables for Keycloak to connect to the database and run with admin credentials.
+
+bash
+Copy code
+export DB_VENDOR=postgres
+export DB_ADDR=$DB_URL
+export DB_DATABASE=keycloak
+export DB_USER=$DB_USER
+export DB_PASSWORD=$DB_PASSWORD
+export KEYCLOAK_ADMIN=$KEYCLOAK_ADMIN_USER
+export KEYCLOAK_ADMIN_PASSWORD=$KEYCLOAK_ADMIN_PASSWORD
+Start Keycloak:
+Run Keycloak using the kc.sh script, specifying the HTTP port (we’ll use 8080 as the ALB will handle SSL termination).
+
+bash
+Copy code
+/opt/keycloak/bin/kc.sh start --http-port=8080
+Keycloak should now be running and accessible on port 8080 internally.
+Step 5: Verify Keycloak and Database Connectivity
+Verify Keycloak is Running:
+Access Keycloak by going to http://<instance-private-ip>:8080 in your browser (if the instance has a public IP and the security group temporarily allows HTTP traffic on port 8080).
+Test Database Connection:
+In the Keycloak Admin Console, try creating a test realm or adding a user to ensure that Keycloak connects successfully to the RDS database.
+Step 6: Stop Keycloak Manually
+Once you’re done testing and are ready to automate the process, stop Keycloak:
+
+bash
+Copy code
+/opt/keycloak/bin/kc.sh stop
