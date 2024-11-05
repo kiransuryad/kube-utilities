@@ -1,3 +1,29 @@
+Good afternoon everyone,
+
+Based on the information provided in the emails, I have identified two tools and related recommendations:
+
+Cloud Service Checker:
+This tool supports the secure use of EKS by recommending the following best practices:
+Integration with additional security tools
+Usage of IAM Roles for Service Accounts (IRSA)
+Implementation of least privilege principles
+Role-Based Access Control (RBAC)
+Establishment of network policies
+Regular credential rotation
+Monitoring of IAM role usage
+Enabling encryption for enhanced security
+Checkpoint CloudGuard (Dome9):
+This is the current tool employed to manage security for cloud-native container workloads.
+We are actively implementing all these recommendations for the EKS cluster deployed for Keycloak. Additionally, we have incorporated extra tools such as Checkpoint CloudGuard (Dome9), Rapid7, and Cortex to strengthen our security posture.
+
+Please let us know if you require further details.
+
+Thank you,
+
+
+
+
+-----
 aws secretsmanager create-secret \
     --name keycloak-client-secret \
     --description "Keycloak client secret for Jenkins authentication" \
