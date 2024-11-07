@@ -1,5 +1,11 @@
-For task SCTASK24008459950, I have successfully deleted all resources from the PPRD-ARIC AWS Account, as specified in the Excel sheet where column H (excluding CM-AF2) is marked 'YES'. The final step, which involves deleting S3 buckets, is currently in progress. Some of these buckets contain a large amount of data, so this process may take a bit more time. I’ll notify you once the deletion is fully completed.
+Here’s a simplified set of reasons for choosing EKS over EC2 for deploying Keycloak:
 
+Automatic Scaling: EKS adjusts resources based on demand, helping control costs and prevent over-provisioning.
+Built-in Reliability: EKS automatically recovers Keycloak if something fails, ensuring better uptime without manual intervention.
+Stronger Security: EKS provides fine-grained access control and isolation, enhancing security for your application.
+Easy Deployments: EKS simplifies updates and rollbacks, making it easy to manage Keycloak without extra setup.
+Better Monitoring: EKS has advanced tools for tracking application health, so it’s easier to spot and fix issues early.
+These points make EKS a more reliable, efficient, and secure option for running Keycloak.
 
 ----------
 Option 1: Self-Signed Certificate for Testing
