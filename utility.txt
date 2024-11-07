@@ -1,20 +1,4 @@
-Aspect	EKS	EC2
-Deployment Options	Kubernetes-native (Helm, kubectl) enables rolling updates and blue-green deployments	Manual setup or custom scripts required, lacks built-in orchestration
-Scalability	Autoscaling for pods/nodes with managed horizontal & vertical scaling	Manual or Auto Scaling Group setup, more static scaling configuration
-Resource Optimization	Pay-per-use with containerized resources, reducing overhead	EC2 instances may need over-provisioning for peak loads
-Load Balancing	Integrated with Kubernetes Services & Ingress for dynamic, path-based load balancing	Requires configuration of ELB/NLB, lacks Kubernetes’ flexible routing
-Self-Healing	Kubernetes restarts failed pods, ensuring application resilience	Requires custom monitoring and restart scripts for instance recovery
-Security & Isolation	Namespaces, RBAC, Network Policies, and Pod Security Policies for granular control	Managed via Security Groups, IAM policies, and VPC configurations
-Access Control	RBAC and Service Accounts for app-level permissions	IAM Roles and Security Groups, but lacks Kubernetes’ fine-grained control
-Logging	Integrated with CloudWatch and supports sidecar log collectors like Fluentd	CloudWatch logging available but requires additional setup
-Monitoring	Supports Prometheus, Grafana, and CloudWatch; Kubernetes-native metrics	Basic CloudWatch metrics; for deeper insights, custom monitoring tools are needed
-Storage Options	Supports Persistent Volumes, EFS, and EBS for stateful workloads	EBS volumes for attached storage, but lacks Kubernetes’ dynamic storage management
-Data Persistence	StatefulSets enable persistent storage with pod affinity	Persistent storage through EBS but requires manual setup for redundancy
-Network Policies	Kubernetes network policies for traffic control and service isolation	Controlled through Security Groups and NACLs, lacks per-pod network control
-CI/CD Integration	Compatible with Helm, GitOps, and Kubernetes-native pipelines for automated deployments	Integration with CI/CD but more manual, lacks declarative deployment options
-Observability	Kubernetes ecosystem supports in-depth visibility, tracing, and distributed monitoring	Basic instance-level monitoring; lacks pod-level observability
-Resource Cost	Optimized for containers, allowing fine-grained resource allocation	Instances often over-provisioned; may result in higher costs for lower workloads
-
+For task SCTASK24008459950, I have successfully deleted all resources from the PPRD-ARIC AWS Account, as specified in the Excel sheet where column H (excluding CM-AF2) is marked 'YES'. The final step, which involves deleting S3 buckets, is currently in progress. Some of these buckets contain a large amount of data, so this process may take a bit more time. I’ll notify you once the deletion is fully completed.
 
 
 ----------
