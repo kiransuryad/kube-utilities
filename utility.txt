@@ -1,3 +1,19 @@
+I have reviewed the issue details, and it seems that while the S3 bucket contents are successfully listed, the COPY INTO operation is failing. To better understand and resolve this issue, could you please provide the following details?
+
+What is the name of the job you are running?
+Which IAM profile or role is being used by this job?
+Is this the first time this action is being attempted with this S3 bucket and file? If not, has this process worked successfully in the past?
+Have there been any recent changes to the S3 bucket’s permissions or the KMS key configuration?
+Could you confirm the exact file path being used and whether the file exists in the specified location?
+Are there any error messages or logs from Snowflake or AWS that could provide additional context?
+Your inputs on these points will help us investigate and address the issue as quickly as possible. Please let us know if there’s any additional information that you think might be relevant.
+
+Looking forward to your response.
+
+
+
+
+---------
 Here’s a simplified set of reasons for choosing EKS over EC2 for deploying Keycloak:
 
 Automatic Scaling: EKS adjusts resources based on demand, helping control costs and prevent over-provisioning.
