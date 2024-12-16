@@ -1,3 +1,19 @@
+Hi Darren,
+
+I hope this email finds you well.
+
+The three EC2 instances listed below are currently running. Could you please confirm if we should proceed with creating a ticket for their decommissioning? Additionally, kindly suggest if we need to communicate the termination details for these instances:
+
+1 instance is in Production
+2 instances are in Non-Prod AWS accounts
+Your advice on the next steps will be much appreciated.
+
+Thank you, and looking forward to your input.
+
+Best regards,
+Kiran
+
+----
 I have reviewed the issue details, and it seems that while the S3 bucket contents are successfully listed, the COPY INTO operation is failing. To better understand and resolve this issue, could you please provide the following details?
 
 What is the name of the job you are running?
