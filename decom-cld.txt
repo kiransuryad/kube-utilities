@@ -1,0 +1,70 @@
+import csv
+import subprocess
+
+# Path to the cleaned CSV file
+csv_file_path = "ami_list.csv"
+
+# Enable test mode to print AMIs without actual deregistration
+TEST_MODE = True
+
+# Lists to track results
+amis_to_deregister = []
+amis_to_skip = []
+failed_deregistrations = []
+
+# Open the CSV file and iterate through each row
+with open(csv_file_path, mode="r") as file:
+    csv_reader = csv.DictReader(file)
+    for row in csv_reader:
+        ami_id = row["ImageId"]
+        decomm_status = row["Decomm (Yes/No)"]
+
+        # Categorize based on Decomm status
+        if decomm_status.strip().lower() == "yes":
+            amis_to_deregister.append(ami_id)
+        else:
+            amis_to_skip.append(ami_id)
+
+# Print the list of AMIs to be deregistered
+print("\nList of AMIs to be deregistered:")
+for ami in amis_to_deregister:
+    print(ami)
+
+# Print the list of AMIs that are not being deregistered
+print("\nList of AMIs NOT being deregistered (Decomm = No):")
+for ami in amis_to_skip:
+    print(ami)
+
+# Perform deregistration if not in TEST_MODE
+if not TEST_MODE:
+    for ami_id in amis_to_deregister:
+        print(f"Attempting to deregister AMI: {ami_id}")
+        try:
+            # Deregister the AMI using AWS CLI
+            result = subprocess.run(
+                ["aws", "ec2", "deregister-image", "--image-id", ami_id],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                print(f"Successfully deregistered AMI: {ami_id}")
+            else:
+                print(f"Failed to deregister AMI: {ami_id}. Error: {result.stderr}")
+                failed_deregistrations.append(ami_id)
+        except Exception as e:
+            print(f"Exception occurred while deregistering AMI: {ami_id}. Exception: {e}")
+            failed_deregistrations.append(ami_id)
+
+# Log failed deregistrations
+if not TEST_MODE and failed_deregistrations:
+    print("\nList of AMIs that failed to deregister:")
+    for ami in failed_deregistrations:
+        print(ami)
+
+# Test mode message
+if TEST_MODE:
+    print("\nTest mode is enabled. No AMIs were deregistered.")
+
+
+
+  
