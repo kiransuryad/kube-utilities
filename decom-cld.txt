@@ -1,3 +1,65 @@
+import boto3
+
+# Path to the text file containing AMI IDs
+ami_file_path = "amis.txt"
+
+# AWS region
+AWS_REGION = "eu-west-2"
+
+# Initialize EC2 client
+ec2_client = boto3.client("ec2", region_name=AWS_REGION)
+
+def get_aws_amis():
+    """
+    Retrieve a list of all AMI IDs in the AWS region.
+    """
+    aws_amis = []
+    try:
+        # Describe images owned by the account
+        paginator = ec2_client.get_paginator("describe_images")
+        for page in paginator.paginate(Owners=["self"]):
+            for image in page["Images"]:
+                aws_amis.append(image["ImageId"])
+        return aws_amis
+    except Exception as e:
+        print(f"Error fetching AMIs from AWS: {e}")
+        return []
+
+def check_ami_ids(ami_file, aws_amis):
+    """
+    Compare AMIs in the file with those in AWS.
+    """
+    with open(ami_file, "r") as file:
+        input_ami_ids = [line.strip() for line in file.readlines() if line.strip()]
+    
+    missing_amis = [ami for ami in input_ami_ids if ami not in aws_amis]
+    present_amis = [ami for ami in input_ami_ids if ami in aws_amis]
+
+    # Print Results
+    print("\nAMIs Found in AWS:")
+    for ami in present_amis:
+        print(ami)
+
+    print("\nAMIs Missing in AWS:")
+    for ami in missing_amis:
+        print(ami)
+
+    # Summary
+    print(f"\nSummary: {len(present_amis)} AMIs found, {len(missing_amis)} AMIs missing.")
+
+if __name__ == "__main__":
+    print(f"Checking AMIs in region: {AWS_REGION}")
+    aws_ami_list = get_aws_amis()
+    
+    if aws_ami_list:
+        print(f"Retrieved {len(aws_ami_list)} AMIs from AWS.")
+        check_ami_ids(ami_file_path, aws_ami_list)
+    else:
+        print("Failed to retrieve AMI list from AWS.")
+
+
+
+------
 import csv
 import subprocess
 
