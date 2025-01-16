@@ -1,0 +1,23 @@
+Access Roles Overview:
+
+Group Admin (Organization Admin)
+Full access to AWS Organizations, can manage accounts, organizational units, and policies
+Can create/delete accounts, manage service control policies, and handle organization-wide settings
+
+
+Billing
+Access to AWS Cost Management, budgets, and billing console
+Can view/manage payment methods, analyze costs, and set up billing alerts
+
+
+Restricted Read-Only
+Read-only access to specified AWS services through managed policy: ViewOnlyAccess
+Can view resources and their configurations but cannot make changes
+
+
+Restricted Admin
+Limited administrative access to specific services or resources
+Permissions bounded by service control policies and resource-based permissions
+
+Most Powerful Role:
+The Group Admin (Organization Admin)
