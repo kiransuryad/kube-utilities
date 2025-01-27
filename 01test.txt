@@ -1,155 +1,59 @@
-Access Roles Overview:
+pipeline {
+    agent any
 
-Group Admin (Organization Admin)
-Full access to AWS Organizations, can manage accounts, organizational units, and policies
-Can create/delete accounts, manage service control policies, and handle organization-wide settings
-
-
-Billing
-Access to AWS Cost Management, budgets, and billing console
-Can view/manage payment methods, analyze costs, and set up billing alerts
-
-
-Restricted Read-Only
-Read-only access to specified AWS services through managed policy: ViewOnlyAccess
-Can view resources and their configurations but cannot make changes
-
-
-Restricted Admin
-Limited administrative access to specific services or resources
-Permissions bounded by service control policies and resource-based permissions
-
-Most Powerful Role:
-The Group Admin (Organization Admin)
-
--------------------------------------
-
-
-1. Current State
-Organizational Context:
-
-FIS:
-Owns and manages the AWS account, including VPCs, Lambda functions, S3 buckets, SNS, and Secrets Manager.
-Manages the data ingestion pipeline tools like CDAP and Pantomath.
-Provides services like Astronomer for ETL orchestration and supports auxiliary tools (e.g., Tableau, Databricks).
-Worldpay:
-Operates within FIS’s AWS infrastructure, using Snowflake for data storage, processing, and analytics.
-Relies on FIS-managed AWS services for:
-Ingesting data via S3 buckets (Ingress/Egress patterns).
-Access to curated and raw data in Snowflake.
-Reporting workflows (e.g., Tableau, Databricks).
-Shares access to AWS and Snowflake with FIS without clearly defined boundaries.
-Infrastructure Setup:
-
-Snowflake:
-Managed as part of the overall FIS AWS infrastructure.
-Ingests data from FIS’s pipelines (S3 ingress, Lambda, and CDAP) into raw and curated databases.
-Supports replication across regions (EL-West to US-East).
-FIS-Controlled Services:
-Ingress/Egress Patterns: Managed using Lambda, S3, and SNS for automated data flows.
-ETL Pipelines: Managed via CDAP and Pantomath, integrating with Snowflake.
-Key Issues:
-
-Overlapping Access:
-Worldpay and FIS share access to AWS and Snowflake, creating security and operational risks.
-Single Ownership:
-FIS owns the AWS account and all resources, leaving Worldpay dependent on FIS for Snowflake-related workflows.
-No Defined Access Boundaries:
-Worldpay's access extends beyond Snowflake to FIS-managed services, increasing potential for accidental misconfigurations.
-2. Assumed Future State
-Organizational Context:
-
-FIS and Worldpay become separate entities.
-FIS:
-Continues to own and manage the AWS account, maintaining control over infrastructure and ingestion pipelines.
-Provides limited access to AWS resources (e.g., S3 buckets, Secrets Manager) required for Snowflake operations.
-Retains ownership of ETL tools like CDAP, Pantomath, and Astronomer.
-Worldpay:
-Owns and manages Snowflake entirely, including user roles, database configurations, and replication processes.
-Uses FIS-provided AWS resources (e.g., S3) only for Snowflake-related tasks.
-Operates independently with access strictly limited to Snowflake-related resources.
-Infrastructure Setup:
-
-FIS continues to manage:
-All AWS infrastructure, including Lambda, API Gateway, CDAP, and Pantomath.
-Networking and monitoring for AWS resources.
-Worldpay exclusively manages Snowflake and its integrations with Tableau and Databricks.
-3. Changes to Make to Achieve the Future State
-A. AWS Permissions and Roles
-
-Restrict Worldpay's AWS Access:
-Create a dedicated IAM role for Worldpay with least privilege:
-Access to specific S3 buckets/prefixes for Snowflake ingestion (e.g., snowflake-ingestion/*).
-Access to Secrets Manager for Snowflake credentials.
-Deny permissions for AWS services unrelated to Snowflake (e.g., Lambda, CDAP).
-Apply S3 Bucket Policies:
-Ensure Worldpay has access only to buckets and prefixes required for Snowflake workflows:
-Example S3 Bucket Policy:
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
-      "Resource": [
-        "arn:aws:s3:::fis-snowflake-ingestion/*",
-        "arn:aws:s3:::fis-snowflake-exports/*"
-      ]
+    environment {
+        // Define environment variables for the public and private repositories
+        PUBLIC_IMAGE = "nginx:latest"
+        PRIVATE_REPO = "my-private-repo.com/my-nginx"
+        PRIVATE_IMAGE = "${PRIVATE_REPO}:latest"
     }
-  ]
+
+    stages {
+        stage('Pull Public Image') {
+            steps {
+                script {
+                    // Pull the public Docker image
+                    sh "docker pull ${PUBLIC_IMAGE}"
+                }
+            }
+        }
+
+        stage('Tag Image for Private Repo') {
+            steps {
+                script {
+                    // Tag the image for the private repository
+                    sh "docker tag ${PUBLIC_IMAGE} ${PRIVATE_IMAGE}"
+                }
+            }
+        }
+
+        stage('Login to Private Repo') {
+            steps {
+                script {
+                    // Log in to the private Docker repository
+                    withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin ${PRIVATE_REPO}"
+                    }
+                }
+            }
+        }
+
+        stage('Push to Private Repo') {
+            steps {
+                script {
+                    // Push the tagged image to the private repository
+                    sh "docker push ${PRIVATE_IMAGE}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Docker image successfully cloned and pushed to the private repository!"
+        }
+        failure {
+            echo "Failed to clone and push the Docker image."
+        }
+    }
 }
-Deny Access to AWS Infrastructure:
-Explicitly deny Worldpay access to FIS-managed services like Lambda, CDAP, and Pantomath:
-{
-  "Effect": "Deny",
-  "Action": [
-    "lambda:*",
-    "cdap:*",
-    "pantomath:*"
-  ],
-  "Resource": "*"
-}
-B. Snowflake Role Segregation
-
-Transfer Snowflake Ownership to Worldpay:
-Worldpay assumes full responsibility for:
-Managing Snowflake users, roles, and permissions.
-Configuring database replication (EL-West to US-East).
-Handling ingestion and export workflows within Snowflake.
-FIS retains access only to raw/staging datasets for validation purposes.
-Role-Based Access Control:
-Worldpay defines specific roles for their needs:
-Admin Role: Full control of Snowflake (roles, permissions, database replication).
-ETL Role: Access to raw and staging databases for data ingestion.
-Reporting Role: Read-only access to curated datasets for Tableau and Databricks.
-C. Governance and Monitoring
-
-AWS Monitoring:
-Enable CloudTrail and configure alerts for unauthorized actions by Worldpay IAM roles.
-Monitor access to S3 buckets and Secrets Manager to ensure compliance.
-Snowflake Logging:
-Worldpay configures Snowflake’s Query History and Access History to track data access and changes.
-Regularly share audit logs with FIS for transparency.
-Periodic Access Reviews:
-Both FIS and Worldpay agree to review permissions periodically to ensure compliance and minimize access risks.
-D. Transition Plan
-
-Access Review:
-Audit current permissions for Worldpay on AWS and Snowflake.
-Remove Worldpay access to non-Snowflake-related AWS resources (e.g., Lambda, CDAP).
-New Role Assignments:
-Implement dedicated IAM roles for Worldpay with scoped access.
-Configure Snowflake roles to reflect Worldpay’s new ownership.
-Testing and Handover:
-Test Snowflake workflows with restricted AWS access.
-Validate Snowflake configurations and permissions during the transition.
-Monitoring Setup:
-Enable AWS and Snowflake logging and set up shared dashboards for access monitoring.
-Summary
-Based on the first image, the changes focus on:
-
-Restricting Worldpay's AWS access to Snowflake-related resources only (e.g., S3, Secrets Manager).
-Transitioning full ownership of Snowflake to Worldpay, including user and database management.
-Ensuring FIS retains control of data ingestion pipelines (e.g., CDAP, Pantomath, Lambda).
-Establishing governance and monitoring frameworks to maintain security and transparency.
-Let me know if further refinements are needed!
