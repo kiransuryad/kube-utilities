@@ -12,8 +12,8 @@ pipeline {
         stage('Pull Public Image') {
             steps {
                 script {
-                    // Pull the public Docker image
-                    sh "docker pull ${PUBLIC_IMAGE}"
+                    // Pull the public Docker image using Buildah
+                    sh "buildah pull docker.io/${PUBLIC_IMAGE}"
                 }
             }
         }
@@ -21,8 +21,8 @@ pipeline {
         stage('Tag Image for Private Repo') {
             steps {
                 script {
-                    // Tag the image for the private repository
-                    sh "docker tag ${PUBLIC_IMAGE} ${PRIVATE_IMAGE}"
+                    // Tag the image for the private repository using Buildah
+                    sh "buildah tag docker.io/${PUBLIC_IMAGE} ${PRIVATE_IMAGE}"
                 }
             }
         }
@@ -30,9 +30,9 @@ pipeline {
         stage('Login to Private Repo') {
             steps {
                 script {
-                    // Log in to the private Docker repository
+                    // Log in to the private Docker repository using Buildah
                     withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin ${PRIVATE_REPO}"
+                        sh "buildah login -u ${DOCKER_USER} -p ${DOCKER_PASS} ${PRIVATE_REPO}"
                     }
                 }
             }
@@ -41,8 +41,8 @@ pipeline {
         stage('Push to Private Repo') {
             steps {
                 script {
-                    // Push the tagged image to the private repository
-                    sh "docker push ${PRIVATE_IMAGE}"
+                    // Push the tagged image to the private repository using Buildah
+                    sh "buildah push ${PRIVATE_IMAGE}"
                 }
             }
         }
@@ -50,10 +50,10 @@ pipeline {
 
     post {
         success {
-            echo "Docker image successfully cloned and pushed to the private repository!"
+            echo "Docker image successfully cloned and pushed to the private repository using Buildah!"
         }
         failure {
-            echo "Failed to clone and push the Docker image."
+            echo "Failed to clone and push the Docker image using Buildah."
         }
     }
 }
