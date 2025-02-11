@@ -1,3 +1,38 @@
+Problem Statement
+The Kafka team cannot access the internet through their proxy from their AWS accounts to perform OS updates and patch their machines.
+
+Identified Issue
+The proxy in the Kafka AWS accounts is connected to a VPC endpoint service in the EDP Management AWS account.
+This VPC endpoint service in the EDP Management account is tied to a load balancer, which then routes traffic to a set of EC2 machines.
+Initially, the connected EC2 machines had failing health checks, which were resolved by replacing the EC2 instances. At that point, the Kafka team confirmed that the proxy was functioning.
+However, the load balancer itself appears to be problematic. A new load balancer was created and tested for local proxy use within the EDP Management account.
+Since the existing VPC endpoint service still references the old, faulty load balancer, other Kafka AWS accounts that connect to the EDP Management account via that endpoint service cannot reach the internet through the proxy.
+Proposed Solutions
+Disassociate and Reassociate Load Balancer in Existing VPC Endpoint Service
+- Modify the current VPC endpoint service to remove the old load balancer and associate the new, functioning load balancer.
+Route53 CNAME Update
+- Replace the Route53 CNAME entries in each Kafka AWS account with the new, working proxy URL.
+Create a Dedicated VPC Endpoint Service
+- Spin up a new VPC endpoint service in the EDP Management account exclusively for the Kafka team.
+Fix the Old Load Balancer
+- Attempt to troubleshoot and fully repair the existing load balancer so it functions correctly for the proxy needs.
+Actions Tried/Done
+Attempted to Replace the Load Balancer in the Existing Endpoint Service
+- Due to existing endpoint connections across multiple AWS accounts, this direct replacement is not permitted. AWS confirmed that this option is currently unfeasible.
+Tried to Fix the Old Load Balancer
+- After replacing the EC2 target machines and consulting with AWS, no further actions could be taken to address the load balancer issues. AWS confirmed there are no additional changes needed, and the load balancer itself appears to be in a functional state from their perspective.
+Concerns
+The current VPC endpoint service is shared across multiple AWS accounts. Any further changes—such as disassociating the old load balancer—would require deleting the existing VPC endpoint connections, potentially disrupting multiple teams.
+Preferred Next Steps
+Option 2 (Route53 CNAME Update)
+- Updating each Kafka AWS account’s proxy CNAME to point to the new, working proxy URL is straightforward and minimally disruptive.
+Option 3 (Dedicated VPC Endpoint Service)
+- Creating a dedicated VPC endpoint service within the EDP Management account for the Kafka team provides a clean and isolated solution without impacting other AWS accounts.
+
+
+
+
+--------
 pipeline {
     agent any
 
