@@ -1,3 +1,13 @@
+Subject: External Code Signing for Keyfactor Signum
+
+Hi Kyle,
+
+Regarding the external code signing requirement for Keyfactor Signum, we do indeed need it. In our current scenario, we deployed a Keycloak application on our EKS cluster for the Ethos team’s clients and used external Keyfactor signing in production, with internal signing for our non-prod environments.
+
+As we migrate to the CIO-managed AWS accounts, we intend to maintain the same approach. Please let me know if you need any more information or clarification. I’ve also added our lead developer, Vivek, to this email for any technical queries.
+
+
+-----
 Problem Statement
 The Kafka team cannot access the internet through their proxy from their AWS accounts to perform OS updates and patch their machines.
 
