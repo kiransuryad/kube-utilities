@@ -9,10 +9,33 @@ import pandas as pd
 from datetime import datetime
 from botocore.exceptions import ClientError
 import sys
+import urllib3
+import ssl
+
+# Disable SSL verification warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Create a custom SSL context
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
+def create_client(service, region=None):
+    """Create boto3 client with SSL verification disabled"""
+    return boto3.client(
+        service,
+        region_name=region,
+        verify=False,  # Disable SSL verification
+        config=boto3.Config(
+            retries = dict(
+                max_attempts = 3
+            )
+        )
+    )
 
 def get_all_regions():
     try:
-        ec2_client = boto3.client('ec2')
+        ec2_client = create_client('ec2')
         regions = [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
         return regions
     except ClientError as e:
@@ -31,7 +54,7 @@ def get_resource_inventory():
             session = boto3.Session(region_name=region)
             
             # EC2 Instances
-            ec2 = session.client('ec2')
+            ec2 = create_client('ec2', region)
             paginator = ec2.get_paginator('describe_instances')
             for page in paginator.paginate():
                 for reservation in page['Reservations']:
@@ -51,7 +74,7 @@ def get_resource_inventory():
                         })
 
             # RDS Instances
-            rds = session.client('rds')
+            rds = create_client('rds', region)
             paginator = rds.get_paginator('describe_db_instances')
             for page in paginator.paginate():
                 for db in page['DBInstances']:
@@ -67,7 +90,7 @@ def get_resource_inventory():
 
             # S3 Buckets (only needs to be done once as S3 is global)
             if region == 'us-east-1':
-                s3 = session.client('s3')
+                s3 = create_client('s3', region)
                 buckets = s3.list_buckets()
                 for bucket in buckets['Buckets']:
                     inventory.append({
@@ -81,14 +104,14 @@ def get_resource_inventory():
                     })
 
             # ELB/ALB/NLB
-            elb = session.client('elbv2')
+            elb = create_client('elbv2', region)
             paginator = elb.get_paginator('describe_load_balancers')
             for page in paginator.paginate():
                 for lb in page['LoadBalancers']:
                     inventory.append({
                         'Region': region,
                         'Service': 'ELB',
-                        'ResourceId': lb['LoadBalancerArn'].split('/')[-1],  # Shortened ARN
+                        'ResourceId': lb['LoadBalancerArn'].split('/')[-1],
                         'Name': lb['LoadBalancerName'],
                         'State': lb['State']['Code'],
                         'Type': lb['Type'],
@@ -142,7 +165,8 @@ def main():
     print("Starting AWS resource inventory...")
     try:
         # Verify AWS credentials
-        boto3.client('sts').get_caller_identity()
+        sts_client = create_client('sts')
+        sts_client.get_caller_identity()
     except ClientError as e:
         print(f"Error: AWS credentials not found or invalid: {e}")
         sys.exit(1)
