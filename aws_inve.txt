@@ -5,6 +5,7 @@ python aws_inventory.py
 
 
 import boto3
+from botocore.config import Config
 import pandas as pd
 from datetime import datetime
 from botocore.exceptions import ClientError
@@ -22,17 +23,20 @@ ssl_context.verify_mode = ssl.CERT_NONE
 
 def create_client(service, region=None):
     """Create boto3 client with SSL verification disabled"""
+    config = Config(
+        retries = dict(
+            max_attempts = 3
+        )
+    )
+    
     return boto3.client(
         service,
         region_name=region,
         verify=False,  # Disable SSL verification
-        config=boto3.Config(
-            retries = dict(
-                max_attempts = 3
-            )
-        )
+        config=config
     )
 
+# Rest of the code remains the same...
 def get_all_regions():
     try:
         ec2_client = create_client('ec2')
