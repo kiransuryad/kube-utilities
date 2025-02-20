@@ -1,3 +1,83 @@
+# Create the internal application load balancer (ALB) in the private subnets.
+resource "aws_lb" "ecs_alb" {
+  name               = var.lb_name
+  load_balancer_type = "application"
+  internal           = true
+  security_groups    = [var.alb_security_group_id]
+  subnets            = var.private_subnet_ids
+  tags = merge(
+    var.mandatory_tags,
+    var.optional_tags
+  )
+
+  # Enable access logs
+  access_logs {
+    bucket  = aws_s3_bucket.alb_logs_bucket.bucket
+    prefix  = "alb-logs"
+    enabled = true
+  }
+}
+
+
+# Create an S3 bucket for storing ALB access logs
+resource "aws_s3_bucket" "alb_logs_bucket" {
+  bucket = "talbot-spectrum-alb-logs-${var.environment_name}"
+
+  tags = merge(
+    var.mandatory_tags,
+    var.optional_tags
+  )
+}
+
+resource "aws_s3_bucket_versioning" "alb_logs_versioning" {
+  bucket = aws_s3_bucket.alb_logs_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# # Bucket policy to allow ALB to write access logs
+resource "aws_s3_bucket_policy" "alb_logs_policy" {
+  bucket = aws_s3_bucket.alb_logs_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "s3:PutObject"
+        Effect = "Allow"
+        #arn:aws:s3:::my-s3-bucket/AWSLogs/235721725152/*
+        # arn:aws:s3:::talbot-spectrum-alb-logs-ci
+        Resource = "${aws_s3_bucket.alb_logs_bucket.arn}/*"
+        Principal = {
+          AWS = "arn:aws:iam::652711504416:root"
+        }
+      }
+    ]
+  })
+}
+
+# Create the ALB listener for the ECS services.
+resource "aws_lb_listener" "ecs_alb_listener" {
+  load_balancer_arn = aws_lb.ecs_alb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  # Default action - can forward to a fixed response or a default target group
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "404 Not Found"
+      status_code  = "404"
+    }
+  }
+}
+
+
+
+
+----
 Subject: External Code Signing for Keyfactor Signum
 
 Hi Kyle,
