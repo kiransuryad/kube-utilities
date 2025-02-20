@@ -1,0 +1,161 @@
+import boto3
+import pandas as pd
+from datetime import datetime
+from botocore.exceptions import ClientError
+import sys
+
+def get_all_regions():
+    try:
+        ec2_client = boto3.client('ec2')
+        regions = [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
+        return regions
+    except ClientError as e:
+        print(f"Error accessing AWS regions: {e}")
+        sys.exit(1)
+
+def get_resource_inventory():
+    inventory = []
+    regions = get_all_regions()
+    
+    for region in regions:
+        print(f"Scanning region: {region}")
+        
+        try:
+            # Initialize session for this region
+            session = boto3.Session(region_name=region)
+            
+            # EC2 Instances
+            ec2 = session.client('ec2')
+            paginator = ec2.get_paginator('describe_instances')
+            for page in paginator.paginate():
+                for reservation in page['Reservations']:
+                    for instance in reservation['Instances']:
+                        name = ''
+                        for tag in instance.get('Tags', []):
+                            if tag['Key'] == 'Name':
+                                name = tag['Value']
+                        inventory.append({
+                            'Region': region,
+                            'Service': 'EC2',
+                            'ResourceId': instance['InstanceId'],
+                            'Name': name,
+                            'State': instance['State']['Name'],
+                            'Type': instance['InstanceType'],
+                            'LaunchTime': instance.get('LaunchTime', '').strftime('%Y-%m-%d %H:%M:%S') if instance.get('LaunchTime') else ''
+                        })
+
+            # RDS Instances
+            rds = session.client('rds')
+            paginator = rds.get_paginator('describe_db_instances')
+            for page in paginator.paginate():
+                for db in page['DBInstances']:
+                    inventory.append({
+                        'Region': region,
+                        'Service': 'RDS',
+                        'ResourceId': db['DBInstanceIdentifier'],
+                        'Name': db['DBInstanceIdentifier'],
+                        'State': db['DBInstanceStatus'],
+                        'Type': db['DBInstanceClass'],
+                        'LaunchTime': db.get('InstanceCreateTime', '').strftime('%Y-%m-%d %H:%M:%S') if db.get('InstanceCreateTime') else ''
+                    })
+
+            # S3 Buckets (only needs to be done once as S3 is global)
+            if region == 'us-east-1':
+                s3 = session.client('s3')
+                buckets = s3.list_buckets()
+                for bucket in buckets['Buckets']:
+                    inventory.append({
+                        'Region': 'Global',
+                        'Service': 'S3',
+                        'ResourceId': bucket['Name'],
+                        'Name': bucket['Name'],
+                        'State': 'Available',
+                        'Type': 'Bucket',
+                        'LaunchTime': bucket['CreationDate'].strftime('%Y-%m-%d %H:%M:%S')
+                    })
+
+            # ELB/ALB/NLB
+            elb = session.client('elbv2')
+            paginator = elb.get_paginator('describe_load_balancers')
+            for page in paginator.paginate():
+                for lb in page['LoadBalancers']:
+                    inventory.append({
+                        'Region': region,
+                        'Service': 'ELB',
+                        'ResourceId': lb['LoadBalancerArn'].split('/')[-1],  # Shortened ARN
+                        'Name': lb['LoadBalancerName'],
+                        'State': lb['State']['Code'],
+                        'Type': lb['Type'],
+                        'LaunchTime': lb['CreatedTime'].strftime('%Y-%m-%d %H:%M:%S')
+                    })
+
+        except ClientError as e:
+            print(f"Error scanning resources in {region}: {e}")
+            continue
+
+    return inventory
+
+def save_to_excel(inventory):
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'aws_inventory_{timestamp}.xlsx'
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(inventory)
+        
+        # Create Excel writer object
+        with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='AWS Inventory')
+            
+            # Get workbook and worksheet objects
+            workbook = writer.book
+            worksheet = writer.sheets['AWS Inventory']
+            
+            # Add formats
+            header_format = workbook.add_format({
+                'bold': True,
+                'fg_color': '#D9D9D9',
+                'border': 1,
+                'align': 'center'
+            })
+            
+            # Format the columns
+            for col_num, value in enumerate(df.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+                column_len = max(df[value].astype(str).apply(len).max(), len(value))
+                worksheet.set_column(col_num, col_num, column_len + 2)
+
+        print(f"Inventory successfully saved to {filename}")
+        return filename
+    
+    except Exception as e:
+        print(f"Error saving to Excel: {e}")
+        return None
+
+def main():
+    print("Starting AWS resource inventory...")
+    try:
+        # Verify AWS credentials
+        boto3.client('sts').get_caller_identity()
+    except ClientError as e:
+        print(f"Error: AWS credentials not found or invalid: {e}")
+        sys.exit(1)
+
+    inventory = get_resource_inventory()
+    
+    if not inventory:
+        print("No resources found or error occurred while fetching resources.")
+        sys.exit(1)
+    
+    filename = save_to_excel(inventory)
+    
+    if filename:
+        print("\nInventory Summary:")
+        print(f"Total resources found: {len(inventory)}")
+        service_summary = pd.DataFrame(inventory).groupby('Service').size()
+        print("\nResources by service:")
+        for service, count in service_summary.items():
+            print(f"{service}: {count}")
+
+if __name__ == "__main__":
+    main()
