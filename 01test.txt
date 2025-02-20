@@ -1,3 +1,29 @@
+  lb_target_groups = [
+    {
+      name                = "keycloak-lb-target-group-${var.environment}"
+      port                = local.orchestrator_port
+      protocol            = local.orchestrator_protocol
+      target_type         = var.target_type
+      deregistration_delay = 30
+      stickiness_enabled  = var.stickiness_enabled
+      cookie_duration     = var.cookie_duration
+
+      health_check = {
+        protocol           = "HTTP"
+        port               = "8080"
+        path               = "/auth"
+        matcher            = "200"
+        healthy_threshold  = 2
+        unhealthy_threshold = 2
+        timeout            = 5
+        interval           = 10
+      }
+    }
+  ]
+
+
+
+----
 # Create the internal application load balancer (ALB) in the private subnets.
 resource "aws_lb" "ecs_alb" {
   name               = var.lb_name
