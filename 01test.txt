@@ -1,4 +1,74 @@
+data "aws_lb" "internal_nlb" {
+  name = var.internal_nlb_name
+}
+
+
+locals {
+  # Flatten all the IP addresses from each availability zone
+  nlb_ip_addresses = flatten([
+    for az in data.aws_lb.internal_nlb.availability_zones : [
+      for addr in az.load_balancer_addresses : addr.ip_address
+    ]
+  ])
+}
+
+
+module "alb" {
+  source  = "terraform-aws-modules/alb/aws"
+  version = "~> 8.0"
+
+  name               = "my-keycloak-alb"
+  load_balancer_type = "application"
+  vpc_id             = var.vpc_id
+  subnets            = var.alb_subnets
+  security_groups    = var.alb_security_groups
+
   lb_target_groups = [
+    {
+      name                 = "keycloak-lb-target-group-${var.environment}"
+      port                 = local.orchestrator_port
+      protocol             = local.orchestrator_protocol
+      target_type          = "ip"   # Use "ip" if you are attaching IP addresses
+      deregistration_delay = 30
+      stickiness_enabled   = var.stickiness_enabled
+      cookie_duration      = var.cookie_duration
+
+      health_check = {
+        protocol            = "HTTP"
+        port                = "8080"
+        path                = "/auth"
+        matcher             = "200"
+        healthy_threshold   = 2
+        unhealthy_threshold = 2
+        timeout             = 5
+        interval            = 10
+      }
+
+      # Dynamically attach the internal NLB IP addresses
+      targets = [
+        for ip in local.nlb_ip_addresses : {
+          target_id = ip
+          port      = local.orchestrator_port
+        }
+      ]
+    }
+  ]
+
+  http_tcp_listeners = [
+    {
+      port               = 80
+      protocol           = "HTTP"
+      target_group_index = 0
+    }
+  ]
+}
+
+
+
+
+
+------
+lb_target_groups = [
     {
       name                = "keycloak-lb-target-group-${var.environment}"
       port                = local.orchestrator_port
