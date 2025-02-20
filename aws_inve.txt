@@ -1,4 +1,299 @@
+import boto3
+from botocore.config import Config
+import pandas as pd
+from datetime import datetime
+from botocore.exceptions import ClientError
+import sys
+import urllib3
+import ssl
 
+# Disable SSL verification warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Define specific regions to scan
+REGIONS_TO_SCAN = ['us-east-1', 'eu-west-1', 'eu-west-2']
+
+def create_client(service, region=None):
+    """Create boto3 client with SSL verification disabled"""
+    config = Config(
+        retries = dict(
+            max_attempts = 3
+        )
+    )
+    
+    return boto3.client(
+        service,
+        region_name=region,
+        verify=False,
+        config=config
+    )
+
+def get_resource_inventory():
+    inventory = []
+    
+    for region in REGIONS_TO_SCAN:
+        print(f"\nScanning region: {region}")
+        
+        try:
+            # EC2 Instances
+            print("Scanning EC2 instances...")
+            ec2 = create_client('ec2', region)
+            paginator = ec2.get_paginator('describe_instances')
+            for page in paginator.paginate():
+                for reservation in page['Reservations']:
+                    for instance in reservation['Instances']:
+                        name = ''
+                        for tag in instance.get('Tags', []):
+                            if tag['Key'] == 'Name':
+                                name = tag['Value']
+                        inventory.append({
+                            'Region': region,
+                            'Service': 'EC2',
+                            'ResourceId': instance['InstanceId'],
+                            'Name': name,
+                            'State': instance['State']['Name'],
+                            'Type': instance['InstanceType'],
+                            'LaunchTime': instance.get('LaunchTime', '').strftime('%Y-%m-%d %H:%M:%S') if instance.get('LaunchTime') else ''
+                        })
+
+            # VPC Resources
+            print("Scanning VPC resources...")
+            vpc_client = create_client('ec2', region)
+            vpcs = vpc_client.describe_vpcs()
+            for vpc in vpcs['Vpcs']:
+                name = ''
+                for tag in vpc.get('Tags', []):
+                    if tag['Key'] == 'Name':
+                        name = tag['Value']
+                inventory.append({
+                    'Region': region,
+                    'Service': 'VPC',
+                    'ResourceId': vpc['VpcId'],
+                    'Name': name,
+                    'State': vpc['State'],
+                    'Type': 'VPC',
+                    'CIDR': vpc['CidrBlock']
+                })
+
+            # RDS Instances and Clusters
+            print("Scanning RDS resources...")
+            rds = create_client('rds', region)
+            # Regular RDS instances
+            paginator = rds.get_paginator('describe_db_instances')
+            for page in paginator.paginate():
+                for db in page['DBInstances']:
+                    inventory.append({
+                        'Region': region,
+                        'Service': 'RDS',
+                        'ResourceId': db['DBInstanceIdentifier'],
+                        'Name': db['DBInstanceIdentifier'],
+                        'State': db['DBInstanceStatus'],
+                        'Type': db['DBInstanceClass'],
+                        'Engine': f"{db['Engine']} {db.get('EngineVersion', '')}"
+                    })
+            
+            # Aurora Clusters
+            try:
+                clusters = rds.describe_db_clusters()
+                for cluster in clusters['DBClusters']:
+                    inventory.append({
+                        'Region': region,
+                        'Service': 'RDS Aurora',
+                        'ResourceId': cluster['DBClusterIdentifier'],
+                        'Name': cluster['DBClusterIdentifier'],
+                        'State': cluster['Status'],
+                        'Type': 'Cluster',
+                        'Engine': f"{cluster['Engine']} {cluster.get('EngineVersion', '')}"
+                    })
+            except ClientError as e:
+                if 'DBClusterNotFound' not in str(e):
+                    print(f"Error scanning Aurora clusters in {region}: {e}")
+
+            # ECS Resources
+            print("Scanning ECS resources...")
+            ecs = create_client('ecs', region)
+            try:
+                clusters = ecs.list_clusters()
+                for cluster_arn in clusters['clusterArns']:
+                    cluster_details = ecs.describe_clusters(clusters=[cluster_arn])['clusters'][0]
+                    inventory.append({
+                        'Region': region,
+                        'Service': 'ECS',
+                        'ResourceId': cluster_arn.split('/')[-1],
+                        'Name': cluster_details['clusterName'],
+                        'State': cluster_details['status'],
+                        'Type': 'Cluster',
+                        'ServiceCount': str(cluster_details.get('activeServicesCount', 0))
+                    })
+            except ClientError as e:
+                print(f"Error scanning ECS clusters in {region}: {e}")
+
+            # EKS Clusters
+            print("Scanning EKS clusters...")
+            eks = create_client('eks', region)
+            try:
+                clusters = eks.list_clusters()
+                for cluster_name in clusters['clusters']:
+                    cluster_details = eks.describe_cluster(name=cluster_name)['cluster']
+                    inventory.append({
+                        'Region': region,
+                        'Service': 'EKS',
+                        'ResourceId': cluster_name,
+                        'Name': cluster_name,
+                        'State': cluster_details['status'],
+                        'Type': 'Cluster',
+                        'K8sVersion': cluster_details.get('version', 'N/A')
+                    })
+            except ClientError as e:
+                print(f"Error scanning EKS clusters in {region}: {e}")
+
+            # S3 Buckets (only needs to be done once as S3 is global)
+            if region == 'us-east-1':
+                print("Scanning S3 buckets...")
+                s3 = create_client('s3', region)
+                buckets = s3.list_buckets()
+                for bucket in buckets['Buckets']:
+                    inventory.append({
+                        'Region': 'Global',
+                        'Service': 'S3',
+                        'ResourceId': bucket['Name'],
+                        'Name': bucket['Name'],
+                        'State': 'Available',
+                        'Type': 'Bucket',
+                        'LaunchTime': bucket['CreationDate'].strftime('%Y-%m-%d %H:%M:%S')
+                    })
+
+            # Route53 Resources (only needs to be done once as Route53 is global)
+            if region == 'us-east-1':
+                print("Scanning Route53 resources...")
+                route53 = create_client('route53', region)
+                try:
+                    hosted_zones = route53.list_hosted_zones()
+                    for zone in hosted_zones['HostedZones']:
+                        inventory.append({
+                            'Region': 'Global',
+                            'Service': 'Route53',
+                            'ResourceId': zone['Id'].split('/')[-1],
+                            'Name': zone['Name'],
+                            'State': 'Available',
+                            'Type': 'HostedZone',
+                            'RecordCount': str(zone['ResourceRecordSetCount'])
+                        })
+                except ClientError as e:
+                    print(f"Error scanning Route53 hosted zones: {e}")
+
+            # ELB/ALB/NLB
+            print("Scanning Load Balancers...")
+            elb = create_client('elbv2', region)
+            paginator = elb.get_paginator('describe_load_balancers')
+            for page in paginator.paginate():
+                for lb in page['LoadBalancers']:
+                    inventory.append({
+                        'Region': region,
+                        'Service': 'ELB',
+                        'ResourceId': lb['LoadBalancerArn'].split('/')[-1],
+                        'Name': lb['LoadBalancerName'],
+                        'State': lb['State']['Code'],
+                        'Type': lb['Type'],
+                        'DNSName': lb.get('DNSName', 'N/A')
+                    })
+
+        except ClientError as e:
+            print(f"Error scanning resources in {region}: {e}")
+            continue
+
+    return inventory
+
+def save_to_excel(inventory):
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'aws_inventory_{timestamp}.xlsx'
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(inventory)
+        
+        # Create Excel writer object
+        with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='AWS Inventory')
+            
+            # Get workbook and worksheet objects
+            workbook = writer.book
+            worksheet = writer.sheets['AWS Inventory']
+            
+            # Add formats
+            header_format = workbook.add_format({
+                'bold': True,
+                'fg_color': '#D9D9D9',
+                'border': 1,
+                'align': 'center'
+            })
+            
+            # Format the columns
+            for col_num, value in enumerate(df.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+                column_len = max(df[value].astype(str).apply(len).max(), len(value))
+                worksheet.set_column(col_num, col_num, column_len + 2)
+
+        print(f"\nInventory successfully saved to {filename}")
+        return filename
+    
+    except Exception as e:
+        print(f"Error saving to Excel: {e}")
+        return None
+
+def main():
+    print("Starting AWS resource inventory...")
+    print(f"Scanning regions: {', '.join(REGIONS_TO_SCAN)}")
+    
+    try:
+        # Verify AWS credentials
+        sts_client = create_client('sts')
+        sts_client.get_caller_identity()
+    except ClientError as e:
+        print(f"Error: AWS credentials not found or invalid: {e}")
+        sys.exit(1)
+
+    inventory = get_resource_inventory()
+    
+    if not inventory:
+        print("No resources found or error occurred while fetching resources.")
+        sys.exit(1)
+    
+    filename = save_to_excel(inventory)
+    
+    if filename:
+        print("\nInventory Summary:")
+        print(f"Total resources found: {len(inventory)}")
+        
+        # Create region and service summary
+        df = pd.DataFrame(inventory)
+        print("\nResources by region:")
+        region_summary = df.groupby('Region').size()
+        for region, count in region_summary.items():
+            print(f"{region}: {count}")
+            
+        print("\nResources by service:")
+        service_summary = df.groupby('Service').size()
+        for service, count in service_summary.items():
+            print(f"{service}: {count}")
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-----------
 pip install boto3 pandas xlsxwriter
 
 python aws_inventory.py
