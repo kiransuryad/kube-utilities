@@ -16,10 +16,8 @@ import ssl
 # Disable SSL verification warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Create a custom SSL context
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
+# Define specific regions to scan
+REGIONS_TO_SCAN = ['us-east-1', 'eu-west-1', 'eu-west-2']
 
 def create_client(service, region=None):
     """Create boto3 client with SSL verification disabled"""
@@ -36,27 +34,13 @@ def create_client(service, region=None):
         config=config
     )
 
-# Rest of the code remains the same...
-def get_all_regions():
-    try:
-        ec2_client = create_client('ec2')
-        regions = [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
-        return regions
-    except ClientError as e:
-        print(f"Error accessing AWS regions: {e}")
-        sys.exit(1)
-
 def get_resource_inventory():
     inventory = []
-    regions = get_all_regions()
     
-    for region in regions:
+    for region in REGIONS_TO_SCAN:
         print(f"Scanning region: {region}")
         
         try:
-            # Initialize session for this region
-            session = boto3.Session(region_name=region)
-            
             # EC2 Instances
             ec2 = create_client('ec2', region)
             paginator = ec2.get_paginator('describe_instances')
@@ -167,6 +151,8 @@ def save_to_excel(inventory):
 
 def main():
     print("Starting AWS resource inventory...")
+    print(f"Scanning regions: {', '.join(REGIONS_TO_SCAN)}")
+    
     try:
         # Verify AWS credentials
         sts_client = create_client('sts')
@@ -186,8 +172,16 @@ def main():
     if filename:
         print("\nInventory Summary:")
         print(f"Total resources found: {len(inventory)}")
-        service_summary = pd.DataFrame(inventory).groupby('Service').size()
+        
+        # Create region and service summary
+        df = pd.DataFrame(inventory)
+        print("\nResources by region:")
+        region_summary = df.groupby('Region').size()
+        for region, count in region_summary.items():
+            print(f"{region}: {count}")
+            
         print("\nResources by service:")
+        service_summary = df.groupby('Service').size()
         for service, count in service_summary.items():
             print(f"{service}: {count}")
 
