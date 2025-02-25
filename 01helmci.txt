@@ -1,0 +1,81 @@
+pipeline {
+  agent { label 'helm-enabled' } // Use a specific agent label with Git, Helm, and curl installed.
+  
+  parameters {
+    string(name: 'ARTIFACTORY_URL', defaultValue: 'https://your-artifactory-domain/artifactory/helm', description: 'Artifactory Helm Repository URL')
+    string(name: 'CHART_REPO', defaultValue: 'https://github.com/bitnami/charts.git', description: 'Git repository containing the helm charts')
+    string(name: 'CHART_DIR', defaultValue: 'bitnami/keycloak', description: 'Relative path to the Keycloak chart within the repository')
+  }
+  
+  environment {
+    // Credentials can be reused across stages.
+    ARTIFACTORY_CREDENTIALS = credentials('artifactory-credentials')
+  }
+  
+  stages {
+    stage('Test Artifactory Connectivity') {
+      steps {
+        script {
+          // Test connectivity using curl and validate response code.
+          sh '''
+            RESPONSE=$(curl -u ${ARTIFACTORY_CREDENTIALS_USR}:${ARTIFACTORY_CREDENTIALS_PSW} -s -o /dev/null -w "%{http_code}" ${ARTIFACTORY_URL}/index.yaml)
+            if [ "$RESPONSE" -ne 200 ]; then
+              echo "Failed to connect to Artifactory. HTTP response code: $RESPONSE"
+              exit 1
+            fi
+          '''
+        }
+      }
+    }
+    
+    stage('Clone Helm Chart Repository') {
+      steps {
+        // Clone the repository. Using a shallow clone to speed up the process.
+        sh "git clone --depth 1 ${params.CHART_REPO}"
+      }
+    }
+    
+    stage('Package Helm Chart') {
+      steps {
+        dir(params.CHART_DIR) {
+          // Package the chart. This creates a .tgz file in the current directory.
+          sh "helm package ."
+        }
+      }
+    }
+    
+    stage('Push Helm Chart to Artifactory') {
+      steps {
+        script {
+          withCredentials([usernamePassword(credentialsId: 'artifactory-credentials', 
+                                               usernameVariable: 'ARTIFACTORY_USER', 
+                                               passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
+            // Find the packaged chart file (assuming only one .tgz exists)
+            def chartFile = sh(script: "ls ${params.CHART_DIR}/*.tgz", returnStdout: true).trim()
+            echo "Chart package file: ${chartFile}"
+            
+            // Upload the chart using curl.
+            sh """
+              curl -u $ARTIFACTORY_USER:$ARTIFACTORY_PASSWORD -T ${chartFile} "${params.ARTIFACTORY_URL}/${chartFile.tokenize('/')[-1]}"
+            """
+            
+            // Archive the chart artifact for traceability.
+            archiveArtifacts artifacts: "${params.CHART_DIR}/*.tgz", allowEmptyArchive: false
+          }
+        }
+      }
+    }
+  }
+  
+  post {
+    success {
+      echo 'Helm chart successfully pushed to Artifactory!'
+    }
+    failure {
+      echo 'Pipeline failed. Please check the logs for details.'
+    }
+    cleanup {
+      cleanWs()
+    }
+  }
+}
