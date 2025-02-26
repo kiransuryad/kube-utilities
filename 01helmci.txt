@@ -1,3 +1,28 @@
+stage('Upload to Artifactory') {
+    container('docker') {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'jfrog-service-account',
+                usernameVariable: 'ARTIFACTORY_USER',
+                passwordVariable: 'ARTIFACTORY_PASSWORD'
+            )
+        ]) {
+            script {
+                // Identify the packaged chart file (assuming only one .tgz file)
+                def chartFile = sh(script: "ls *.tgz", returnStdout: true).trim()
+                
+                // Upload via curl using an explicit PUT method
+                sh """
+                    curl -X PUT -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} -T ${chartFile} \\
+                    "${env.ARTIFACTORY_URL}/artifactory/${env.ARTIFACTORY_REPO}/${chartFile}"
+                """
+            }
+        }
+    }
+}
+
+
+-------
 @Library('framework-shared-libs@v1.0.0') _
 
 // Set up pipeline parameters (similar to "parameters { ... }" in declarative)
