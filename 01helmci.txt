@@ -1,4 +1,80 @@
 pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SOURCE_HELM_REPO_URL', defaultValue: 'https://codecentric.github.io/helm-charts', description: 'Source Helm repository URL')
+        string(name: 'SOURCE_HELM_REPO_NAME', defaultValue: 'codecentric', description: 'Name of the source Helm repository')
+        string(name: 'SOURCE_HELM_CHART_NAME', defaultValue: 'keycloakx', description: 'Source Helm chart name')
+        string(name: 'SOURCE_HELM_CHART_VERSION', defaultValue: '', description: 'Source Helm chart version (leave empty for latest)')
+    }
+
+    environment {
+        // Artifactory configuration (adjust these values for your environment)
+        ARTIFACTORY_URL = 'https://your-artifactory.example.com'
+        ARTIFACTORY_REPO = 'helm-local'
+        // Internal version to be applied to the chart
+        INTERNAL_VERSION = '1.0.0-internal'
+    }
+
+    stages {
+        stage('Pull Helm Chart') {
+            steps {
+                script {
+                    // Add the source Helm repository using parameters
+                    sh "helm repo add ${params.SOURCE_HELM_REPO_NAME} ${params.SOURCE_HELM_REPO_URL}"
+                    sh "helm repo update"
+                    // Construct the helm pull command; include --version if provided
+                    def pullCmd = "helm pull ${params.SOURCE_HELM_REPO_NAME}/${params.SOURCE_HELM_CHART_NAME} --untar"
+                    if (params.SOURCE_HELM_CHART_VERSION?.trim()) {
+                        pullCmd += " --version ${params.SOURCE_HELM_CHART_VERSION}"
+                    }
+                    sh pullCmd
+                }
+            }
+        }
+        stage('Update Internal Version') {
+            steps {
+                script {
+                    // Update the version in Chart.yaml to use the internal version
+                    // This example uses GNU sed; adjust for macOS if needed.
+                    sh "sed -i 's/^version:.*/version: ${INTERNAL_VERSION}/' ${params.SOURCE_HELM_CHART_NAME}/Chart.yaml"
+                }
+            }
+        }
+        stage('Package Helm Chart') {
+            steps {
+                script {
+                    // Package the chart, which will create a .tgz file (e.g., keycloakx-1.0.0-internal.tgz)
+                    sh "helm package ${params.SOURCE_HELM_CHART_NAME}"
+                }
+            }
+        }
+        stage('Upload to Artifactory') {
+            steps {
+                // Use the Artifactory service account credentials stored in Jenkins (ID: jfrog-service-account)
+                withCredentials([usernamePassword(credentialsId: 'jfrog-service-account', 
+                                                  usernameVariable: 'ARTIFACTORY_USER', 
+                                                  passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
+                    script {
+                        // Identify the packaged chart file (assuming only one .tgz file exists)
+                        def chartFile = sh(script: "ls *.tgz", returnStdout: true).trim()
+                        // Use curl with basic authentication to upload the chart to Artifactory
+                        sh """
+                            curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} -T ${chartFile} \
+                                 "${ARTIFACTORY_URL}/artifactory/${ARTIFACTORY_REPO}/${chartFile}"
+                        """
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+
+-----------------------
+pipeline {
   agent { label 'helm-enabled' } // Use a specific agent label with Git, Helm, and curl installed.
   
   parameters {
