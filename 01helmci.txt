@@ -1,3 +1,36 @@
+stage('Reindex Artifactory Helm Repo') {
+    container('docker') {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'jfrog-service-account',
+                usernameVariable: 'ARTIFACTORY_USER',
+                passwordVariable: 'ARTIFACTORY_PASSWORD'
+            )
+        ]) {
+            script {
+                // POST to the reindex endpoint for your Helm repo
+                def reindexCmd = """
+                    curl -X POST \\
+                         -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} \\
+                         "${env.ARTIFACTORY_URL}/artifactory/api/helm/${env.ARTIFACTORY_REPO}/reindex"
+                """
+                echo "Triggering reindex with:\n${reindexCmd}"
+                def exitCode = sh(script: reindexCmd, returnStatus: true)
+                
+                if (exitCode == 0) {
+                    echo "SUCCESS: Reindex triggered. Artifactory should update index.yaml."
+                } else {
+                    error "FAILURE: Reindex call failed with exit code ${exitCode}"
+                }
+            }
+        }
+    }
+}
+
+
+
+
+-----------
 stage('Upload to Artifactory') {
     container('docker') {
         withCredentials([
