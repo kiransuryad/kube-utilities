@@ -1,3 +1,119 @@
+@Library('framework-shared-libs@v1.0.0') _
+
+// Set up pipeline parameters (similar to "parameters { ... }" in declarative)
+properties([
+    parameters([
+        string(name: 'SOURCE_HELM_REPO_URL',    defaultValue: 'https://codecentric.github.io/helm-charts', description: 'Source Helm repository URL'),
+        string(name: 'SOURCE_HELM_REPO_NAME',   defaultValue: 'codecentric',                               description: 'Name of the source Helm repository'),
+        string(name: 'SOURCE_HELM_CHART_NAME',  defaultValue: 'keycloakx',                                description: 'Source Helm chart name'),
+        string(name: 'SOURCE_HELM_CHART_VERSION', defaultValue: '',                                       description: 'Source Helm chart version (leave empty for latest)')
+    ])
+])
+
+// Define a podTemplate that references your 'cicd.yaml'
+podTemplate(
+    yamlFile: 'cicd.yaml', 
+    label: "docker-build-${env.BUILD_NUMBER}"
+) {
+    node("docker-build-${env.BUILD_NUMBER}") {
+        // Set environment variables inside the node
+        env.ARTIFACTORY_URL   = 'https://your-artifactory.example.com'
+        env.ARTIFACTORY_REPO  = 'helm-local'
+        env.INTERNAL_VERSION  = '1.0.0-internal'
+        // Example of other environment variables you might use
+        env.DOCKER_REGISTRY   = "docker-registry.default.svc:5000"
+        // etc.
+
+        stage('Checkout') {
+            checkout scm
+        }
+
+        stage('Pull Helm Chart') {
+            // Use the container name from your cicd.yaml that has Helm installed
+            container('docker') {
+                script {
+                    // Add the source Helm repository and update
+                    sh "helm repo add ${params.SOURCE_HELM_REPO_NAME} ${params.SOURCE_HELM_REPO_URL}"
+                    sh "helm repo update"
+
+                    // Build the helm pull command
+                    def pullCmd = "helm pull ${params.SOURCE_HELM_REPO_NAME}/${params.SOURCE_HELM_CHART_NAME} --untar"
+                    if (params.SOURCE_HELM_CHART_VERSION?.trim()) {
+                        pullCmd += " --version ${params.SOURCE_HELM_CHART_VERSION}"
+                    }
+                    sh pullCmd
+                }
+            }
+        }
+
+        stage('Update Internal Version') {
+            container('docker') {
+                script {
+                    // Update the version in Chart.yaml to your internal version
+                    sh """
+                        sed -i 's/^version:.*/version: ${env.INTERNAL_VERSION}/' ${params.SOURCE_HELM_CHART_NAME}/Chart.yaml
+                    """
+                }
+            }
+        }
+
+        stage('Package Helm Chart') {
+            container('docker') {
+                script {
+                    // Package the chart into a .tgz file
+                    sh "helm package ${params.SOURCE_HELM_CHART_NAME}"
+                }
+            }
+        }
+
+        stage('Upload to Artifactory') {
+            container('docker') {
+                // Use Jenkins credentials for the Artifactory service account
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'jfrog-service-account',
+                        usernameVariable: 'ARTIFACTORY_USER',
+                        passwordVariable: 'ARTIFACTORY_PASSWORD'
+                    )
+                ]) {
+                    script {
+                        // Identify the packaged chart file (assuming only one .tgz)
+                        def chartFile = sh(script: "ls *.tgz", returnStdout: true).trim()
+
+                        // Upload via curl with basic auth
+                        sh """
+                            curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} -T ${chartFile} \\
+                            "${env.ARTIFACTORY_URL}/artifactory/${env.ARTIFACTORY_REPO}/${chartFile}"
+                        """
+                    }
+                }
+            }
+        }
+
+        // EXAMPLE: If you have Docker build/push steps, add them as additional stages
+        /*
+        stage('Build Docker Image') {
+            container('docker') {
+                sh "docker build -t ${DOCKER_REGISTRY}/myimage:${BUILD_NUMBER} ."
+            }
+        }
+
+        stage('Push Docker Image') {
+            container('docker') {
+                sh "docker push ${DOCKER_REGISTRY}/myimage:${BUILD_NUMBER}"
+            }
+        }
+        */
+    }
+}
+
+
+
+
+
+
+
+---------------
 pipeline {
     agent any
 
