@@ -8,18 +8,33 @@ stage('Upload to Artifactory') {
             )
         ]) {
             script {
-                // Identify the packaged chart file (assuming only one .tgz file)
+                // Identify the packaged chart file (assuming only one .tgz file exists)
                 def chartFile = sh(script: "ls *.tgz", returnStdout: true).trim()
+                echo "Uploading Helm chart: ${chartFile}"
                 
-                // Upload via curl using an explicit PUT method
-                sh """
-                    curl -X PUT -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} -T ${chartFile} \\
-                    "${env.ARTIFACTORY_URL}/artifactory/${env.ARTIFACTORY_REPO}/${chartFile}"
+                // Build the curl command (using -v for verbose logs)
+                def curlCmd = """
+                    curl -v -X PUT -H 'Content-Type: application/tar+gzip' \\
+                         -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} \\
+                         -T ${chartFile} \\
+                         "${env.ARTIFACTORY_URL}/artifactory/${env.ARTIFACTORY_REPO}/${chartFile}"
                 """
+                echo "Running curl command:\n${curlCmd}"
+                
+                // Execute the curl command and capture the exit code
+                def exitCode = sh(script: curlCmd, returnStatus: true)
+                
+                // Check the exit code to determine success/failure
+                if (exitCode == 0) {
+                    echo "SUCCESS: The Helm chart was successfully uploaded to Artifactory!"
+                } else {
+                    error "FAILURE: Upload to Artifactory failed with exit code ${exitCode}"
+                }
             }
         }
     }
 }
+
 
 
 -------
