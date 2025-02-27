@@ -1,22 +1,69 @@
+replicaCount: 1
+
+# Override the container startup command to run Keycloak with custom options.
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+
+# Set extra environment variables.
+extraEnv: |
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+  - name: KEYCLOAK_FRONTEND_URL
+    value: http://adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
+
+# Keycloak-specific configuration.
+keycloak:
+  username: admin
+  password: admin
+  hostname: adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
+  hostnameStrict: false
+  hostnameStrictBackchannel: false
+
+# Expose the Keycloak service on port 80 while targeting container port 8080.
+service:
+  port: 80
+  targetPort: 8080
+
 ingress:
   enabled: true
+  ingressClassName: nginx  # Use the new field instead of deprecated annotation
   hosts:
-    - host: a0d1f8e44a0f0b624c4-7544396115b5cb.elb.us-east-1.amazonaws.com
+    - host: adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
       paths:
         - path: /
           pathType: ImplementationSpecific
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
-  tls: []  # TLS is disabled for now
+  tls: []  # No TLS for now
+  annotations: {}
 
-# Force override to prevent the default example.com host
+# Override fullname to ensure Helm regenerates the Ingress correctly.
 fullnameOverride: keycloak
-keycloak:
-  hostname: a0d1f8e44a0f0b624c4-7544396115b5cb.elb.us-east-1.amazonaws.com
-  hostnameStrict: false
-  extraEnv: |
-    - name: KEYCLOAK_FRONTEND_URL
-      value: http://a0d1f8e44a0f0b624c4-7544396115b5cb.elb.us-east-1.amazonaws.com
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1024Mi"
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+# Persistence configuration. For production, enable persistence and adjust storageClass/size.
+persistence:
+  enabled: false
+  storageClass: "gp2"
+  size: 8Gi
+
+# External database configuration.
+postgresql:
+  enabled: false
+
 
 
 
