@@ -1,3 +1,26 @@
+ingress:
+  enabled: true
+  hosts:
+    - host: a0d1f8e44a0f0b624c4-7544396115b5cb.elb.us-east-1.amazonaws.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+  tls: []  # TLS is disabled for now
+
+# Force override to prevent the default example.com host
+fullnameOverride: keycloak
+keycloak:
+  hostname: a0d1f8e44a0f0b624c4-7544396115b5cb.elb.us-east-1.amazonaws.com
+  hostnameStrict: false
+  extraEnv: |
+    - name: KEYCLOAK_FRONTEND_URL
+      value: http://a0d1f8e44a0f0b624c4-7544396115b5cb.elb.us-east-1.amazonaws.com
+
+
+
+-----------
 replicaCount: 1
 
 # Override the container startup command to run Keycloak with custom options.
