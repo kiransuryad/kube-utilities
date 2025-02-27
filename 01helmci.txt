@@ -1,3 +1,15 @@
+SELECT grantee, table_catalog, table_schema, table_name, privilege_type
+FROM information_schema.role_table_grants
+WHERE grantee = '<DB_USERNAME>';
+
+
+SHOW default_transaction_read_only;
+SELECT * FROM pg_roles WHERE rolname = '<DB_USERNAME>';
+
+ALTER DATABASE <DB_NAME> SET default_transaction_read_only = off;
+
+
+--------
 CREATE TABLE test_table (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
