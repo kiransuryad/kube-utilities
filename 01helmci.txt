@@ -1,3 +1,11 @@
+CREATE TABLE test_table (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+---------
 kubectl create secret generic keycloak-db-secret \
   --namespace keycloak \
   --from-literal=username=<DB_USERNAME> \
