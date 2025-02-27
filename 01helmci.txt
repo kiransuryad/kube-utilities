@@ -1,3 +1,16 @@
+keycloak:
+  hostname: adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
+  hostnameStrict: false
+  hostnameStrictBackchannel: false
+  extraEnv: |
+    - name: KEYCLOAK_FRONTEND_URL
+      value: http://adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
+    - name: PROXY_ADDRESS_FORWARDING
+      value: "true"
+
+
+
+---------------
 replicaCount: 1
 
 # Override the container startup command to run Keycloak with custom options.
