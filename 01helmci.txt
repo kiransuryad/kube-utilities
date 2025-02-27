@@ -1,3 +1,63 @@
+replicaCount: 1
+
+# Override the container startup command to run Keycloak with custom options.
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+
+# Set extra environment variables.
+extraEnv: |
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+
+# Keycloak-specific configuration.
+keycloak:
+  # Although we are also setting admin credentials via extraEnv,
+  # this block may be used internally (for secret creation or other logic).
+  username: admin
+  password: admin
+
+ingress:
+  enabled: true
+  # Replace the host value with the DNS name of your AWS NLB or custom domain.
+  hosts:
+    - host: your-nlb-dns-name.aws-region.elb.amazonaws.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  annotations:
+    # This tells ingress-nginx to handle the routing.
+    kubernetes.io/ingress.class: "nginx"
+  tls: []  # For production, configure TLS as needed.
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1024Mi"
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+# Persistence configuration. For production, enable persistence and adjust storageClass/size.
+persistence:
+  enabled: false
+  storageClass: "gp2"
+  size: 8Gi
+
+# External database configuration.
+postgresql:
+  enabled: false
+
+
+
+---------
 stage('Reindex Artifactory Helm Repo') {
     container('docker') {
         withCredentials([
