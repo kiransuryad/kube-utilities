@@ -1,12 +1,71 @@
+replicaCount: 1
+
+# Override the container startup command to run Keycloak with custom options.
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+
+# Set extra environment variables.
+extraEnv: |
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+  - name: KEYCLOAK_FRONTEND_URL
+    value: http://adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
+
+# Keycloak-specific configuration.
 keycloak:
   hostname: adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
   hostnameStrict: false
   hostnameStrictBackchannel: false
-  extraEnv: |
-    - name: KEYCLOAK_FRONTEND_URL
-      value: http://adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
-    - name: PROXY_ADDRESS_FORWARDING
-      value: "true"
+
+# Expose the Keycloak service on port 80 while targeting container port 8080.
+service:
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  ingressClassName: nginx  # Use the new field instead of deprecated annotation
+  servicePort: http
+  rules:
+    - host: adebf18ca644b40fb80c46e542a0c6c5-74a543961b5155cb.elb.us-east-1.amazonaws.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []  # No TLS for now
+  annotations: {}
+
+# Override fullname to ensure Helm regenerates the Ingress correctly.
+fullnameOverride: keycloak
+nameOverride: keycloak
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1024Mi"
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+# Persistence configuration. For production, enable persistence and adjust storageClass/size.
+persistence:
+  enabled: false
+  storageClass: "gp2"
+  size: 8Gi
+
+# External database configuration.
+postgresql:
+  enabled: false
+
 
 
 
