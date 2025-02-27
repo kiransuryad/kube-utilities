@@ -19,6 +19,70 @@ extraEnv: |
 
 # Keycloak-specific configuration.
 keycloak:
+  username: admin
+  password: admin
+
+# Expose the Keycloak service on port 80 while targeting container port 8080.
+service:
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  # Use your NLB DNS name here.
+  hosts:
+    - host: your-nlb-dns-name.aws-region.elb.amazonaws.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+  tls: []  # For now, TLS is not configured for testing.
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1024Mi"
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+persistence:
+  enabled: false
+  storageClass: "gp2"
+  size: 8Gi
+
+postgresql:
+  enabled: false
+
+
+
+
+
+
+--------------------
+--------------------
+replicaCount: 1
+
+# Override the container startup command to run Keycloak with custom options.
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+
+# Set extra environment variables.
+extraEnv: |
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+
+# Keycloak-specific configuration.
+keycloak:
   # Although we are also setting admin credentials via extraEnv,
   # this block may be used internally (for secret creation or other logic).
   username: admin
