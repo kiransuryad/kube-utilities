@@ -1,3 +1,113 @@
+Detailed Step-by-Step Guide:
+
+Step 1: Create Service Account and Token in EKS
+Create a Service Account:
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: harness-delegate-sa
+  namespace: kube-system
+Save this as sa-harness-delegate.yaml and apply:
+
+kubectl apply -f sa-harness-delegate.yaml
+Create a ClusterRole with Necessary Permissions:
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: harness-delegate-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "secrets", "configmaps"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings", "roles"]
+  verbs: ["create", "update", "patch", "delete"]
+Save this as clusterrole-harness-delegate.yaml and apply:
+
+kubectl apply -f clusterrole-harness-delegate.yaml
+Bind the ClusterRole to the Service Account:
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: harness-delegate-binding
+subjects:
+- kind: ServiceAccount
+  name: harness-delegate-sa
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: harness-delegate-role
+  apiGroup: rbac.authorization.k8s.io
+Save this as rolebinding-harness-delegate.yaml and apply:
+
+kubectl apply -f rolebinding-harness-delegate.yaml
+Step 2: Generate the Service Account Token
+Since you are using Kubernetes version 1.24 or later, the token isn't automatically generated. You need to manually create a bound token.
+
+Create the token:
+kubectl create token harness-delegate-sa --namespace kube-system
+Alternatively, using a manifest:
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: harness-delegate-token
+  annotations:
+    kubernetes.io/service-account.name: "harness-delegate-sa"
+  namespace: kube-system
+Save this as secret-harness-delegate.yaml and apply:
+
+kubectl apply -f secret-harness-delegate.yaml
+Retrieve the token:
+kubectl get secret harness-delegate-token -n kube-system -o jsonpath='{.data.token}' | base64 --decode
+Step 3: Encode the Token for Harness
+Encode the token to base64:
+echo "<TOKEN_VALUE>" | base64
+Copy the output. This will be used as a secret inside Harness.
+Step 4: Configure Harness Encrypted Secret
+Go to Harness UI:
+Navigate to Account Settings → Secrets Management → Secrets.
+Create a New Secret:
+Choose Encrypted Text.
+Name it, e.g., k8s-sa-token.
+Paste the base64 encoded token from the previous step.
+Save the secret.
+Step 5: Create Kubernetes Connector in Harness
+Navigate to Harness UI:
+Go to Setup → Connectors → New Connector → Kubernetes.
+Configure the Kubernetes Connector:
+Cluster Details:
+Cluster URL: https://<PRIVATE_API_ENDPOINT>
+Example: https://eks-vpc-endpoint.us-west-2.eks.amazonaws.com
+Authentication Method:
+Select Service Account Token.
+Choose the secret you created (k8s-sa-token).
+Network Settings:
+No Proxy needed since it's within the same VPC.
+Set Delegate Selection:
+Select the Delegate running inside the ECS cluster in the same VPC.
+This ensures that the network communication is private and secure.
+Test and Save:
+Click on Test Connection.
+If successful, save the connector.
+Step 6: Test the Setup
+Deploy a test application or execute a Kubernetes command using the Harness pipeline.
+Validate that the Harness Delegate can:
+Create a deployment.
+Update or Patch resources.
+List existing resources.
+Delete a deployment or resource.
+You can check the permissions by running:
+kubectl auth can-i list pods --as=system:serviceaccount:kube-system:harness-delegate-sa
+
+
+
+
+
+----------------------
 SELECT grantee, table_catalog, table_schema, table_name, privilege_type
 FROM information_schema.role_table_grants
 WHERE grantee = '<DB_USERNAME>';
