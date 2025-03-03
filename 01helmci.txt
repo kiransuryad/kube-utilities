@@ -1,3 +1,82 @@
+Possible Causes and Debugging Steps
+
+1. Check if the ALB Exists
+Run the following command to verify if the ALB is properly created in AWS:
+
+aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?DNSName=='test-keycloak-ext-app-lb-1446264669.us-east-1.elb.amazonaws.com']"
+If the output is empty, the ALB does not exist.
+If the output contains details, then the ALB is available.
+➡ Fix: If the ALB does not exist, double-check your AWS configuration.
+
+2. Verify the ALB's DNS Name
+Run:
+
+nslookup test-keycloak-ext-app-lb-1446264669.us-east-1.elb.amazonaws.com
+If it fails, then AWS Route 53 or your ALB setup might be incorrect.
+If it resolves to an IP, then the issue is likely with your local network or firewall.
+➡ Fix: If DNS does not resolve, try replacing the ALB (delete and recreate it).
+
+3. Check ALB’s Scheme
+Your ALB must be internet-facing. Run:
+
+aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?DNSName=='test-keycloak-ext-app-lb-1446264669.us-east-1.elb.amazonaws.com'].Scheme"
+Expected output:
+
+"internet-facing"
+If you see "internal", then your ALB is private and not reachable from the internet.
+➡ Fix: You must recreate the ALB as an internet-facing ALB.
+
+4. Verify ALB Security Group
+Your ALB’s security group must allow inbound traffic on port 443 (HTTPS).
+
+Run:
+
+aws ec2 describe-security-groups --region us-east-1 --group-ids <ALB_SECURITY_GROUP_ID>
+Look for:
+
+"Ingress": [
+    {
+        "IpProtocol": "tcp",
+        "FromPort": 443,
+        "ToPort": 443,
+        "IpRanges": [{"CidrIp": "0.0.0.0/0"}]
+    }
+]
+➡ Fix: If port 443 is not open to the internet, update the security group.
+
+5. Check If ALB Has a Listener on Port 443
+Run:
+
+aws elbv2 describe-listeners --load-balancer-arn <ALB_ARN>
+You should see:
+
+"Protocol": "HTTPS",
+"Port": 443
+➡ Fix: If no listener exists for port 443, create one:
+
+aws elbv2 create-listener --load-balancer-arn <ALB_ARN> \
+  --protocol HTTPS --port 443 \
+  --certificates CertificateArn=<CERTIFICATE_ARN> \
+  --default-actions Type=forward,TargetGroupArn=<TARGET_GROUP_ARN>
+6. Test from a Different Network
+Try running curl from a different internet connection (e.g., mobile hotspot).
+Some corporate networks block AWS ELB DNS resolution.
+➡ Fix: If it works on a different network, your ISP or firewall is blocking access.
+
+Final Summary
+
+Check if the ALB exists: aws elbv2 describe-load-balancers
+Verify DNS resolution: nslookup test-keycloak-ext-app-lb-1446264669.us-east-1.elb.amazonaws.com
+Ensure ALB is internet-facing
+Check ALB security group (allow inbound on port 443)
+Ensure ALB has a listener on port 443
+Try from a different network
+Once the ALB resolves correctly, your curl request should work. 🚀
+
+
+
+
+---------
 Detailed Step-by-Step Guide:
 
 Step 1: Create Service Account and Token in EKS
