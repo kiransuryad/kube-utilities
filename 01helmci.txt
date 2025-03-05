@@ -1,3 +1,47 @@
+  extraEnv: |
+    # Hostname and HTTPS Configuration
+    - name: KC_HOSTNAME
+      value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+    - name: KC_HOSTNAME_URL
+      value: "https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+    - name: KC_HOSTNAME_ADMIN
+      value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+    
+    # Strict HTTPS Enforcement
+    - name: KC_HOSTNAME_STRICT
+      value: "false"
+    - name: KC_HOSTNAME_STRICT_HTTPS
+      value: "true"
+    
+    # Proxy and Forwarding Configuration
+    - name: KC_PROXY
+      value: "edge"
+    - name: PROXY_ADDRESS_FORWARDING
+      value: "true"
+    - name: X_FORWARDED_PROTO
+      value: "https"
+    
+    # Enhanced Content Security Policy
+    - name: KC_HTTP_RELATIVE_PATH
+      value: "/auth"
+    - name: KC_DEFAULT_HTTP_HEADERS
+      value: |
+        {
+          "Content-Security-Policy": "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; frame-src 'self' https:",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+        }
+    
+    # Logging and Monitoring
+    - name: KC_LOG_LEVEL
+      value: "INFO"
+    - name: KC_METRICS_ENABLED
+      value: "true"
+    - name: KC_HEALTH_ENABLED
+      value: "true"
+
+
+----------
 keycloak:
   extraEnv: |
     # ✅ Set the correct ALB hostname
