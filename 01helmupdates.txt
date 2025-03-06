@@ -1,25 +1,91 @@
-keycloak:
-  extraVolumes: |
-    - name: keycloak-tls
-      secret:
-        secretName: keycloak-tls
+replicaCount: 1
 
-  extraVolumeMounts: |
-    - mountPath: /opt/keycloak/certs
-      name: keycloak-tls
-      readOnly: true
+# Database Configuration
+database:
+  existingSecret: "keycloak-db-secret"
+  vendor: "postgres"
+  hostname: "test-keycloak-rds-cluster-instance-02.tqmah6iakkgd.us-east-1.rds.amazonaws.com"
+  port: 5432
+  database: "keycloak"
+  username: "keycloak"
+  passwordSecret: "keycloak-db-secret"
+  passwordSecretKey: "password"
 
-  extraEnv: |
-    - name: KC_HTTPS_CERTIFICATE_FILE
-      value: "/opt/keycloak/certs/tls.crt"
-    - name: KC_HTTPS_CERTIFICATE_KEY_FILE
-      value: "/opt/keycloak/certs/tls.key"
-    - name: KC_HOSTNAME
-      value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
-    - name: KC_HOSTNAME_STRICT
-      value: "true"
-    - name: KC_HOSTNAME_STRICT_HTTPS
-      value: "true"
+# Keycloak Configuration
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--optimized"
+
+extraEnv: |
+  - name: KC_HTTPS_CERTIFICATE_FILE
+    value: "/opt/keycloak/certs/tls.crt"
+  - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+    value: "/opt/keycloak/certs/tls.key"
+  - name: KC_HOSTNAME
+    value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+  - name: KC_HOSTNAME_STRICT
+    value: "true"
+  - name: KC_HOSTNAME_STRICT_HTTPS
+    value: "true"
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HTTP_ENABLED
+    value: "false"
+  - name: KC_HEALTH_ENABLED
+    value: "true"
+  - name: KC_LOG_LEVEL
+    value: "INFO"
+
+# Service Configuration
+service:
+  type: ClusterIP
+  port: 8443
+  targetPort: 8443
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  ingressClassName: "nginx"
+  hosts:
+    - host: test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com
+      paths:
+        - path: /auth
+          pathType: Prefix
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    - hosts:
+        - test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com
+      secretName: keycloak-tls
+
+# Volume Configuration for TLS Certificates
+extraVolumes: |
+  - name: keycloak-tls
+    secret:
+      secretName: keycloak-tls
+
+extraVolumeMounts: |
+  - mountPath: /opt/keycloak/certs
+    name: keycloak-tls
+    readOnly: true
+
+# Resource Allocation
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1024Mi"
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+# Persistence Storage (if needed)
+persistence:
+  enabled: false
+  storageClass: "gp2"
+  size: 8Gi
+
 
 
 
