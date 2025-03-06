@@ -1,0 +1,101 @@
+Option 3: Use a Self-Signed Certificate (For Testing)
+If this is just for internal testing:
+
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout keycloak.key -out keycloak.crt \
+  -subj "/CN=test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+Then create a Kubernetes secret:
+
+kubectl create secret tls keycloak-tls --cert=keycloak.crt --key=keycloak.key -n keycloak
+✅ Step 2: Configure Keycloak Helm Chart to Use HTTPS
+
+Modify your Keycloak Helm values.yaml:
+
+keycloak:
+  extraEnv: |
+    - name: KC_HOSTNAME
+      value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+    - name: KC_HOSTNAME_URL
+      value: "https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+    - name: KC_HOSTNAME_STRICT
+      value: "false"
+    - name: KC_HOSTNAME_STRICT_HTTPS
+      value: "true"
+    - name: KC_HTTPS_CERTIFICATE_FILE
+      value: "/etc/x509/https/tls.crt"
+    - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+      value: "/etc/x509/https/tls.key"
+    - name: KC_PROXY
+      value: "edge"
+    - name: PROXY_ADDRESS_FORWARDING
+      value: "true"
+  
+  service:
+    httpsPort: 8443  # ✅ Change service to expose HTTPS
+
+  volumes:
+    - name: keycloak-tls
+      secret:
+        secretName: keycloak-tls
+  volumeMounts:
+    - mountPath: /etc/x509/https
+      name: keycloak-tls
+      readOnly: true
+This configuration:
+
+Mounts the TLS certificate from keycloak-tls secret.
+Forces Keycloak to listen on HTTPS (port 8443).
+✅ Step 3: Update NLB to Forward to Keycloak HTTPS (8443)
+
+Modify your Terraform configuration for the NLB target group:
+
+resource "aws_lb_target_group" "keycloak_nlb_target_https" {
+  name     = "keycloak-nlb-https"
+  port     = 8443
+  protocol = "HTTPS"
+  vpc_id   = local.vpc_id
+  health_check {
+    path                = "/healthz"
+    port                = "8443"
+    protocol            = "HTTPS"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+  }
+}
+Then attach the NLB Target Group to your ALB listener.
+
+✅ Step 4: Update ALB Listener to Forward HTTPS
+
+Modify Terraform for ALB listener:
+
+resource "aws_lb_listener" "keycloak_alb_listener" {
+  load_balancer_arn = aws_lb.keycloak_alb.id
+  port              = 443
+  protocol          = "HTTPS"
+  certificate_arn   = "arn:aws:acm:us-east-1:537124937025:certificate/69cac719-bf6a-41ec-8086-15c28d35086f"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.keycloak_nlb_target_https.arn
+  }
+}
+✅ Step 5: Apply Changes and Test
+
+1️⃣ Upgrade Keycloak Helm chart:
+
+helm upgrade keycloak codecentric/keycloakx --namespace keycloak -f keycloak-values.yaml
+2️⃣ Restart Keycloak:
+
+kubectl rollout restart deployment keycloak -n keycloak
+3️⃣ Update Terraform and Apply Changes:
+
+terraform apply
+4️⃣ Verify Keycloak Logs:
+
+kubectl logs -n keycloak -l app.kubernetes.io/name=keycloak --tail=100
+5️⃣ Test HTTPS via ALB:
+
+curl -v https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com/auth/
+✅ Expected Output: Keycloak returns a valid HTTPS response.
