@@ -1,4 +1,19 @@
-  extraEnv: |
+Hi Team,
+
+Thank you for your call yesterday. I have reviewed AWS Account XYZ, and currently, we do not have the necessary permissions to create new users or modify existing user permissions.
+
+To proceed with your request, you can raise a ServiceNow (SNOW) ticket using the following reference ticket. Alternatively, if you prefer, we are happy to raise the ticket on your behalf and support you throughout the process.
+
+Please let us know your preferred approach so we can move forward accordingly.
+
+Looking forward to your response.
+
+Thank you.
+
+----------------
+
+
+extraEnv: |
     # Hostname and HTTPS Configuration
     - name: KC_HOSTNAME
       value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
