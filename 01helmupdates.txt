@@ -71,6 +71,33 @@ extraVolumeMounts: |
     name: keycloak-tls
     readOnly: true
 
+startupProbe: |
+  httpGet:
+    path: "/auth/health"
+    port: 8443
+    scheme: HTTPS
+  initialDelaySeconds: 15
+  timeoutSeconds: 1
+  failureThreshold: 60
+  periodSeconds: 5
+
+livenessProbe: |
+  httpGet:
+    path: "/auth/health/live"
+    port: 8443
+    scheme: HTTPS
+  initialDelaySeconds: 0
+  timeoutSeconds: 5
+
+readinessProbe: |
+  httpGet:
+    path: "/auth/health/ready"
+    port: 8443
+    scheme: HTTPS
+  initialDelaySeconds: 10
+  timeoutSeconds: 1
+
+
 # Resource Allocation
 resources:
   limits:
@@ -85,6 +112,8 @@ persistence:
   enabled: false
   storageClass: "gp2"
   size: 8Gi
+
+
 
 
 
