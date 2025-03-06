@@ -1,3 +1,29 @@
+keycloak:
+  extraVolumes: |
+    - name: keycloak-tls
+      secret:
+        secretName: keycloak-tls
+
+  extraVolumeMounts: |
+    - mountPath: /opt/keycloak/certs
+      name: keycloak-tls
+      readOnly: true
+
+  extraEnv: |
+    - name: KC_HTTPS_CERTIFICATE_FILE
+      value: "/opt/keycloak/certs/tls.crt"
+    - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+      value: "/opt/keycloak/certs/tls.key"
+    - name: KC_HOSTNAME
+      value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+    - name: KC_HOSTNAME_STRICT
+      value: "true"
+    - name: KC_HOSTNAME_STRICT_HTTPS
+      value: "true"
+
+
+
+---------
 replicaCount: 1
 
 # Database Configuration
