@@ -1,3 +1,106 @@
+replicaCount: 1
+
+# Database Configuration
+postgresql:
+  enabled: true
+  existingSecret: "keycloak-db-secret"
+  existingSecretKey: "password"
+  hostname: "test-keycloak-rds-cluster-instance-02.tlqm48iakfgd.us-east-1.rds.amazonaws.com"
+  database: "keycloak"
+  username: "keycloak"
+  port: 5432
+
+# Override the container startup command to run Keycloak with HTTPS
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+
+# Set extra environment variables
+extraEnv: |
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin
+
+  # Hostname settings to ensure HTTPS works correctly
+  - name: KC_HOSTNAME
+    value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+  - name: KC_HOSTNAME_URL
+    value: "https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+  - name: KC_HOSTNAME_STRICT
+    value: "false"
+  - name: KC_HOSTNAME_STRICT_HTTPS
+    value: "true"
+  - name: KC_HOSTNAME_ADMIN
+    value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+
+  # Proxy settings to correctly handle ALB forwarding HTTPS requests
+  - name: KC_PROXY
+    value: "edge"
+  - name: X_FORWARDED_PROTO
+    value: "https"
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
+
+  # TLS Certificate for HTTPS
+  - name: KC_HTTPS_CERTIFICATE_FILE
+    value: "/etc/x509/https/tls.crt"
+  - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+    value: "/etc/x509/https/tls.key"
+
+  # Fix Content Security Policy (CSP) issues in browser
+  - name: KC_DEFAULT_HTTP_HEADERS
+    value: '{"Content-Security-Policy": "frame-ancestors self https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com", "X-Frame-Options": "ALLOW-FROM https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"}'
+
+# Keycloak Service Configuration
+service:
+  port: 8443  # Expose Keycloak on HTTPS
+  targetPort: 8443
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  rules:
+    - host: test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com
+      paths:
+        - path: /auth/
+          pathType: ImplementationSpecific
+  tls:
+    - hosts:
+        - test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com
+      secretName: keycloak-tls  # This secret contains the SSL certificate
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1024Mi"
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+persistence:
+  enabled: false
+  storageClass: "gp2"
+  size: 8Gi
+
+# Mount the TLS certificate from Kubernetes Secret
+volumes:
+  - name: keycloak-tls
+    secret:
+      secretName: keycloak-tls
+volumeMounts:
+  - mountPath: /etc/x509/https
+    name: keycloak-tls
+    readOnly: true
+
+
+
+
+
+
+
+----------------
+----------------
 Option 3: Use a Self-Signed Certificate (For Testing)
 If this is just for internal testing:
 
