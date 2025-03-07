@@ -1,3 +1,146 @@
+replicaCount: 1
+
+# Database Configuration
+database:
+  existingSecret: "keycloak-db-secret"
+  vendor: "postgres"
+  hostname: "test-keycloak-rds-cluster-instance-02.ctqmi8iak6gd.us-east-1.rds.amazonaws.com"
+  port: 5432
+  database: "keycloak"
+  username: "keycloak"
+  passwordSecret: "keycloak-db-secret"
+  passwordSecretKey: "password"
+
+# Keycloak Configuration
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+extraEnv:
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+  - name: KC_HTTPS_CERTIFICATE_FILE
+    value: "/opt/keycloak/certs/tls.crt"
+  - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+    value: "/opt/keycloak/certs/tls.key"
+  - name: KC_HOSTNAME
+    value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+  - name: KC_HOSTNAME_URL
+    value: "https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com/auth"
+  - name: KC_HOSTNAME_ADMIN
+    value: "test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com"
+  - name: KC_HOSTNAME_ADMIN_URL
+    value: "https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com/auth"
+  - name: KC_HOSTNAME_STRICT
+    value: "false"
+  - name: KC_HOSTNAME_STRICT_HTTPS
+    value: "true"
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HTTP_RELATIVE_PATH
+    value: "/auth"
+  - name: KC_HTTP_ENABLED
+    value: "true"  # Enable HTTP for internal communication
+  - name: KC_HTTPS_PORT
+    value: "8443"
+  - name: KC_HTTP_PORT
+    value: "8080"
+  - name: KC_HEALTH_ENABLED
+    value: "true"
+  - name: KC_LOG_LEVEL
+    value: "INFO"
+  - name: KC_PROXY_ADDRESS_FORWARDING
+    value: "true"
+  - name: KC_DEFAULT_HTTP_HEADERS
+    value: >-
+      {
+        "Content-Security-Policy": "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; frame-src 'self' https://test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+      }
+
+# Service Configuration
+service:
+  type: ClusterIP
+  port: 8443
+  targetPort: 8443
+  # Add HTTP port for internal communication
+  httpPort: 8080
+  httpTargetPort: 8080
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  ingressClassName: "nginx"
+  rules:
+    - host: test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com
+      paths:
+        - path: /auth/
+          pathType: ImplementationSpecific
+  tls:
+    - hosts:
+        - test-keycloak-ext-app-lb-1296767681.us-east-1.elb.amazonaws.com
+      secretName: keycloak-tls
+
+# Volume Configuration for TLS Certificates
+extraVolumes:
+  - name: keycloak-tls
+    secret:
+      secretName: keycloak-tls
+extraVolumeMounts:
+  - mountPath: /opt/keycloak/certs
+    name: keycloak-tls
+    readOnly: true
+
+# Probes
+startupProbe:
+  httpGet:
+    path: "/auth/health"
+    port: 8443
+    scheme: HTTPS
+  initialDelaySeconds: 15
+  timeoutSeconds: 1
+  failureThreshold: 60
+  periodSeconds: 5
+livenessProbe:
+  httpGet:
+    path: "/auth/health/live"
+    port: 8443
+    scheme: HTTPS
+  initialDelaySeconds: 0
+  timeoutSeconds: 5
+readinessProbe:
+  httpGet:
+    path: "/auth/health/ready"
+    port: 8443
+    scheme: HTTPS
+  initialDelaySeconds: 10
+  timeoutSeconds: 1
+
+# Resource Allocation
+resources:
+  limits:
+    cpu: "500m"
+    memory: "1024Mi"
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+# Persistence Storage (if needed)
+persistence:
+  enabled: false
+  storageClass: "gp2"
+  size: 8Gi
+
+
+
+
+
+--------------
 We need an IAM user with read-only access to AWS Account XYZ to allow our Python application to retrieve metadata and configuration details from AWS services programmatically.
 
 Request Details:
