@@ -1,3 +1,55 @@
+Solution: Reset Keycloak Admin OTP via CLI
+
+Since you cannot log in via the UI, you can use Keycloak's admin CLI (kcadm.sh) to disable OTP for the admin user.
+
+Step 1: Login to Keycloak Admin CLI
+SSH into the Keycloak host machine and run:
+
+cd /opt/keycloak/bin
+./kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password <admin-password>
+Replace <admin-password> with the actual password.
+If Keycloak is running behind a reverse proxy or a different hostname, change http://localhost:8080 accordingly.
+Step 2: Check the Admin User Details
+Run:
+
+./kcadm.sh get users -r master --query username=admin
+This will return details including the user ID.
+
+Step 3: Disable OTP for the Admin User
+Once you have the admin user ID, disable OTP:
+
+./kcadm.sh update users/<user-id> -r master -s "totp=false"
+Example:
+
+./kcadm.sh update users/1234abcd-5678-efgh-ijkl-9012mnop3456 -r master -s "totp=false"
+Alternatively, you can remove OTP credentials:
+
+./kcadm.sh delete users/1234abcd-5678-efgh-ijkl-9012mnop3456/credentials -r master
+Step 4: Restart Keycloak (If Needed)
+If the changes don't take effect immediately, restart Keycloak:
+
+systemctl restart keycloak
+or if running as a container:
+
+docker restart <keycloak-container-name>
+Step 5: Login Again
+Now, try logging in without OTP. If successful, you can set up a new OTP.
+
+Reset OTP via UI (Optional)
+
+Navigate to Keycloak Admin Console.
+Go to Users → Admin User → Credentials.
+Set a new password and enforce a new OTP.
+Alternative: Create a Temporary Super Admin User
+
+If disabling OTP doesn’t work, create a new admin user with full privileges:
+
+./kcadm.sh create users -r master -s username=newadmin -s enabled=true
+./kcadm.sh set-password -r master --username newadmin --new-password NewPassword123
+./kcadm.sh add-roles -r master --uusername newadmin --rolename admin --cclientid realm-management
+Then, log in with this new user, reset OTP for the old 
+
+-----
 Step 1: Zip the Dump File Inside the Pod
 
 Since you're inside a Kubernetes pod, use tar or zip to compress the dump file.
