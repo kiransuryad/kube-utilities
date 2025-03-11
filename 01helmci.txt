@@ -1,3 +1,112 @@
+
+Step 3: Reset the Admin Password
+
+Keycloak hashes passwords using PBKDF2-SHA256, so you need to manually update it.
+
+Generate a new hashed password using Keycloak CLI: If you have a working Keycloak installation somewhere, run:
+/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password 'NewSecurePassword'
+If you cannot use Keycloak CLI, use an online PBKDF2-SHA256 hash generator, or use Python:
+
+from hashlib import pbkdf2_hmac
+import base64
+
+password = "NewSecurePassword"
+salt = b'12345678'  # You can change this
+
+hash_bytes = pbkdf2_hmac('sha256', password.encode(), salt, 27500)
+hash_b64 = base64.b64encode(hash_bytes).decode()
+
+print(f"PBKDF2_SHA256 Hash: {hash_b64}")
+Update the password in the PostgreSQL database:
+UPDATE credential SET secret_data = '{"value":"<HASHED_PASSWORD>", "salt": "<SALT>"}'
+WHERE user_id = '<ADMIN_USER_ID>';
+Example:
+
+UPDATE credential SET secret_data = '{"value":"ABC123hashedvalue", "salt": "12345678"}'
+WHERE user_id = '1234abcd-5678-efgh-ijkl-9012mnop3456';
+Step 4: Restart Keycloak
+
+Restart Keycloak to ensure changes take effect:
+
+systemctl restart keycloak
+or if running in a Docker container:
+
+docker restart <keycloak-container>
+Step 5: Login with the New Password
+
+Try logging in with:
+
+Username: admin
+Password: NewSecurePassword
+
+
+Option 1: Generate Using Python
+
+On any machine with Python, run this script:
+
+from hashlib import pbkdf2_hmac
+import base64
+import os
+
+password = "NewSecurePassword"
+salt = os.urandom(16)  # Generate a random salt
+
+hash_bytes = pbkdf2_hmac('sha256', password.encode(), salt, 27500)
+hash_b64 = base64.b64encode(hash_bytes).decode()
+salt_b64 = base64.b64encode(salt).decode()
+
+print(f'Hashed Password: {hash_b64}')
+print(f'Salt: {salt_b64}')
+Replace "NewSecurePassword" with your desired password.
+The script will output a hashed password and a salt.
+Example Output:
+
+Hashed Password: W3JLS0lZMUpzbm1PV0ZaVExWWmE=
+Salt: Rm9vQmFyMTIzNDU2Nzg5MA==
+Step 2: Insert a New Admin User in PostgreSQL
+Connect to PostgreSQL:
+psql -h <db-host> -U <db-user> -d <db-name>
+Example:
+
+psql -h my-keycloak-db.us-east-1.rds.amazonaws.com -U keycloak -d keycloak
+Create the New User:
+INSERT INTO user_entity (id, username, enabled, email, email_verified, created_timestamp)
+VALUES ('new-admin-id-123', 'newadmin', true, 'newadmin@example.com', true, extract(epoch from now()) * 1000);
+Set the Password for the New User (Replace <HASHED_PASSWORD> and <SALT> with values from the Python script):
+INSERT INTO credential (id, user_id, type, created_date, secret_data, credential_data)
+VALUES (
+    'new-cred-id-456',
+    'new-admin-id-123',
+    'password',
+    extract(epoch from now()) * 1000,
+    '{"value":"<HASHED_PASSWORD>", "salt": "<SALT>", "algorithm":"pbkdf2-sha256", "iterations": 27500}',
+    '{"hashIterations":27500, "algorithm":"pbkdf2-sha256"}'
+);
+Example using generated values:
+
+INSERT INTO credential (id, user_id, type, created_date, secret_data, credential_data)
+VALUES (
+    'new-cred-id-456',
+    'new-admin-id-123',
+    'password',
+    extract(epoch from now()) * 1000,
+    '{"value":"W3JLS0lZMUpzbm1PV0ZaVExWWmE=", "salt": "Rm9vQmFyMTIzNDU2Nzg5MA==", "algorithm":"pbkdf2-sha256", "iterations": 27500}',
+    '{"hashIterations":27500, "algorithm":"pbkdf2-sha256"}'
+);
+Assign the Admin Role to the New User:
+INSERT INTO user_role_mapping (user_id, role_id, realm_id)
+SELECT 'new-admin-id-123', id, realm_id FROM role WHERE name = 'admin';
+Step 3: Restart Keycloak
+To apply the changes, restart Keycloak:
+
+systemctl restart keycloak
+or if running in Docker:
+
+docker restart <keycloak-container-name>
+
+
+
+------
 Solution: Reset Keycloak Admin OTP via CLI
 
 Since you cannot log in via the UI, you can use Keycloak's admin CLI (kcadm.sh) to disable OTP for the admin user.
