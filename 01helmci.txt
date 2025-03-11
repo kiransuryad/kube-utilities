@@ -1,3 +1,17 @@
+Hey Komi,
+
+Just wanted to take a moment to appreciate the help you provided in resolving the EKS → NLB → Ingress-Nginx → Keycloak issue. Your insights on traffic flow, HTTPS handling, and NGINX configurations made a huge difference in getting things sorted.
+
+Debugging this wasn’t straightforward, but your clear approach and patience really helped in breaking it down step by step. Looking forward to wrapping up the remaining bits with your continued support!
+
+Thanks again for the solid guidance—much appreciated!
+
+Best,
+
+
+
+
+------
 helm uninstall ingress-nginx -n ingress-nginx
 Step 2: Reinstall NGINX Ingress with ClusterIP or NodePort
 Now, reinstall it without an NLB.
