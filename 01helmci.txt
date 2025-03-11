@@ -1,3 +1,16 @@
+Hi [Recipient's Name],
+
+Thank you for setting up the meeting. I appreciate your time.
+
+This discussion is regarding the AWS account EDP-mgmt (1212212122). To ensure our call is as productive as possible, please let me know if there are any specific aspects of this account you’d like to focus on. Alternatively, I can walk you through the key services running, such as EC2, EKS clusters, and others.
+
+Looking forward to your thoughts.
+
+Best regards,
+
+
+
+-------
 Hey Komi,
 
 Just wanted to take a moment to appreciate the help you provided in resolving the EKS → NLB → Ingress-Nginx → Keycloak issue. Your insights on traffic flow, HTTPS handling, and NGINX configurations made a huge difference in getting things sorted.
