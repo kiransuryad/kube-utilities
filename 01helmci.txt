@@ -1,4 +1,32 @@
+Subject: Guidance on Keycloak Migration & LDAP Configuration in CIO AWS Account
 
+Good Afternoon Casey & Rajesh,
+
+We have successfully deployed Keycloak into our test environment in the CIO AWS Account. As part of our testing, we are working on migrating data from the current non-prod environment to the CIO AWS test account.
+
+We would appreciate your guidance on the following points:
+
+Data Migration:
+Can we proceed with fetching all the data from the non-prod environment and pushing it into our test environment for testing purposes?
+Are there any considerations or constraints we should be aware of?
+LDAP Configuration:
+The current non-prod account is configured to use worldpay.local:3268 LDAP for the master realm, which will not be accessible from the CIO AWS Account.
+Could you suggest an alternative LDAP that we can use from our CIO AWS Account?
+If an alternative is not available, what process or next steps do you recommend?
+FIS Data Migration:
+We understand that only FIS data needs to be migrated.
+Are there any specific steps, processes, or considerations we should follow for this migration?
+Internal URL for IdP Configuration:
+In the current setup, an internal URL is used for configuring with other IdPs.
+Could you confirm if a similar internal URL is required in the CIO AWS Account setup?
+Our understanding is that we need to reach out to Akamai to obtain a proper URL and whitelist the required IPs.
+Could you confirm if this is the correct approach, or suggest any additional steps we should take?
+Looking forward to your guidance and suggestions on these points.
+
+
+
+
+-----------
 Step 3: Reset the Admin Password
 
 Keycloak hashes passwords using PBKDF2-SHA256, so you need to manually update it.
