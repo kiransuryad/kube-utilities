@@ -1,3 +1,14 @@
+                # Fetch kubeconfig from Harness File Store and write it to a file
+                echo "<+fileStore.getAsString('path/to/kubeconfig')>" > /tmp/kubeconfig
+
+                # Ensure correct permissions
+                chmod 600 /tmp/kubeconfig
+
+                # Export kubeconfig and list nodes
+                export KUBECONFIG=/tmp/kubeconfig
+                kubectl get nodes
+
+----
 pipeline:
   name: List EKS Nodes and Pods
   identifier: List_EKS_Nodes_and_Pods
