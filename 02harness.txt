@@ -1,4 +1,30 @@
-                # Fetch kubeconfig from Harness File Store and write it to a file
+Subject: Guidance on GitHub Access for Hydra Team
+
+Hi Kailash,
+
+I hope you're doing well.
+
+This is Kiran from the Hydra team. We received an email yesterday stating that our access to GitHub.worldpay.com will be removed soon.
+
+Below are the three teams we are part of, and we need continued access to the repositories within these teams for our work. Could you please advise on the next steps? Specifically, we’d like to understand:
+
+Have these repositories already been migrated, and can we access them from the FIS space?
+If not, can we request to continue using them as they are?
+Or do we need to raise a request for migration from our end?
+Your guidance on this would be greatly appreciated.
+
+Looking forward to your response.
+
+Best regards,
+Kiran
+
+
+
+
+----
+----
+
+# Fetch kubeconfig from Harness File Store and write it to a file
                 echo "<+fileStore.getAsString('path/to/kubeconfig')>" > /tmp/kubeconfig
 
                 # Ensure correct permissions
