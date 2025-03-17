@@ -1,3 +1,22 @@
+Hi Manuel,
+
+I wanted to update you regarding the onboarding of our project into Checkmarx.
+
+Currently, with our EDA setup, we mirror Keycloak and related Helm charts into our local environment, and as part of this process, we use Checkov for static file scanning. Additionally, we fetch the base Keycloak image from Quay.io, build our own custom-tagged image, and use that downstream.
+
+In the new setup, since we are leveraging the CAAS pipelines for CI, they natively support CheckmarxOne and Sysdig out of the box. At present, we are using Sysdig for container scanning while continuing to mirror Keycloak into our local JFrog repository.
+
+However, Sysdig does not provide strong capabilities for Helm chart scanning, which is why I am looking to utilize CheckmarxOne for this purpose. Moreover, CheckmarxOne also offers container scanning functionality, so we could potentially replace Sysdig entirely with CheckmarxOne.
+
+I understand your earlier point that since Keycloak is a vendor-provided application, these scans might not be strictly necessary. However, as we are mirroring these assets into our local environment and intend to use them internally, we have been performing these scans prior to copying them over.
+
+Please do let me know if you believe these additional scanning steps are not essential. If so, we can simplify the process by removing them.
+
+Thank you,
+
+
+
+-------------
 Subject: Guidance on GitHub Access for Hydra Team
 
 Hi Kailash,
