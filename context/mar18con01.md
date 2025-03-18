@@ -1,77 +1,108 @@
-Summary: Helm Chart Lifecycle Automation
+# Helm Chart Lifecycle Automation - Internal Platform Flow
 
-🌐 Objective:
+## 🎯 Objective
+Automate the full lifecycle of mirroring public Helm charts, customizing them, securely packaging them, and deploying via Harness to EKS—while preserving upstream chart purity and managing internal customizations.
 
-Automate the full lifecycle of mirroring public Helm charts, customizing them, securely packaging them, and deploying via Harness to EKS—while preserving upstream chart purity and managing internal customizations in a clean, scalable way.
+---
 
-🎯 Solution Architecture Overview
+## 🏗️ Solution Architecture Overview
 
-Repositories:
-helm-upstreams (Bitbucket Repo #1)
-Read-only mirror of official/public Helm charts.
-Used purely for reference and periodic updates.
-helm-overlays (Bitbucket Repo #2)
-Contains:
-Copied upstream chart (from helm-upstreams).
-Internal customizations:
-values-prod.yaml, values-stage.yaml, etc.
-Custom templates/ overrides (if needed).
-Optional overlays (e.g., Kustomize patches or Helm hooks).
-Public Registry → Internal Registry Flow:
-Source	Target
-Public Helm repos (Jetstack, Bitnami, etc.)	helm-upstreams (Repo #1)
-helm-upstreams/<chart>	helm-overlays/<chart> (Repo #2)
-helm-overlays/<chart>	JFrog Artifactory Helm repository (packaged .tgz)
-JFrog Artifactory Helm repo	Harness pipeline for EKS deployments
-🛠️ Pipelines Overview
+### Repositories
 
-🔹 Pipeline 1: Upstream Mirror Pipeline
-Purpose:
-Mirror or sync upstream Helm chart into helm-upstreams.
-Trigger:
-Manual or scheduled sync (e.g., weekly).
-🔹 Pipeline 2: Upstream → Overlays Sync Pipeline
-Purpose:
-Sync helm-upstreams/<chart> → helm-overlays/<chart> while preserving:
-Custom values-*.yaml
-Custom templates or overlays
-Any custom CI/CD configurations
-Sync mechanism:
-rsync or Git subtree merge (you chose rsync for now).
-Output:
-A PR in helm-overlays repo updating upstream Helm chart content, leaving custom files intact.
-🔹 Pipeline 3: Jenkins Packaging Pipeline
-Purpose:
-Package the customized Helm chart from helm-overlays and push it to JFrog Artifactory with semver + environment tagging.
-Steps:
-Helm lint (optional)
-Checkmarx One scan (for IaC misconfigs)
-Helm dependency update + packaging
-Push to JFrog Artifactory (via Helm CLI or curl)
-Update index.yaml
-🔹 Harness Deployment Pipeline
-Purpose:
-Deploy charts from JFrog Helm repo into private EKS cluster.
-Steps:
-Standard Harness Helm deployment pipeline consuming the Helm artifact.
-🧩 Key Technical Decisions:
+| Repo Name                    | Purpose                                                     |
+|------------------------------|-------------------------------------------------------------|
+| `helm-upstreams`             | Read-only mirror of public Helm charts (for reference only) |
+| `helm-overlays`              | Internal repo containing copied Helm charts + customizations |
 
-Split upstream Helm charts and internal customizations into 2 repos.
-Automate partial chart syncing from upstream → overlays repo.
-Centralize artifact packaging from the overlays repo only.
-Unified security scanning via Checkmarx One in Jenkins Pipeline 3.
-Follow semantic versioning + env tags (e.g., 1.13.2-prod) in JFrog Artifactory.
-💡 Optional Future Improvements:
+### Public Registry → Internal Registry Flow
 
-Helm umbrella chart in helm-overlays for bundling cert-manager + ingress-nginx + keycloak.
-Automated chart promotion pipeline (dev → stage → prod) inside JFrog.
-Slack/MS Teams notifications for sync/packaging/deployment pipelines.
-Automatic dry-run + diff reporting as part of sync pipeline.
-Next Actionable Steps (Suggested Order):
+| Source                                      | Target                                     |
+|---------------------------------------------|--------------------------------------------|
+| Public Helm repos (e.g., Jetstack, Bitnami) | `helm-upstreams` repo                      |
+| `helm-upstreams/<chart>`                    | `helm-overlays/<chart>`                    |
+| `helm-overlays/<chart>`                     | JFrog Artifactory Helm repo (packaged `.tgz`) |
+| JFrog Artifactory Helm repo                 | Harness pipeline for EKS deployment        |
 
-✅ Implement Pipeline 1 to mirror upstream charts into helm-upstreams.
-✅ Implement Pipeline 2 for rsync-based sync from helm-upstreams → helm-overlays.
-✅ Implement Pipeline 3 for packaging + JFrog push + Checkmarx One scan.
-✅ Configure Harness to consume JFrog chart artifacts.
-🟢 Rollout into EKS (via Harness pipeline).
-🟢 Optional: add promotion pipelines, notifications, umbrella charts.
+---
+
+## 🛠️ Pipelines Overview
+
+### 🔹 Pipeline 1: Upstream Mirror Pipeline
+
+**Purpose:**  
+Mirror upstream Helm charts into `helm-upstreams`.
+
+**Trigger:**  
+Manual or automated (e.g., scheduled sync).
+
+---
+
+### 🔹 Pipeline 2: Upstream → Overlays Sync Pipeline
+
+**Purpose:**  
+Sync upstream chart into `helm-overlays` while preserving:
+- `values-*.yaml` (custom values)
+- `custom-templates/` or overlays
+- CI/CD configs
+
+**Sync mechanism:**  
+- `rsync` (preferred)
+- or `git subtree merge`
+
+**Output:**  
+PR into `helm-overlays` repo with upstream updates.
+
+---
+
+### 🔹 Pipeline 3: Jenkins Packaging Pipeline
+
+**Purpose:**  
+Package customized Helm charts from `helm-overlays` and push them to JFrog Artifactory.
+
+**Steps:**
+- Helm lint (optional)
+- Checkmarx One scan (IaC security)
+- Helm dependency update + package
+- Push `.tgz` to JFrog with semver + environment tag (e.g., `1.13.2-prod`)
+- Update `index.yaml` in Artifactory Helm repo
+
+---
+
+### 🔹 Harness Deployment Pipeline
+
+**Purpose:**  
+Deploy Helm charts from JFrog into the private EKS cluster.
+
+---
+
+## 🧩 Key Technical Decisions
+
+- Two repo strategy (`helm-upstreams` + `helm-overlays`).
+- Automate partial sync from `helm-upstreams` → `helm-overlays`.
+- Jenkins packaging pipeline works **only from `helm-overlays` repo**.
+- Unified security scanning via **Checkmarx One** CLI.
+- Semantic versioning and tagging (e.g., `1.13.2-stage`, `1.13.2-prod`) for Helm artifacts in JFrog.
+
+---
+
+## 💡 Optional Future Improvements
+
+- Helm umbrella chart to bundle cert-manager + ingress-nginx + keycloak.
+- Chart promotion pipeline (dev → staging → prod) inside JFrog.
+- Slack/MS Teams notifications for Jenkins pipelines.
+- Dry-run + diff reports on upstream sync pipeline.
+
+---
+
+## 🚦 Next Actionable Steps
+
+1. ✅ Implement **Pipeline 1** (mirror public Helm charts to `helm-upstreams`).
+2. ✅ Implement **Pipeline 2** (sync `helm-upstreams` → `helm-overlays`).
+3. ✅ Implement **Pipeline 3** (package & push Helm charts to JFrog).
+4. ✅ Configure Harness pipeline to deploy Helm charts from Artifactory.
+5. 🟢 Rollout the flow to EKS using Harness.
+6. 🟢 Optional: Implement promotion pipelines, umbrella charts, notifications.
+
+---
+
+> _Maintainer Note: Please update this README as new automation or architectural changes are introduced._
