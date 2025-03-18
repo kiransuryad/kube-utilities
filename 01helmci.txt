@@ -1,3 +1,17 @@
+Hello all,
+
+All the repositories listed below, along with several others, reside under the Worldspace domain specific to AWS account 771019480822. Many of you may have already lost access to them.
+
+Please review and confirm:
+
+Whether you still have access to these repositories.
+Which of these repositories are relevant for your team’s work.
+Based on your assessment, please raise a migration request for the required repositories to FIS GitHub.
+This will help ensure continuity and avoid any potential disruption.
+
+
+
+-----
 Subject: Guidance on Keycloak Migration & LDAP Configuration in CIO AWS Account
 
 Good Afternoon Casey & Rajesh,
