@@ -1,0 +1,48 @@
+Internal Helm Chart Management & Deployment Flow
+
+🎯 Objective
+We have designed an improved and fully automated pipeline to manage external Helm charts and internal customizations for deployment into our private EKS cluster using Harness. This process ensures separation of concerns, upstream chart integrity, and fast, secure packaging & deployment cycles.
+
+🏗️ Architectural Flow
+
+1. Source Split:
+Upstream Helm Charts Repo (helm-upstreams)
+Mirrors official charts (e.g., Bitnami, Jetstack) into a read-only Bitbucket repo.
+No customization or modification is performed in this repo.
+Internal Customizations Repo (helm-overlays)
+A second Bitbucket repo where teams:
+Copy charts from upstream repo.
+Customize with values-*.yaml (prod, stage, etc.).
+Override templates if necessary (templates/, hooks, patches).
+This repo is the source of truth for packaging.
+2. CI/CD Pipeline Overview
+Pipeline #1: Upstream Mirror Pipeline	Pipeline #2: Sync Upstream to Overlays Repo	Pipeline #3: Helm Package & JFrog Push Pipeline	Pipeline #4: Harness Helm Deployment Pipeline
+Pull Helm charts from public Helm repo	Sync upstream chart content into helm-overlays/<chart>	Package chart with custom values.yaml + push to JFrog	Deploy Helm chart from JFrog Helm repo to EKS
+Push to helm-upstreams Bitbucket repo	Protect custom values/overlays while syncing templates	Version & tag Helm chart (e.g., 1.0.0-prod)	Run Helm deploy step inside Harness workflow
+Scheduled (or manual)	PR-based sync into overlays repo (automated via CI)	Update Artifactory index.yaml	Target namespace in EKS via Harness connector
+3. Toolchain
+
+Helm: Chart packaging and templating.
+Jenkins Pipelines: CI automation for mirroring, syncing, packaging, pushing.
+Checkmarx One: IaC and Helm template security scanning in packaging pipeline.
+JFrog Artifactory: Artifact repository for Helm charts (replacing GitHub Pages).
+Harness.io: CD pipeline to deploy Helm charts into EKS environments.
+4. Benefits
+
+Separation of Upstream vs Internal Ownership:
+Pure upstream charts stay clean.
+Internal customization repo owns environment-specific configurations.
+Improved Security & Compliance:
+Automated Checkmarx One scanning in CI/CD.
+JFrog Artifactory with RBAC and immutable releases.
+Automated Artifact Lifecycle:
+CI pipelines handle chart packaging, semver tagging, and publishing to Artifactory.
+Streamlined CD to EKS:
+Harness Helm pipelines deploy charts from Artifactory into EKS using dynamic inputs.
+5. Target Outcomes
+
+Faster Helm chart adoption cycle.
+No fork drift between upstream charts and custom internal overlays.
+Enhanced artifact traceability (via Artifactory promotions and tagging).
+Decoupled customization from upstream vendor charts.
+Audit-friendly PR and CI pipelines with enforced static analysis.
