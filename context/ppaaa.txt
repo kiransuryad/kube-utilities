@@ -1,3 +1,11 @@
+Param	Value
+SRC_REPO_URL	https://kubernetes.github.io/ingress-nginx
+SRC_REPO_NAME (optional)	ingress-nginx
+SRC_CHART_NAME	ingress-nginx
+SRC_CHART_VERSION	(optional) 4.9.0 or leave blank for latest stable version.
+TARGET_BITBUCKET_REPO	hydra-helm-upstreams
+
+----
 @Library(['common-lib@3-stable']) _
 
 properties([
