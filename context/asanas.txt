@@ -1,0 +1,20 @@
+Subject: Request for LDAP URL and Credentials for Keycloak Migration to CIO AWS Account
+
+Good afternoon all,
+
+I am Kiran from the Hydra team.
+
+We currently support and manage the Keycloak application within the EDA AWS Account. Following the Worldpay split, we are migrating this Keycloak application to the CIO-managed AWS Account.
+
+At present, the Keycloak application connects to LDAP using the following URL: adresolve.worldpay:3268. However, this URL will no longer be accessible post-migration.
+
+Could you please advise on the appropriate alternative LDAP URL for this server? We have been provided with the following alternative URL and would appreciate your confirmation on whether this is suitable for use.
+
+Additionally, if approved, could you also provide us with the corresponding LDAP bind DN and credentials required for integration?
+
+For your reference, our FNFIS service account is: svc-asasas-app.
+
+Thank you for your support, and we look forward to your guidance.
+
+Best regards,
+Kiran Gonela
