@@ -1,3 +1,16 @@
+stage('Push OCI Artifact to JFrog Artifactory') {
+    container('buildah') {
+        withCredentials([usernamePassword(credentialsId: 'your-artifactory-cred-id', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+            sh '''
+            echo $ART_PASS | buildah login -u $ART_USER --password-stdin your-jfrog-instance/artifactory/docker-local
+            buildah push oci://hydra-tools-test-${containerImageMap.tag} docker://your-jfrog-instance/artifactory/docker-local/hydra-tools-test:${containerImageMap.tag}
+            '''
+        }
+    }
+}
+
+
+-------
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3-311
 
 # Set working directory
