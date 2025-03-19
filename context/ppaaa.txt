@@ -1,3 +1,72 @@
+@Library(['common-lib@3-stable']) _
+
+properties([
+    parameters([
+        string(name: 'SRC_REPO_URL', defaultValue: 'https://charts.bitnami.com/bitnami', description: 'Source Helm repository URL'),
+        string(name: 'SRC_REPO_NAME', defaultValue: 'bitnami', description: 'Name of the source Helm repository'),
+        string(name: 'SRC_CHART_NAME', defaultValue: 'nginx', description: 'Source Helm chart name'),
+        string(name: 'SRC_CHART_VERSION', defaultValue: '', description: 'Source Helm chart version (leave empty for latest)'),
+        string(name: 'TARGET_BITBUCKET_REPO', defaultValue: 'hydra-helm-upstreams', description: 'Bitbucket repo to push mirrored chart into')
+    ])
+])
+
+// Pod template block
+String podTemplate = '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: aws
+    image: qas-docker-release-local.docker.fis.dev/jenkins/able-minion:helm-aws:3.6.3-1
+    command:
+    - cat
+    tty: true
+  volumes:
+  - name: efs
+    emptyDir: {}
+'''.stripIndent()
+
+podTemplate(yaml: podTemplate, label: 'hydra-pod') {
+    node('hydra-pod') {
+        stage('Checkout Bitbucket Repo') {
+            git url: "git@bitbucket.org:your-org/${params.TARGET_BITBUCKET_REPO}.git", branch: 'main'
+        }
+
+        stage('Mirror Helm Chart from Public Repo') {
+            container('aws') {
+                sh '''
+                helm repo add ${SRC_REPO_NAME} ${SRC_REPO_URL}
+                if [ -z "${SRC_CHART_VERSION}" ]; then
+                  helm pull ${SRC_REPO_NAME}/${SRC_CHART_NAME} --untar --untardir ${SRC_CHART_NAME}
+                else
+                  helm pull ${SRC_REPO_NAME}/${SRC_CHART_NAME} --version ${SRC_CHART_VERSION} --untar --untardir ${SRC_CHART_NAME}
+                fi
+                helm repo remove ${SRC_REPO_NAME}
+                '''
+            }
+        }
+
+        stage('Push Helm Chart to Bitbucket') {
+            container('aws') {
+                sh '''
+                mkdir -p ${SRC_CHART_NAME}
+                mv ${SRC_CHART_NAME}/* ${SRC_CHART_NAME}/ || true
+                git config user.name "ci-bot"
+                git config user.email "ci-bot@yourorg.com"
+                git checkout -b mirror_${SRC_CHART_NAME}_${SRC_CHART_VERSION:-latest} || git checkout mirror_${SRC_CHART_NAME}_${SRC_CHART_VERSION:-latest}
+                git add ${SRC_CHART_NAME}/
+                git commit -m "Mirror: ${SRC_CHART_NAME} ${SRC_CHART_VERSION:-latest} from ${SRC_REPO_URL}"
+                git push origin HEAD
+                '''
+            }
+        }
+    }
+}
+
+
+
+
+--------------
 pipeline {
     agent any
 
