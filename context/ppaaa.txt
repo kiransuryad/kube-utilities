@@ -1,3 +1,48 @@
+// Unified image map block
+Map containerImageMap = [
+    imageRegistry: 'edas-docker-snapshot-local.docker.fis.dev',
+    imageName: 'test/hydra-tools',
+    imageTag: applicationVersion // e.g., "0.0.2"
+]
+def fullImage = "${containerImageMap.imageRegistry}/${containerImageMap.imageName}:${containerImageMap.imageTag}"
+
+
+
+stage('Sysdig Scan') {
+    container('buildah') {
+        String ociPath = "oci://${containerImageMap.imageName}:${containerImageMap.imageTag}"
+
+        // Optional: Buildah login here if Sysdig needs image pull access
+        sh '''
+        buildah push ${ociPath} docker://${fullImage}
+        '''
+
+        sysdigImageScan(
+            bailOnFail: false,
+            engineCredentialsId: 'CAAS_GLOBALLY_SHARED_FIS_SYSDIG_TOKEN',
+            engineURL: 'https://us2.app.sysdig.com',
+            imageName: "${fullImage}",
+            inlineScanExtraParams: "--override-pullstring-oci=${ociPath}"
+        )
+    }
+}
+
+
+stage('Push OCI Artifact to JFrog Artifactory') {
+    container('buildah') {
+        withCredentials([usernamePassword(credentialsId: 'svcasct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+            sh '''
+            echo $ART_PASS | buildah login -u $ART_USER --password-stdin ${containerImageMap.imageRegistry}
+            buildah push \
+              oci://${containerImageMap.imageName}:${containerImageMap.imageTag} \
+              docker://${fullImage}
+            '''
+        }
+    }
+}
+
+
+-----
 # Use the latest UBI 9 minimal image
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
