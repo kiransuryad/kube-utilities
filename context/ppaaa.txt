@@ -24,19 +24,39 @@ spec:
 podTemplate(yaml: podTemplate, label: 'hydra-pod') {
     node('hydra-pod') {
 
-        stage('Mirror Helm Chart from Public Repo') {
-            container('aws') {
-                sh '''
-                helm repo add ${SRC_REPO_NAME} ${SRC_REPO_URL}
-                if [ -z "${SRC_CHART_VERSION}" ]; then
-                  helm pull ${SRC_REPO_NAME}/${SRC_CHART_NAME} --untar --untardir ${SRC_CHART_NAME}
-                else
-                  helm pull ${SRC_REPO_NAME}/${SRC_CHART_NAME} --version ${SRC_CHART_VERSION} --untar --untardir ${SRC_CHART_NAME}
-                fi
-                helm repo remove ${SRC_REPO_NAME}
-                '''
-            }
-        }
+stage('Mirror Helm Chart from Public Repo') {
+    container('aws') {
+        sh '''
+        if [[ "${SRC_REPO_URL}" == oci* ]]; then
+            echo "Detected OCI Helm registry source"
+            
+            if [ -z "${SRC_CHART_VERSION}" ]; then
+              echo "Error: OCI charts require version parameter."
+              exit 1
+            fi
+
+            # OCI pull (no DockerHub login required for public Bitnami OCI charts)
+            helm pull ${SRC_REPO_URL}/${SRC_CHART_NAME} --version ${SRC_CHART_VERSION}
+
+            # Export the chart from OCI artifact format into traditional Helm chart directory
+            helm chart export ${SRC_CHART_NAME}-${SRC_CHART_VERSION}.tgz -d ${SRC_CHART_NAME}
+
+        else
+            echo "Detected classic Helm repo"
+            helm repo add ${SRC_REPO_NAME} ${SRC_REPO_URL}
+            
+            if [ -z "${SRC_CHART_VERSION}" ]; then
+              helm pull ${SRC_REPO_NAME}/${SRC_CHART_NAME} --untar --untardir ${SRC_CHART_NAME}
+            else
+              helm pull ${SRC_REPO_NAME}/${SRC_CHART_NAME} --version ${SRC_CHART_VERSION} --untar --untardir ${SRC_CHART_NAME}
+            fi
+            
+            helm repo remove ${SRC_REPO_NAME}
+        fi
+        '''
+    }
+}
+
 
         stage('Helm Lint Check') {
             container('aws') {
