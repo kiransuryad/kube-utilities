@@ -1,3 +1,58 @@
+# Use the latest UBI 9 minimal image
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+# Set working directory
+WORKDIR /tmp
+
+# Install required tools using dnf (recommended over microdnf for security updates)
+RUN dnf update -y && \
+    dnf install -y \
+        tar \
+        gzip \
+        git \
+        curl \
+        bash \
+        findutils \
+    && dnf clean all
+
+# Install Helm (latest stable version)
+# Use a pinned checksum for security.
+ARG HELM_VERSION=v3.14.3 # Update to the latest stable version
+ARG HELM_CHECKSUM="sha256:d842b04c865761a5b83642333066348ef520d2e82548819597143419992f9501" # Update checksum
+RUN curl -fsSL -o helm.tar.gz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" && \
+    echo "${HELM_CHECKSUM} helm.tar.gz" | sha256sum -c - && \
+    tar -zxvf helm.tar.gz && \
+    mv linux-amd64/helm /usr/local/bin/helm && \
+    chmod +x /usr/local/bin/helm && \
+    rm -rf helm.tar.gz linux-amd64
+
+# Install AWS CLI v2 (using the official Red Hat package if available, else latest)
+# Always pin versions for production.
+ARG AWS_CLI_VERSION=2.15.27 # Update to the latest
+RUN dnf install -y aws-cli-${AWS_CLI_VERSION} || \
+    (curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws)
+
+# Install kubectl (latest stable version, pinned version)
+ARG KUBECTL_VERSION=v1.29.2 # Update to the latest stable
+ARG KUBECTL_CHECKSUM="sha256:4f1a07018318b76c0e5a40735f4749f76a5913253b27670788d7122a61115206" #Update checksum
+RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" && \
+    echo "${KUBECTL_CHECKSUM} kubectl" | sha256sum -c - && \
+    chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+
+# Add OCI compatibility flag for Helm by default
+ENV HELM_EXPERIMENTAL_OCI=1
+
+# Set the UID as 10001 (as per your org's policy)
+USER 10001
+
+ENTRYPOINT ["/bin/bash"]
+
+
+
+----------
 stage('Push OCI Artifact to JFrog Artifactory') {
     container('buildah') {
         withCredentials([usernamePassword(credentialsId: 'your-artifactory-cred-id', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
