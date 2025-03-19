@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SRC_REPO_URL', defaultValue: 'https://charts.bitnami.com/bitnami', description: 'Public Helm repository URL')
+        string(name: 'SRC_CHART_NAME', defaultValue: 'nginx', description: 'Chart name to mirror')
+        string(name: 'SRC_CHART_VERSION', defaultValue: '', description: 'Chart version (leave empty for latest)')
+    }
+
+    environment {
+        GIT_REPO = 'git@bitbucket.org:your-org/hydra-helm-upstreams.git'
+        LOCAL_DIR = 'mirror'
+    }
+
+    stages {
+        stage('Prepare workspace') {
+            steps {
+                sh 'rm -rf ${LOCAL_DIR} && mkdir ${LOCAL_DIR}'
+            }
+        }
+
+        stage('Pull Helm chart from public repo') {
+            steps {
+                sh '''
+                helm repo add upstream ${SRC_REPO_URL}
+                if [ -z "${SRC_CHART_VERSION}" ]; then
+                  helm pull upstream/${SRC_CHART_NAME} --untar --untardir ${LOCAL_DIR}
+                else
+                  helm pull upstream/${SRC_CHART_NAME} --version ${SRC_CHART_VERSION} --untar --untardir ${LOCAL_DIR}
+                fi
+                helm repo remove upstream
+                '''
+            }
+        }
+
+        stage('Push to hydra-helm-upstreams repo') {
+            steps {
+                dir("${LOCAL_DIR}") {
+                    sh '''
+                    git init
+                    git remote add origin ${GIT_REPO}
+                    git checkout -b main || git checkout main
+                    mkdir -p ${SRC_CHART_NAME}
+                    mv ${SRC_CHART_NAME}/* ${SRC_CHART_NAME}/
+                    git add ${SRC_CHART_NAME}/
+                    git config user.name "ci-bot"
+                    git config user.email "ci-bot@yourorg.com"
+                    git commit -m "Mirrored ${SRC_CHART_NAME} chart from ${SRC_REPO_URL} ${SRC_CHART_VERSION}"
+                    git push origin main
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
