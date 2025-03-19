@@ -1,3 +1,46 @@
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3-311
+
+# Set working directory
+WORKDIR /tmp
+
+# Install required tools
+RUN microdnf install -y \
+    tar \
+    gzip \
+    git \
+    curl \
+    bash \
+    findutils \
+    && microdnf clean all
+
+# Install Helm (v3.11.2 for OCI compatibility)
+RUN curl -sSL -o helm.tar.gz https://get.helm.sh/helm-v3.11.2-linux-amd64.tar.gz && \
+    tar -zxvf helm.tar.gz && \
+    mv linux-amd64/helm /usr/local/bin/helm && \
+    chmod +x /usr/local/bin/helm && \
+    rm -rf helm.tar.gz linux-amd64
+
+# Install AWS CLI v2 (optional if needed for artifact upload or other AWS tasks)
+RUN curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws
+
+# Optional: Install kubectl if you later need it in pipeline 2/3
+RUN curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" && \
+    chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+
+# Add OCI compatibility flag for Helm by default
+ENV HELM_EXPERIMENTAL_OCI=1
+
+# Set the UID as 10001 (as per your org's policy)
+USER 10001
+
+ENTRYPOINT ["/bin/bash"]
+
+
+
+------
 Param	Value
 SRC_REPO_URL	https://kubernetes.github.io/ingress-nginx
 SRC_REPO_NAME (optional)	ingress-nginx
