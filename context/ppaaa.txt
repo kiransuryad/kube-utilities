@@ -2,15 +2,14 @@
 
 properties([
     parameters([
-        string(name: 'SRC_REPO_URL', defaultValue: 'https://charts.bitnami.com/bitnami', description: 'Source Helm repository URL'),
-        string(name: 'SRC_REPO_NAME', defaultValue: 'bitnami', description: 'Name of the source Helm repository'),
+        string(name: 'SRC_REPO_URL', defaultValue: 'https://charts.bitnami.com/bitnami', description: 'Public Helm repository URL'),
+        string(name: 'SRC_REPO_NAME', defaultValue: 'bitnami', description: 'Public Helm repository name'),
         string(name: 'SRC_CHART_NAME', defaultValue: 'nginx', description: 'Source Helm chart name'),
         string(name: 'SRC_CHART_VERSION', defaultValue: '', description: 'Source Helm chart version (leave empty for latest)'),
-        string(name: 'TARGET_BITBUCKET_REPO', defaultValue: 'hydra-helm-upstreams', description: 'Bitbucket repo to push mirrored chart into')
+        string(name: 'TARGET_BITBUCKET_REPO', defaultValue: 'hydra-helm-upstreams', description: 'Internal Bitbucket repo to push mirrored chart into')
     ])
 ])
 
-// Pod template block
 String podTemplate = '''
 apiVersion: v1
 kind: Pod
@@ -18,19 +17,12 @@ spec:
   containers:
   - name: aws
     image: qas-docker-release-local.docker.fis.dev/jenkins/able-minion:helm-aws:3.6.3-1
-    command:
-    - cat
+    command: ["cat"]
     tty: true
-  volumes:
-  - name: efs
-    emptyDir: {}
 '''.stripIndent()
 
 podTemplate(yaml: podTemplate, label: 'hydra-pod') {
     node('hydra-pod') {
-        stage('Checkout Bitbucket Repo') {
-            git url: "git@bitbucket.org:your-org/${params.TARGET_BITBUCKET_REPO}.git", branch: 'main'
-        }
 
         stage('Mirror Helm Chart from Public Repo') {
             container('aws') {
@@ -46,18 +38,32 @@ podTemplate(yaml: podTemplate, label: 'hydra-pod') {
             }
         }
 
-        stage('Push Helm Chart to Bitbucket') {
+        stage('Helm Lint Check') {
             container('aws') {
                 sh '''
-                mkdir -p ${SRC_CHART_NAME}
-                mv ${SRC_CHART_NAME}/* ${SRC_CHART_NAME}/ || true
-                git config user.name "ci-bot"
-                git config user.email "ci-bot@yourorg.com"
-                git checkout -b mirror_${SRC_CHART_NAME}_${SRC_CHART_VERSION:-latest} || git checkout mirror_${SRC_CHART_NAME}_${SRC_CHART_VERSION:-latest}
-                git add ${SRC_CHART_NAME}/
-                git commit -m "Mirror: ${SRC_CHART_NAME} ${SRC_CHART_VERSION:-latest} from ${SRC_REPO_URL}"
-                git push origin HEAD
+                helm lint ${SRC_CHART_NAME}/${SRC_CHART_NAME} || { echo "Helm lint failed!"; exit 1; }
                 '''
+            }
+        }
+
+        stage('Push Helm Chart to Bitbucket (HTTPS + Your Credentials)') {
+            withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
+                container('aws') {
+                    sh '''
+                    git config --global user.name "${BB_USER}"
+                    git config --global user.email "${BB_USER}@yourorg.com"
+                    git clone https://${BB_USER}:${BB_TOKEN}@bitbucket.org/your-org/${TARGET_BITBUCKET_REPO}.git
+
+                    cd ${TARGET_BITBUCKET_REPO}
+                    git checkout -b mirror_${SRC_CHART_NAME}_${SRC_CHART_VERSION:-latest} || git checkout mirror_${SRC_CHART_NAME}_${SRC_CHART_VERSION:-latest}
+                    mkdir -p ${SRC_CHART_NAME}
+                    cp -R ../${SRC_CHART_NAME}/${SRC_CHART_NAME}/* ${SRC_CHART_NAME}/
+
+                    git add ${SRC_CHART_NAME}/
+                    git commit -m "Mirror: ${SRC_CHART_NAME} ${SRC_CHART_VERSION:-latest} from ${SRC_REPO_URL}"
+                    git push https://${BB_USER}:${BB_TOKEN}@bitbucket.org/your-org/${TARGET_BITBUCKET_REPO}.git HEAD
+                    '''
+                }
             }
         }
     }
