@@ -1,42 +1,59 @@
+@Library(['common-lib@3-stable']) _
+
 pipeline {
-    agent any
+    agent none
 
     parameters {
         string(name: 'CHART_NAME', description: 'Helm chart name (e.g., nginx, keycloak)')
         string(name: 'CHART_VERSION', description: 'Helm chart version (e.g., 1.21.0)')
-        string(name: 'UPSTREAM_BRANCH', defaultValue: 'main', description: 'Branch in hydra-helm-upstreams (fixed to main)', trim: true)
-        string(name: 'OVERLAY_FEATURE_BRANCH', defaultValue: '', description: 'Feature branch name to create/push in hydra-helm-overlays')
+        string(name: 'OVERLAY_FEATURE_BRANCH', description: 'Feature branch name to create/push in hydra-helm-overlays')
     }
 
     environment {
-        UPSTREAM_REPO = 'git@bitbucket.org:your-org/hydra-helm-upstreams.git'
-        OVERLAYS_REPO = 'git@bitbucket.org:your-org/hydra-helm-overlays.git'
+        UPSTREAM_GIT_URL = 'https://bitbucket.org/your-org/hydra-helm-upstreams.git'
+        OVERLAYS_GIT_URL = 'https://bitbucket.org/your-org/hydra-helm-overlays.git'
         OVERLAYS_MAIN_BRANCH = 'develop'
     }
 
     stages {
-        stage('Clone Repositories') {
-            steps {
-                sh '''
-                rm -rf upstream overlays
-                git clone --branch ${UPSTREAM_BRANCH} ${UPSTREAM_REPO} upstream
-                git clone ${OVERLAYS_REPO} overlays
-                '''
-            }
-        }
+        stage('Clone Repositories using HTTPS') {
+            agent { label 'aws' }
 
-        stage('Create or Checkout Overlay Feature Branch') {
+            environment {
+                GIT_SSL_NO_VERIFY = 'true'
+            }
+
             steps {
-                dir('overlays') {
+                withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
                     sh '''
-                    git checkout ${OVERLAYS_MAIN_BRANCH}
-                    git checkout -b ${OVERLAY_FEATURE_BRANCH} || git checkout ${OVERLAY_FEATURE_BRANCH}
+                    rm -rf upstream overlays
+
+                    echo "Cloning upstream (read-only) repo..."
+                    git clone --branch main https://${BB_USER}:${BB_TOKEN}@bitbucket.org/your-org/hydra-helm-upstreams.git upstream
+
+                    echo "Cloning overlays repo..."
+                    git clone https://${BB_USER}:${BB_TOKEN}@bitbucket.org/your-org/hydra-helm-overlays.git overlays
                     '''
                 }
             }
         }
 
-        stage('Sync Chart Folder from Upstream') {
+        stage('Create/Checkout Overlay Feature Branch') {
+            agent { label 'aws' }
+            steps {
+                dir('overlays') {
+                    withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
+                        sh '''
+                        git checkout ${OVERLAYS_MAIN_BRANCH} || git checkout -b ${OVERLAYS_MAIN_BRANCH}
+                        git checkout -b ${OVERLAY_FEATURE_BRANCH} || git checkout ${OVERLAY_FEATURE_BRANCH}
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Sync Chart Folder from Upstream Repo') {
+            agent { label 'aws' }
             steps {
                 sh '''
                 rm -rf overlays/${CHART_NAME}/chart
@@ -46,16 +63,20 @@ pipeline {
             }
         }
 
-        stage('Push Changes to Feature Branch') {
+        stage('Commit & Push to Overlay Feature Branch') {
+            agent { label 'aws' }
             steps {
                 dir('overlays') {
-                    sh '''
-                    git config user.name "ci-bot"
-                    git config user.email "ci-bot@yourorg.com"
-                    git add ${CHART_NAME}/chart
-                    git commit -m "Sync: ${CHART_NAME} ${CHART_VERSION} from upstream to overlay feature branch"
-                    git push origin ${OVERLAY_FEATURE_BRANCH}
-                    '''
+                    withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
+                        sh '''
+                        git config user.name "${BB_USER}"
+                        git config user.email "${BB_USER}@yourorg.com"
+
+                        git add ${CHART_NAME}/chart || true
+                        git commit -m "Overlay Sync: ${CHART_NAME} ${CHART_VERSION} from upstream main"
+                        git push https://${BB_USER}:${BB_TOKEN}@bitbucket.org/your-org/hydra-helm-overlays.git HEAD:${OVERLAY_FEATURE_BRANCH}
+                        '''
+                    }
                 }
             }
         }
@@ -67,6 +88,7 @@ pipeline {
         }
     }
 }
+
 
 
 
