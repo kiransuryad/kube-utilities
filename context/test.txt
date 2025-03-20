@@ -1,3 +1,38 @@
+stage('Upload to Artifactory') {
+    container('aws') {
+        withCredentials([usernamePassword(credentialsId: 'svaccct-hydra-cicd', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
+            sh '''
+                cd ${WORKSPACE}/packaged
+                chartFile=$(ls *.tgz)
+                echo "Uploading Helm chart: ${chartFile}"
+                
+                curl -v -X PUT -H "Content-Type: application/gzip" \
+                -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} \
+                -T ${chartFile} \
+                "${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${chartFile}"
+            '''
+        }
+    }
+}
+
+
+stage('Prepare Helm Package') {
+    container('aws') {
+        dir("${CHART_NAME}/chart") {
+            sh '''
+                helm dependency update .
+                helm lint --strict=false || echo "non blocking lint warning"
+                mkdir -p ${WORKSPACE}/packaged
+                helm package . -d ${WORKSPACE}/packaged
+            '''
+        }
+    }
+}
+
+
+
+
+-----
 @Library(['common-lib@3-stable'])
 
 properties([
