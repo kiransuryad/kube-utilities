@@ -1,90 +1,61 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml '''
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: aws
-    image: caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1
-    command: ["cat"]
-    tty: true
-    volumeMounts:
-      - name: workspace-volume
-        mountPath: /home/jenkins/agent
-        readOnly: false
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "200m"
-  volumes:
-    - emptyDir: {}
-      name: workspace-volume
-'''
-        }
-    }
+    agent any
 
     parameters {
-        string(name: 'CHART_NAME', description: 'Name of the Helm chart (e.g., nginx)')
-        string(name: 'CHART_VERSION', description: 'Version to sync (e.g., 4.9.0)')
-        string(name: 'TARGET_BRANCH', defaultValue: 'develop', description: 'Target branch in overlay repo')
+        string(name: 'CHART_NAME', description: 'Helm chart name (e.g., nginx, keycloak)')
+        string(name: 'CHART_VERSION', description: 'Helm chart version (e.g., 1.21.0)')
+        string(name: 'UPSTREAM_BRANCH', defaultValue: 'main', description: 'Branch in hydra-helm-upstreams (fixed to main)', trim: true)
+        string(name: 'OVERLAY_FEATURE_BRANCH', defaultValue: '', description: 'Feature branch name to create/push in hydra-helm-overlays')
     }
 
     environment {
-        UPSTREAM_REPO = 'git@bitbucket.org:hydra/hydra-helm-upstreams.git'
-        OVERLAY_REPO = 'git@bitbucket.org:hydra/hydra-helm-overlays.git'
+        UPSTREAM_REPO = 'git@bitbucket.org:your-org/hydra-helm-upstreams.git'
+        OVERLAYS_REPO = 'git@bitbucket.org:your-org/hydra-helm-overlays.git'
+        OVERLAYS_MAIN_BRANCH = 'develop'
     }
 
     stages {
-
-        stage('Pre-checks') {
+        stage('Clone Repositories') {
             steps {
-                script {
-                    if (!params.CHART_NAME || !params.CHART_VERSION) {
-                        error("CHART_NAME and CHART_VERSION are mandatory")
-                    }
-                }
+                sh '''
+                rm -rf upstream overlays
+                git clone --branch ${UPSTREAM_BRANCH} ${UPSTREAM_REPO} upstream
+                git clone ${OVERLAYS_REPO} overlays
+                '''
             }
         }
 
-        stage('Clone Repos') {
+        stage('Create or Checkout Overlay Feature Branch') {
             steps {
-                container('aws') {
-                    withCredentials([usernamePassword(credentialsId: 'kiran-creds', passwordVariable: 'BB_PASS', usernameVariable: 'BB_USER')]) {
-                        sh '''
-                        git clone https://${BB_USER}:${BB_PASS}@bitbucket.org/hydra/hydra-helm-upstreams.git --branch main
-                        git clone https://${BB_USER}:${BB_PASS}@bitbucket.org/hydra/hydra-helm-overlays.git --branch ${TARGET_BRANCH}
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Sync Chart to Overlays Repo') {
-            steps {
-                container('aws') {
+                dir('overlays') {
                     sh '''
-                    mkdir -p hydra-helm-overlays/${CHART_NAME}/chart
-                    rsync -av --delete hydra-helm-upstreams/${CHART_NAME}/${CHART_VERSION}/ hydra-helm-overlays/${CHART_NAME}/chart/
+                    git checkout ${OVERLAYS_MAIN_BRANCH}
+                    git checkout -b ${OVERLAY_FEATURE_BRANCH} || git checkout ${OVERLAY_FEATURE_BRANCH}
                     '''
                 }
             }
         }
 
-        stage('Commit & Push to Overlay Repo') {
+        stage('Sync Chart Folder from Upstream') {
             steps {
-                container('aws') {
-                    withCredentials([usernamePassword(credentialsId: 'kiran-creds', passwordVariable: 'BB_PASS', usernameVariable: 'BB_USER')]) {
-                        sh '''
-                        cd hydra-helm-overlays
-                        git config user.name "ci-bot"
-                        git config user.email "ci-bot@hydra.org"
-                        git add ${CHART_NAME}/chart
-                        git commit -m "Synced ${CHART_NAME} version ${CHART_VERSION} from upstream"
-                        git push origin ${TARGET_BRANCH}
-                        '''
-                    }
+                sh '''
+                rm -rf overlays/${CHART_NAME}/chart
+                mkdir -p overlays/${CHART_NAME}/chart
+                cp -R upstream/${CHART_NAME}/* overlays/${CHART_NAME}/chart/
+                '''
+            }
+        }
+
+        stage('Push Changes to Feature Branch') {
+            steps {
+                dir('overlays') {
+                    sh '''
+                    git config user.name "ci-bot"
+                    git config user.email "ci-bot@yourorg.com"
+                    git add ${CHART_NAME}/chart
+                    git commit -m "Sync: ${CHART_NAME} ${CHART_VERSION} from upstream to overlay feature branch"
+                    git push origin ${OVERLAY_FEATURE_BRANCH}
+                    '''
                 }
             }
         }
@@ -96,6 +67,7 @@ spec:
         }
     }
 }
+
 
 
 
