@@ -1,3 +1,102 @@
+Step-by-Step Setup
+
+🟢 Step 1: Open VS Code Workspace
+
+Open your Jenkins project/repo folder in VS Code.
+Ensure your Jenkinsfile (or .groovy file) is inside the workspace (e.g., in root or under a pipelines/ directory).
+🟢 Step 2: Install & Enable Extensions
+
+You mentioned you already installed:
+
+✅ Groovy Lint (by nvuillam)
+✅ Format and Fix
+Verify:
+
+Open Extensions sidebar (Ctrl + Shift + X) → Confirm both are enabled.
+🟢 Step 3: Create the .groovylintrc.json Configuration File
+
+In VS Code Explorer sidebar, right-click your workspace root folder.
+Choose "New File".
+Name the file:
+.groovylintrc.json
+Paste this config inside:
+{
+  "rulesets": ["rulesets/basic.xml", "rulesets/braces.xml", "rulesets/naming.xml"],
+  "rules": {
+    "BracesForClass": { "enabled": true },
+    "BracesForMethod": { "enabled": true },
+    "Indentation": { "spacesPerIndentLevel": 4 },
+    "LineLength": { "enabled": true, "length": 120 },
+    "TrailingWhitespace": { "enabled": true },
+    "UnnecessarySemicolon": { "enabled": true }
+  }
+}
+✅ This sets indentation, brace rules, and line length guidelines.
+
+🟢 Step 4: Edit VS Code User Settings
+
+Open VS Code Command Palette:
+Ctrl + Shift + P
+Search for:
+Preferences: Open Settings (JSON)
+In the JSON file, add this block:
+{
+    "groovyLint.enable": true,
+    "groovyLint.fixOnSave": true,
+    "groovyLint.config": "${workspaceFolder}/.groovylintrc.json",
+    "groovyLint.reportLevel": "info",
+    "editor.formatOnSave": true,
+    "[groovy]": {
+        "editor.defaultFormatter": "nvuillam.vscode-groovy-lint"
+    }
+}
+✅ This will:
+
+Enable Groovy Lint globally.
+Apply auto-fix on every save for Groovy/Jenkins files.
+🟢 Step 5: Format & Fix Command (Manual Trigger)
+
+Two ways to format manually:
+Option A: Right-click Jenkinsfile → Format Document with...
+Open your Jenkinsfile or .groovy.
+Right-click inside the editor →
+“Format Document with...” → select Groovy Lint Formatter.
+Option B: Run command directly
+Ctrl + Shift + P
+Search:
+"Groovy Lint: Format and Fix"
+✅ Click to execute.
+🟢 Step 6: Format-on-save (automatic)
+
+Open your Jenkinsfile.
+Make any edit (add/remove space).
+Save file (Ctrl + S)
+🔄 Groovy Lint autoformats based on your .groovylintrc.json.
+🟢 Step 7: Validate
+
+✅ After formatting, your Jenkinsfile will:
+
+Apply 4-space indentation.
+Enforce braces on classes/methods.
+Auto-remove trailing whitespaces.
+Flag long lines (>120 chars) as lint warnings.
+💡 Optional: Keyboard Shortcut
+
+Open Command Palette:
+Ctrl + Shift + P
+Search: Keyboard Shortcuts (JSON)
+Add this binding:
+{
+  "key": "ctrl+alt+l",
+  "command": "groovyLint.formatAndFix",
+  "when": "editorTextFocus && editorLangId == 'groovy'"
+}
+Now you can press Ctrl + Alt + L to trigger format on demand!
+
+Would you like me to apply this on a sample Jenkinsfile and show you the before/after formatting for visual confirmation? 🚀
+
+
+----
 Hello all,
 
 All the repositories listed below, along with several others, reside under the Worldspace domain specific to AWS account 771019480822. Many of you may have already lost access to them.
