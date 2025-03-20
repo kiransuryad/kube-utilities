@@ -1,3 +1,50 @@
+pipeline:
+  name: Hydra Helm Deploy Pipeline
+  identifier: hydraHelmDeployPipeline
+  projectIdentifier: caaskeycloak
+  orgIdentifier: Keycloak
+  tags: {}
+  stages:
+    - stage:
+        name: Deploy Helm Chart to EKS
+        identifier: Deploy_Helm_to_EKS
+        description: Deploy chart synced from overlays into EKS using native HelmDeploy
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: hydra-helm-service
+          environment:
+            environmentRef: dev
+          execution:
+            steps:
+              - step:
+                  name: Helm Deploy Step
+                  identifier: helmDeploy
+                  type: HelmDeploy
+                  timeout: 20m
+                  spec:
+                    releaseName: ${service.name}-${infra.namespace}
+                    chart:
+                      # Dynamically pick chart from JFrog repo
+                      chartName: <+input> # e.g., ingress-nginx
+                      chartVersion: <+input> # e.g., 4.12.0
+                      helmVersion: V3
+                      skipResourceVersioning: false
+                      skipSteadyStateCheck: false
+                      valuesPaths: 
+                        - overlays/${service.name}/chart/values.yaml
+                    repoName: hydra-jfrog-helm # This should be your configured Helm repo connector in Harness
+                    namespace: <+infra.namespace>
+                    commandFlags:
+                      - type: Template
+                        flag: "--history-max=10"
+        tags: {}
+
+
+
+--------
+-------
 stage('Upload to Artifactory') {
     container('aws') {
         withCredentials([usernamePassword(credentialsId: 'svaccct-hydra-cicd', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
