@@ -1,0 +1,4 @@
+Purpose: A readonly repo where Jenkins mirrors public Helm charts (e.g., ingress-nginx, cert-manager, keycloak).
+Status: ✅ Created and integrated.
+hydra-helm-overlays (Bitbucket repo)
+Purpose: Customization repo where overlays (custom values.yaml, templates) live, based on upstream charts.
