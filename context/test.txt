@@ -1,3 +1,93 @@
+@Library(['common-lib@3-stable'])
+
+properties([
+    parameters([
+        string(name: 'OVERLAY_REPO_URL', description: 'Bitbucket repo URL for overlays', defaultValue: 'https://bitbucket.fis.dev/scm/<<org>>/hydra-helm-overlays.git'),
+        string(name: 'OVERLAY_REPO_BRANCH', description: 'Feature or develop branch to pull overlay from'),
+        string(name: 'CHART_NAME', description: 'Name of the Helm chart to package'),
+        string(name: 'INTERNAL_VERSION', description: 'Internal semver version (e.g., 1.0.0) for JFrog'),
+    ])
+])
+
+// Pod Template Block
+String podTemplateString = '''apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: aws
+    image: caas-docker-release-local.docker.fis.dev/jenkins/able-minimal-helm-aws:6.8.3-r1
+    imagePullPolicy: IfNotPresent
+    command: ["cat"]
+    tty: true
+    resources:
+      limits:
+        cpu: "1"
+        memory: "256Mi"
+  imagePullSecrets:
+  - name: caas-docker-release-local-ro
+  - name: caas-docker-snapshot-svccact-hydra-cicd
+  restartPolicy: Never
+'''
+
+def label = "helm-artifactory-${UUID.randomUUID().toString()}"
+
+podTemplate(
+    label: label,
+    yaml: podTemplateString,
+    serviceAccount: 'jenkins',
+    runAsUser: '1000'
+) {
+    node(label) {
+        environment {
+            ARTIFACTORY_URL = 'https://artifactory.fis.dev'
+            ARTIFACTORY_REPO = 'edas-helm-snapshot-local'
+        }
+
+        stage('Checkout Overlays Repo') {
+            checkout([$class: 'GitSCM',
+                branches: [[name: "${params.OVERLAY_REPO_BRANCH}"]],
+                userRemoteConfigs: [[url: "${params.OVERLAY_REPO_URL}", credentialsId: 'kiran-creds']]
+            ])
+        }
+
+        stage('Prepare Helm Package') {
+            container('aws') {
+                dir("${params.CHART_NAME}") {
+                    sh '''
+                    helm dependency update .
+                    helm lint .
+                    helm package . -d ../packaged
+                    '''
+                }
+            }
+        }
+
+        stage('Upload to Artifactory') {
+            container('aws') {
+                withCredentials([usernamePassword(credentialsId: 'svccact-hydra-cicd', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
+                    dir('packaged') {
+                        def chartFile = sh(script: "ls *.tgz", returnStdout: true).trim()
+                        sh '''
+                        curl -v -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} -T ${chartFile} \
+                        -H "Content-Type: application/gzip" \
+                        ${ARTIFACTORY_URL}/artifactory/${ARTIFACTORY_REPO}/${params.CHART_NAME}-${params.INTERNAL_VERSION}.tgz
+                        '''
+                    }
+                }
+            }
+        }
+
+        post {
+            always {
+                cleanWs()
+            }
+        }
+    }
+}
+
+
+
+---------------
 @Library(['common-lib@3-stable']) _
 
 pipeline {
