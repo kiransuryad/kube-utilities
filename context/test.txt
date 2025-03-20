@@ -1,3 +1,10 @@
+      failureStrategies:
+        - onFailure:
+            errors:
+              - AllErrors
+            action:
+              type: StageRollback
+
 pipeline:
   name: Hydra Helm Deploy Pipeline
   identifier: hydraHelmDeployPipeline
