@@ -1,3 +1,41 @@
+Part 1: How to verify your ServiceAccount and Delegate linking is correct
+
+Step 1: Check Delegate Pod’s Service Account
+Run the following to check the actual ServiceAccount the delegate pod is using:
+
+kubectl get pod -n <delegate-namespace> -l harness.io/name=harness-delegate -o jsonpath='{.items[0].spec.serviceAccountName}'
+You should see your custom ServiceAccount name in the output, e.g., my-harness-delegate-sa.
+
+Step 2: Check ClusterRoleBinding or RoleBinding
+Confirm your ServiceAccount is bound to the correct ClusterRole or Role:
+
+kubectl get clusterrolebinding | grep <your-serviceaccount-name>
+or for namespace-scoped:
+
+kubectl get rolebinding -n <namespace> | grep <your-serviceaccount-name>
+Then inspect:
+
+kubectl describe clusterrolebinding <binding-name>
+kubectl describe clusterrole <role-name>
+Ensure it includes resources like:
+
+serviceaccounts
+secrets
+deployments
+pods/log
+events
+Step 3: Confirm Harness Delegate Logs
+In Harness Delegate pod logs, you should see successful registration messages like:
+
+INFO  Successfully registered delegate with Harness Manager
+Also, any RBAC issues will show up here as well during Helm execution.
+
+Step 4: Confirm in Harness UI
+Go to Harness → Connectors → Kubernetes Connector
+Ensure the Kubernetes Connector is in “Use Delegate in same cluster” mode, without manually injecting another service account.
+
+
+----------
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
