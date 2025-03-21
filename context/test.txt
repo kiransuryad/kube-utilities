@@ -1,4 +1,48 @@
-      failureStrategies:
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: helm-release-reader
+  labels:
+    app.kubernetes.io/managed-by: harness
+    purpose: helm-delegate-access
+rules:
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helm-release-reader-binding
+  labels:
+    app.kubernetes.io/managed-by: harness
+    purpose: helm-delegate-access
+subjects:
+  - kind: ServiceAccount
+    name: harness-delegate-ng  # <- Matches Harness Delegate's service account
+    namespace: harness-delegate-ng  # <- Where your Harness delegate runs
+roleRef:
+  kind: ClusterRole
+  name: helm-release-reader
+  apiGroup: rbac.authorization.k8s.io
+
+
+
+1️⃣ Apply RBAC:
+kubectl apply -f rbac-helm-access-clusterwide.yaml
+2️⃣ Confirm binding at cluster level:
+kubectl get clusterrolebinding helm-release-reader-binding
+kubectl describe clusterrolebinding helm-release-reader-binding
+3️⃣ Trigger the pipeline again or restart the delegate:
+kubectl rollout restart deployment -n harness-delegate-ng
+
+
+
+
+------
+
+failureStrategies:
         - onFailure:
             errors:
               - AllErrors
