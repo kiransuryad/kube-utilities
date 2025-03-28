@@ -1,3 +1,20 @@
+Hi Team,
+
+Just summarising our recent exchange with Courtney and Casey regarding the Keycloak theme:
+
+The requirement is to deploy a new Keycloak theme—not create one from scratch. The plan is to reuse the existing ethos theme code with updated images and text, and this will be placed in a new folder within the GitHub project.
+
+Courtney mentioned she has experience deploying themes and intends to proceed that way. We confirmed we can support the deployment and suggested starting with non-prod, then moving to prod once the new CICD account is in place.
+
+As for timing, it’s still tentative—Courtney indicated it may be needed soon and possibly tied to the new Keycloak deployment. We're waiting for concrete dates, and we’ll respond accordingly once those are confirmed.
+
+Let me know if anything needs clarification.
+
+Thanks,
+Kiran
+
+
+-----
 template:
   name: Generic Helm Deploy Template
   identifier: genericHelmDeployPipeline
