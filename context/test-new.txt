@@ -1,3 +1,77 @@
+template:
+  name: Generic Helm Deploy Template
+  identifier: genericHelmDeployPipeline
+  versionLabel: v1
+  type: Pipeline
+  projectIdentifier: caaskeycloak
+  orgIdentifier: Keycloak
+  spec:
+    pipeline:
+      name: Generic Helm Deployment Pipeline
+      identifier: genericHelmDeployPipeline
+      tags: {}
+      variables:
+        - name: chartName
+          type: String
+        - name: chartVersion
+          type: String
+        - name: namespace
+          type: String
+        - name: environment
+          type: String
+        - name: serviceIdentifier
+          type: String
+        - name: infraIdentifier
+          type: String
+        - name: bitbucketConnectorRef
+          type: String
+      stages:
+        - stage:
+            name: Deploy Helm Chart
+            identifier: deployHelmChart
+            type: Deployment
+            spec:
+              deploymentType: NativeHelm
+              service:
+                serviceRef: <+pipeline.variables.serviceIdentifier>
+              environment:
+                environmentRef: <+pipeline.variables.environment>
+                infrastructureDefinitions:
+                  - identifier: <+pipeline.variables.infraIdentifier>
+              execution:
+                steps:
+                  - step:
+                      name: Create Namespace
+                      identifier: createNamespace
+                      template:
+                        storeType: Remote
+                        connectorRef: <+pipeline.variables.bitbucketConnectorRef>
+                        repoName: hydra-devops-automation
+                        filePath: harness/shared/steps/create-namespace-step.yaml
+                        versionLabel: v1
+                        templateInputs:
+                          namespace: <+pipeline.variables.namespace>
+                  - step:
+                      name: Helm Deploy
+                      identifier: helmDeploy
+                      type: HelmDeployment
+                      timeout: 10m
+                      spec:
+                        skipDryRun: false
+                        ignoreReleaseHistFailStatus: false
+                rollbackSteps:
+                  - step:
+                      name: Helm Rollback
+                      identifier: helmRollback
+                      template:
+                        storeType: Remote
+                        connectorRef: <+pipeline.variables.bitbucketConnectorRef>
+                        repoName: hydra-devops-automation
+                        filePath: harness/shared/steps/helm-rollback-step.yaml
+                        versionLabel: v1
+
+
+-----
 variable "vpc_id" {
   description = "VPC ID for Route 53 private hosted zone association"
   type        = string
