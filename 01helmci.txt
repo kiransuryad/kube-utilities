@@ -1,3 +1,10 @@
+echo "Checking pod status in ${NAMESPACE}..."
+                      kubectl get pods -n ${NAMESPACE}
+                      echo "Waiting for all pods to be Ready..."
+                      kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=order-service -n ${NAMESPACE} --timeout=60s
+
+
+----
 Step-by-Step Setup
 
 🟢 Step 1: Open VS Code Workspace
