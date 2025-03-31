@@ -1,3 +1,55 @@
+Quick Test Plan — Certificate Issuance
+
+📄 Step 1: Create a Test Certificate Resource
+Here’s a simple manifest that will request a TLS cert using your cio-ca-issuer.
+
+# test-certificate.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: test-tls
+  namespace: default
+spec:
+  secretName: test-tls-secret
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  commonName: test.keycloak.internal
+  dnsNames:
+    - test.keycloak.internal
+  issuerRef:
+    name: cio-ca-issuer
+    kind: ClusterIssuer
+Apply it:
+
+kubectl apply -f test-certificate.yaml
+🔍 Step 2: Validate Certificate Status
+Check if cert-manager successfully issued it:
+
+kubectl get certificate test-tls -n default
+Expected output:
+
+NAME        READY   SECRET             AGE
+test-tls    True    test-tls-secret    1m
+If READY is not True, inspect events:
+
+kubectl describe certificate test-tls -n default
+kubectl get events -n default --sort-by=.metadata.creationTimestamp
+🔐 Step 3: Inspect the Generated Secret
+kubectl get secret test-tls-secret -n default -o yaml
+Should contain:
+
+tls.crt → Certificate
+tls.key → Private key
+Optional: Decode and inspect the certificate:
+
+kubectl get secret test-tls-secret -n default -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -text
+Check:
+
+CN = test.keycloak.internal
+Validity period = 90 days
+Issuer = cio.internal
+
+-----
 chart.yaml
 ---
 
