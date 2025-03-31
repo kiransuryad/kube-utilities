@@ -1,3 +1,21 @@
+Update your Vault policy to include this:
+
+# file: vault-admin-k8s-setup.hcl
+
+# For setting up Kubernetes auth backend
+path "auth/kubernetes/config" {
+  capabilities = ["create", "update"]
+}
+
+# For creating roles that map K8s SAs to policies
+path "auth/kubernetes/role/*" {
+  capabilities = ["create", "update", "read", "delete", "list"]
+}
+Then apply:
+
+vault policy write vault-admin-k8s-setup vault-admin-k8s-setup.hcl
+
+----
 #!/bin/bash
 
 set -e
