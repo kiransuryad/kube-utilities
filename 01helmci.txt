@@ -1,3 +1,8 @@
+WP has given us access to the DTS and EDP orgs on github.worldpay.com for now. Going forward, will these orgs be migrated to our FIS-managed GitHub by your team (and shared with us along with access)? Or is the migration expected to be handled from our end?
+
+Just wanted to clarify the next steps—appreciate your inputs!
+
+----
 Hi Kailash,
 
 Could you please suggest the next steps or the standard process for the following?
