@@ -1,3 +1,14 @@
+Hi Kailash,
+
+Could you please suggest the next steps or the standard process for the following?
+
+As you know, WP has currently provided us access to the DTS and EDP organizations on github.worldpay.com. Looking ahead, can we assume that you will be migrating these organizations into our FIS-managed GitHub, and subsequently share the new URLs and access with us so we can integrate them into our pipelines and related workflows?
+
+Or, is it expected from our side to handle the migration of these repositories?
+
+Would appreciate your input and guidance on this.
+
+----
 pipeline:
   name: Deploy-cert-manager-test-kc-helm-eks
   identifier: Deploycertmanagertestkchelmeks
