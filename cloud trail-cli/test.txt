@@ -1,3 +1,31 @@
+Updated Steps (Child Namespace Scope)
+
+Here’s what you need to do next:
+
+1. ✅ Enable Kubernetes Auth within your namespace
+vault auth enable -path=kubernetes kubernetes
+This enables the Kubernetes auth backend scoped to your namespace.
+
+2. ✅ Configure the Kubernetes Auth Backend
+Now the previous vault write should work:
+
+vault write auth/kubernetes/config \
+  token_reviewer_jwt="${JWT_TOKEN}" \
+  kubernetes_host="${K8S_HOST}" \
+  kubernetes_ca_cert="${K8S_CA_CERT}" \
+  issuer="https://kubernetes.default.svc"
+✅ This will succeed now because you’re operating inside your own namespace.
+
+3. ✅ Continue with the Role + Secret Setup
+vault write auth/kubernetes/role/k8s-general \
+  bound_service_account_names="*" \
+  bound_service_account_namespaces="*" \
+  policies="k8s-read-eks-apps" \
+  ttl="24h"
+
+vault kv put eks-apps/prod/keycloak/admin username="admin" password="supersecret123"
+
+---
 Update your Vault policy to include this:
 
 # file: vault-admin-k8s-setup.hcl
