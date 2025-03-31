@@ -1,0 +1,64 @@
+bootstrapCerts:
+  enabled: true
+  caCommonName: "cio.internal"
+  duration: "8760h"
+  renewBefore: "720h"
+  caSecretName: "cio-internal-ca-secret"
+  clusterIssuerName: "cio-ca-issuer"
+
+
+-----
+
+---
+selfsigned-cluster-issuer.yaml
+---
+{{- if .Values.bootstrapCerts.enabled }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-cluster-issuer
+spec:
+  selfSigned: {}
+{{- end }}
+
+
+------
+
+----
+cio-ca-certificate.yaml
+----
+
+{{- if .Values.bootstrapCerts.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cio-internal-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: "{{ .Values.bootstrapCerts.caCommonName }}"
+  secretName: "{{ .Values.bootstrapCerts.caSecretName }}"
+  duration: {{ .Values.bootstrapCerts.duration | quote }}
+  renewBefore: {{ .Values.bootstrapCerts.renewBefore | quote }}
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+{{- end }}
+
+
+------
+
+----
+cio-ca-issuer.yaml
+----
+
+{{- if .Values.bootstrapCerts.enabled }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.bootstrapCerts.clusterIssuerName }}
+spec:
+  ca:
+    secretName: "{{ .Values.bootstrapCerts.caSecretName }}"
+{{- end }}
+
