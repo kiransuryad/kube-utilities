@@ -1,3 +1,93 @@
+pipeline:
+  name: Deploy-cert-manager-test-kc-helm-eks
+  identifier: Deploycertmanagertestkchelmeks
+  projectIdentifier: caaskeycloak
+  orgIdentifier: keycloak
+  tags: {}
+
+  stages:
+    - stage:
+        name: Deploy cert-manager to test
+        identifier: deploy_cert_manager_test
+        type: Deployment
+        spec:
+          service:
+            serviceRef: certmanagerservice02
+          environment:
+            environmentRef: testeksenv
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: testkchelmeksinfra
+                inputs:
+                  identifier: testkchelmeksinfra
+                  type: KubernetesDirect
+                  spec:
+                    namespace: <+input>  # Runtime input during deployment
+
+          execution:
+            steps:
+
+              # Step 1: Namespace Preparation
+              - step:
+                  type: ShellScript
+                  name: Create Namespace If Missing
+                  identifier: create_namespace
+                  spec:
+                    shell: Bash
+                    onDelegate: true
+                    executionTarget: {}
+                    delegateSelectors:
+                      - helm-delegate
+                    environmentVariables:
+                      - name: NAMESPACE
+                        type: String
+                        value: <+infra.namespace>
+                    script: |
+                      echo "Checking if namespace ${NAMESPACE} exists..."
+                      if ! kubectl get ns ${NAMESPACE}; then
+                        echo "Namespace does not exist. Creating..."
+                        kubectl create ns ${NAMESPACE}
+                      else
+                        echo "Namespace ${NAMESPACE} already exists."
+                      fi
+                  timeout: 5m
+
+              # Step 2: Helm Chart Deployment
+              - step:
+                  type: HelmDeploy
+                  name: Helm Deploy
+                  identifier: helm_deploy
+                  spec:
+                    skipDryRun: false
+                    chart:
+                      chartVersion: <+input>  # Runtime input
+                    valuesPaths:
+                      - values/cert-manager/test-inline-values.yaml
+                  timeout: 10m
+
+              # Step 3: Post-Deployment Readiness Check
+              - step:
+                  type: ShellScript
+                  name: Verify Pod Readiness
+                  identifier: verify_pods
+                  spec:
+                    shell: Bash
+                    onDelegate: true
+                    executionTarget: {}
+                    delegateSelectors:
+                      - helm-delegate
+                    environmentVariables:
+                      - name: NAMESPACE
+                        type: String
+                        value: <+infra.namespace>
+                    script: |
+                      echo "Checking pod readiness in ${NAMESPACE}..."
+                      kubectl get pods -n ${NAMESPACE}
+                      kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=cert-manager -n ${NAMESPACE} --timeout=60s
+                  timeout: 5m
+
+
+-----
 echo "Checking pod status in ${NAMESPACE}..."
                       kubectl get pods -n ${NAMESPACE}
                       echo "Waiting for all pods to be Ready..."
