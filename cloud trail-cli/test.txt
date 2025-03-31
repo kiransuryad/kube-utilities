@@ -1,10 +1,28 @@
+chart.yaml
+---
+
+apiVersion: v2
+name: cert-bootstrap
+description: Bootstrap internal self-signed CA and ClusterIssuer for cert-manager
+type: application
+version: 0.1.0
+appVersion: "1.0"
+
+
+vaules.yaml
+-----
+
 bootstrapCerts:
   enabled: true
   caCommonName: "cio.internal"
-  duration: "8760h"
-  renewBefore: "720h"
+  duration: "8760h"         # 1 year
+  renewBefore: "720h"       # 30 days
   caSecretName: "cio-internal-ca-secret"
   clusterIssuerName: "cio-ca-issuer"
+  certificateName: "cio-internal-ca"
+  namespace: "cert-manager"
+
+
 
 
 -----
