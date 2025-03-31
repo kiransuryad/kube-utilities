@@ -1,3 +1,58 @@
+#!/bin/bash
+
+set -e
+
+VAULT_ADDR="${VAULT_ADDR:-http://127.0.0.1:8200}"
+VAULT_NAMESPACE="${VAULT_NAMESPACE:-root}"
+
+ENGINE_PATH="eks-apps"
+POLICY_NAME="k8s-read-eks-apps"
+ROLE_NAME="k8s-general"
+
+echo "🔐 [1/6] Enabling new KV v2 secrets engine at path: ${ENGINE_PATH}/"
+
+vault secrets enable -path="${ENGINE_PATH}" -version=2 kv || echo "🟡 Already enabled"
+
+echo "📜 [2/6] Writing Vault policy: ${POLICY_NAME}"
+
+cat <<EOF | vault policy write ${POLICY_NAME} -
+path "${ENGINE_PATH}/data/*" {
+  capabilities = ["read"]
+}
+EOF
+
+echo "🔑 [3/6] Extracting Kubernetes auth details from cluster..."
+
+JWT_TOKEN=$(kubectl get secret $(kubectl get sa default -n default -o jsonpath="{.secrets[0].name}") -n default -o jsonpath="{.data.token}" | base64 -d)
+K8S_HOST=$(kubectl config view --minify -o jsonpath="{.clusters[0].cluster.server}")
+K8S_CA_CERT=$(kubectl get secret $(kubectl get sa default -n default -o jsonpath="{.secrets[0].name}") -n default -o jsonpath="{.data['ca\.crt']}" | base64 -d)
+
+echo "⚙️ [4/6] Configuring Vault Kubernetes auth backend"
+
+vault write auth/kubernetes/config \
+  token_reviewer_jwt="${JWT_TOKEN}" \
+  kubernetes_host="${K8S_HOST}" \
+  kubernetes_ca_cert="${K8S_CA_CERT}" \
+  issuer="https://kubernetes.default.svc"
+
+echo "🔗 [5/6] Creating Vault role: ${ROLE_NAME} (bound to all SAs & namespaces)"
+
+vault write auth/kubernetes/role/${ROLE_NAME} \
+  bound_service_account_names="*" \
+  bound_service_account_namespaces="*" \
+  policies="${POLICY_NAME}" \
+  ttl="24h"
+
+echo "🔐 [6/6] Storing a sample secret at: ${ENGINE_PATH}/prod/keycloak/admin"
+
+vault kv put ${ENGINE_PATH}/prod/keycloak/admin username="admin" password="supersecret123"
+
+echo "✅ Vault Kubernetes integration complete!"
+
+
+
+
+--------
 Quick Test Plan — Certificate Issuance
 
 📄 Step 1: Create a Test Certificate Resource
