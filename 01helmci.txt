@@ -1,3 +1,18 @@
+Description:
+
+As confirmed by the respective team, we are proceeding with the migration of the following GitHub organizations to the FIS-managed GitHub account:
+
+<GitHub Org 1>
+<GitHub Org 2>
+Request:
+
+Migrate the above orgs from github.worldpay.com to the FIS-managed GitHub.
+Share the new GitHub URLs post-migration.
+Provide required access to the relevant teams so they can integrate the repositories into their pipelines and workflows.
+Please let us know if any additional details are required to proceed.
+
+
+--------
 WP has given us access to the DTS and EDP orgs on github.worldpay.com for now. Going forward, will these orgs be migrated to our FIS-managed GitHub by your team (and shared with us along with access)? Or is the migration expected to be handled from our end?
 
 Just wanted to clarify the next steps—appreciate your inputs!
