@@ -1,3 +1,15 @@
+Steps to Set Up a Dedicated Namespace
+
+kubectl create namespace vault-auth
+kubectl create serviceaccount vault-auth-setup -n vault-auth
+Then retrieve the values for Vault:
+
+JWT_TOKEN=$(kubectl create token vault-auth-setup -n vault-auth)
+K8S_CA_CERT=$(kubectl get configmap kube-root-ca.crt -n vault-auth -o jsonpath="{.data.ca\.crt}")
+K8S_HOST=$(kubectl config view --minify -o jsonpath="{.clusters[0].cluster.server}")
+
+
+---
 Updated Steps (Child Namespace Scope)
 
 Here’s what you need to do next:
