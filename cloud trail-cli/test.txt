@@ -1,3 +1,70 @@
+Subject: Request to Configure Vault Kubernetes Auth Backend or Grant Temporary Admin Policy
+Hi [Vault Admin / Platform Team],
+
+I'm currently working on integrating our EKS workloads with HashiCorp Vault, specifically to enable the Vault Agent Injector to pull secrets (like Keycloak admin credentials and internal TLS certificates) using the Kubernetes authentication method.
+
+However, I've hit a blocker while trying to configure the Kubernetes auth backend from the CLI on our bastion host using my Vault token.
+
+🔍 Problem
+Attempts to run the following fail with 403 Forbidden errors:
+
+vault auth enable -path=kubernetes -max-lease-ttl=24h kubernetes
+
+vault write auth/kubernetes/config \
+  token_reviewer_jwt="<EKS_JWT_TOKEN>" \
+  kubernetes_host="<EKS_API_URL>" \
+  kubernetes_ca_cert="<CLUSTER_CA_CERT>" \
+  issuer="https://kubernetes.default.svc"
+The token I’m using is authenticated under namespace:
+CaaS-Parent/A10003579-Keycloak
+
+Even after switching to:
+CaaS-Parent (where the auth/kubernetes path is enabled), the same error persists — confirming it’s a permissions issue.
+
+✅ What We Need
+Please help us with one of the following:
+
+Option 1: You configure Kubernetes auth on our behalf
+
+Run these (we will supply JWT, CA, and API server values as needed):
+
+vault write auth/kubernetes/config \
+  token_reviewer_jwt="<...>" \
+  kubernetes_host="https://..." \
+  kubernetes_ca_cert="-----BEGIN CERTIFICATE-----..." \
+  issuer="https://kubernetes.default.svc"
+And ensure the following role exists:
+
+vault write auth/kubernetes/role/k8s-general \
+  bound_service_account_names="*" \
+  bound_service_account_namespaces="*" \
+  policies="k8s-read-eks-apps" \
+  ttl="24h"
+Option 2: Grant my token temporary access to configure Kubernetes auth
+
+Please assign my token (or identity) the following policy within CaaS-Parent namespace:
+
+# Enable/Configure Kubernetes auth backend
+path "sys/auth/kubernetes" {
+  capabilities = ["create", "update"]
+}
+path "auth/kubernetes/config" {
+  capabilities = ["create", "update"]
+}
+
+# Manage Vault roles under Kubernetes auth
+path "auth/kubernetes/role/*" {
+  capabilities = ["create", "update", "read", "delete", "list"]
+}
+Once this is done, I can finish setting up the Vault integration for the EKS workloads securely.
+
+Please let me know if you'd prefer me to provide the JWT and CA cert values for you to configure directly. I’m happy to assist with validation after the setup.
+
+Thanks in advance!
+
+Best regards,
+
+---
 vault token create \
   -namespace="CaaS-Parent/A10003579-Keycloak" \
   -orphan \
