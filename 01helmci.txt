@@ -10,6 +10,8 @@ We chose FIS GitHub over Bitbucket due to:
 Faster execution with minimal operational risk.
 Existing toolchain compatibility (Jenkins, ArgoCD).
 Alignment with enterprise DevOps standards and GitHub-first strategy.
+Decommissioning of Worldpay GitHub Instance
+A key driver for this migration is that FIS resources are currently on the Worldpay GitHub instance, which is scheduled for decommissioning by June. To ensure business continuity, we are proactively migrating to our new FIS GitHub instance.
 
 
 Subject: GitHub Migration Plan from github.worldpay.com to FIS-Managed GitHub
