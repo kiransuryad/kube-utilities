@@ -1,3 +1,31 @@
+stage('Sync Chart (Preserve Overlay Customizations - Option B)') {
+    sh '''
+    mkdir -p overlays/${CHART_NAME}/chart
+
+    echo "Backing up overlay-managed files (values-*.yaml, custom-values.yaml, patches/, overlays/)..."
+    mkdir -p tmp-preserve
+    cp -a overlays/${CHART_NAME}/chart/values-*.yaml tmp-preserve/ || true
+    cp -a overlays/${CHART_NAME}/chart/custom-values.yaml tmp-preserve/ || true
+    cp -a overlays/${CHART_NAME}/chart/patches tmp-preserve/ || true
+    cp -a overlays/${CHART_NAME}/chart/overlays tmp-preserve/ || true
+
+    echo "Removing old chart/ contents..."
+    rm -rf overlays/${CHART_NAME}/chart/*
+
+    echo "Copying upstream chart into overlays..."
+    cp -a upstream/mirror/${CHART_NAME}/${CHART_VERSION}/${CHART_NAME}/* overlays/${CHART_NAME}/chart/
+
+    echo "Restoring preserved overlay custom files..."
+    cp -a tmp-preserve/* overlays/${CHART_NAME}/chart/ || true
+    cp -a tmp-preserve/patches overlays/${CHART_NAME}/chart/ || true
+    cp -a tmp-preserve/overlays overlays/${CHART_NAME}/chart/ || true
+    rm -rf tmp-preserve
+    '''
+}
+
+
+
+---
 @Library(['common-lib@c3-stable']) _
 
 parameters {
