@@ -6,6 +6,90 @@ parameters {
     string(name: 'OVERLAY_FEATURE_BRANCH', description: 'Feature branch name to create/push in hydra-helm-overlays')
 }
 
+def label = "hydra-overlay-sync-${UUID.randomUUID().toString()}"
+String podTemplateString = '''...''' // keep your pod spec as-is (aws container)
+
+podTemplate(
+    label: label,
+    yaml: podTemplateString,
+    serviceAccount: 'jenkins',
+    runAsUser: '1000'
+) {
+    node(label) {
+        environment {
+            UPSTREAM_GIT_URL = "https://bitbucket.fis.dev/scm/~lc5736691/hydra-helm-upstreams.git"
+            OVERLAYS_GIT_URL = "https://bitbucket.fis.dev/scm/~lc5736691/hydra-helm-overlays.git"
+            OVERLAYS_MAIN_BRANCH = 'develop'
+        }
+
+        stage('Clone Repositories') {
+            withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
+                sh '''
+                rm -rf upstream overlays
+
+                echo "Cloning upstream repo (read-only)..."
+                git clone --branch main https://${BB_USER}:${BB_TOKEN}@bitbucket.fis.dev/scm/~lc5736691/hydra-helm-upstreams.git upstream
+
+                echo "Cloning overlays repo (develop)..."
+                git clone https://${BB_USER}:${BB_TOKEN}@bitbucket.fis.dev/scm/~lc5736691/hydra-helm-overlays.git overlays
+                '''
+            }
+        }
+
+        stage('Create or Checkout Feature Branch') {
+            dir('overlays') {
+                withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
+                    sh '''
+                    git checkout ${OVERLAYS_MAIN_BRANCH}
+                    git checkout -b ${OVERLAY_FEATURE_BRANCH} || git checkout ${OVERLAY_FEATURE_BRANCH}
+                    '''
+                }
+            }
+        }
+
+        stage('Sync Chart (Preserve Overlay Customizations)') {
+            sh '''
+            mkdir -p overlays/${CHART_NAME}/chart
+
+            echo "Syncing upstream chart into overlays/${CHART_NAME}/chart/..."
+            rsync -av --delete \
+              --exclude 'values-prod.yaml' \
+              --exclude 'values-dev.yaml' \
+              --exclude 'custom-values.yaml' \
+              --exclude 'patches/' \
+              --exclude 'overlays/' \
+              upstream/mirror/${CHART_NAME}/${CHART_VERSION}/${CHART_NAME}/ \
+              overlays/${CHART_NAME}/chart/
+            '''
+        }
+
+        stage('Commit and Push Feature Branch') {
+            dir('overlays') {
+                withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
+                    sh '''
+                    git config user.name "${BB_USER}"
+                    git config user.email "${BB_USER}@yourorg.com"
+
+                    git add ${CHART_NAME}/chart
+                    git commit -m "Overlay Sync: ${CHART_NAME} ${CHART_VERSION} from upstream"
+                    git push https://${BB_USER}:${BB_TOKEN}@bitbucket.fis.dev/scm/~lc5736691/hydra-helm-overlays.git HEAD:${OVERLAY_FEATURE_BRANCH}
+                    '''
+                }
+            }
+        }
+    }
+}
+
+
+-------
+@Library(['common-lib@c3-stable']) _
+
+parameters {
+    string(name: 'CHART_NAME', description: 'Helm chart name (e.g. nginx, keycloak)')
+    string(name: 'CHART_VERSION', description: 'Helm chart version (e.g. 1.21.0)')
+    string(name: 'OVERLAY_FEATURE_BRANCH', description: 'Feature branch name to create/push in hydra-helm-overlays')
+}
+
 def label = "hydra-helm-pod-${UUID.randomUUID().toString()}"
 String podTemplateString = '''...''' // leave your existing podTemplate string here
 
