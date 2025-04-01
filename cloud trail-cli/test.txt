@@ -1,3 +1,15 @@
+git add ${CHART_NAME}/chart || true
+
+echo "Checking if there are any staged changes..."
+if ! git diff --cached --quiet; then
+  git commit -m "Overlay Sync: ${CHART_NAME} ${CHART_VERSION} from upstream main"
+  git push https://${BB_USER}:${BB_TOKEN}@bitbucket.fis.dev/scm/~lc5736691/hydra-helm-overlays.git HEAD:${OVERLAY_FEATURE_BRANCH}
+else
+  echo "No changes to commit. Skipping push."
+fi
+
+
+----
 stage('Sync Chart (Preserve Overlay Customizations - Option B)') {
     sh '''
     mkdir -p overlays/${CHART_NAME}/chart
