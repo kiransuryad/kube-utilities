@@ -1,3 +1,40 @@
+stage('Push Helm Chart to Bitbucket (versioned + latest)') {
+  withCredentials([usernamePassword(credentialsId: 'kiran-creds', usernameVariable: 'BB_USER', passwordVariable: 'BB_TOKEN')]) {
+    container('jdk11') {
+      sh '''
+        set -eo pipefail
+
+        git config --global user.email "kiran.gonela@fisglobal.com"
+        git config --global user.name "Kiran G"
+
+        echo "Cloning target Bitbucket repo: ${TARGET_BITBUCKET_REPO}"
+        git clone https://${BB_USER}:${BB_TOKEN}@bitbucket.fis.dev/scm/~lc5736691/${TARGET_BITBUCKET_REPO}.git target-repo
+        cd target-repo
+
+        CHART_DIR="mirror/${SRC_CHART_NAME}/${SRC_CHART_VERSION}"
+        LATEST_DIR="mirror/${SRC_CHART_NAME}/latest"
+
+        echo "Preparing chart directories..."
+        mkdir -p ${CHART_DIR}
+        rm -rf ${LATEST_DIR}
+        mkdir -p ${LATEST_DIR}
+
+        echo "Copying chart contents into versioned and latest directories..."
+        cp -R ../${SRC_CHART_NAME}/* ${CHART_DIR}/
+        cp -R ../${SRC_CHART_NAME}/* ${LATEST_DIR}/
+
+        echo "Committing and pushing changes..."
+        git add mirror/${SRC_CHART_NAME}
+        git commit -m "Mirror: ${SRC_CHART_NAME} ${SRC_CHART_VERSION} from ${SRC_REPO_URL}"
+        git push https://${BB_USER}:${BB_TOKEN}@bitbucket.fis.dev/scm/~lc5736691/${TARGET_BITBUCKET_REPO}.git HEAD
+      '''
+    }
+  }
+}
+
+
+
+-------
 Subject: Request to Configure Vault Kubernetes Auth Backend or Grant Temporary Admin Policy
 Hi [Vault Admin / Platform Team],
 
