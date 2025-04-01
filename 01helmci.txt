@@ -1,3 +1,28 @@
+Subject: Request for Approval: GitHub Enterprise Access for Hydra Team
+
+Hi Amit,
+
+As part of our ongoing migration from fts.worldpay.com to fts-github, I had a discussion with Emilee Thompson regarding GitHub Enterprise licensing and access setup.
+
+She confirmed that:
+
+The GitHub Enterprise license costs $188 per user per year, and the cost must be deducted from the remaining term of our current enterprise agreement, which runs through 04/30/2027.
+We need to submit DASH access requests individually for each team member.
+Since we’re a small group, licenses don’t need to be procured upfront—we’ll be recharged later.
+Team members requiring access:
+
+Kiran Gonela (myself)
+Vivek Kodakkal
+Neha Baddadi
+Emilee has requested the BUC code for charging purposes to proceed with the licensing.
+
+Could you please confirm your approval and provide the BUC code so we can initiate the DASH requests accordingly?
+
+Thank you,
+Kiran Gonela
+
+
+----
 Description:
 
 As confirmed by the respective team, we are proceeding with the migration of the following GitHub organizations to the FIS-managed GitHub account:
