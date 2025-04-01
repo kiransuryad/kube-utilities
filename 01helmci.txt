@@ -1,3 +1,35 @@
+Subject: GitHub Migration Plan from github.worldpay.com to FIS-Managed GitHub
+
+Overview:
+
+As part of our DevOps streamlining and infrastructure consolidation, we are initiating the migration of two GitHub organizations from github.worldpay.com to the FIS-managed GitHub. This is a time-sensitive activity that requires minimal disruption to our pipelines and workflows.
+
+Why FIS GitHub (vs. Bitbucket)?
+Speed & Simplicity: GitHub is the quickest migration path given our existing setup and immediate need to decommission usage of github.worldpay.com.
+Compatibility: Our CI/CD tooling (e.g., Jenkins, ArgoCD) already integrates seamlessly with GitHub, minimizing changes to existing logic.
+Standardization: Aligns with broader FIS strategy to consolidate source control systems under GitHub for DevOps modernization.
+Planned Steps:
+ServiceNow Request
+Raise a ServiceNow ticket requesting:
+Migration of specified GitHub organizations from github.worldpay.com to FIS GitHub.
+Necessary licenses and access provisioning for the FIS GitHub environment.
+GitHub Service Accounts
+Create dedicated GitHub service accounts for:
+Jenkins (CI)
+ArgoCD (CD)
+These accounts will be used for authenticated repo access in automation pipelines.
+Migration Execution
+Migrate the following organizations to FIS-managed GitHub:
+<GitHub Org 1>
+<GitHub Org 2>
+Validate repository integrity, access, and repo settings post-migration.
+Pipeline and Workflow Updates
+Update all impacted Jenkins pipelines and ArgoCD workflows to point to the new FIS GitHub repositories.
+Perform end-to-end validation of build and deployment flows.
+
+
+
+-------
 Just wanted to share a quick update on where we are with the Keycloak migration:
 
 I’m trying to get the following apps deployed into the new EKS cluster via Harness pipelines without any manual steps:
