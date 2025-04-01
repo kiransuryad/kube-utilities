@@ -1,3 +1,17 @@
+Why We Are Doing This
+Application Migration to CIO-Managed AWS Accounts:
+We are currently in the process of migrating our applications to CIO-managed AWS accounts. The source code hosted in github.worldpay.com supports live systems that serve multiple clients, and we require uninterrupted access during and after this transition.
+Long-Term Code Access & Archival:
+The migrated repositories will serve as our long-term source of truth. Even after the migration, we will need access to this source code for audit, reference, and archival purposes.
+Future-Proofing Against Timeline Shifts:
+In case the application migration extends beyond June, pointing to the new FIS GitHub repositories ensures our CI/CD systems remain stable and unaffected, eliminating dependencies on the legacy GitHub environment.
+Strategic Alignment & Speed:
+We chose FIS GitHub over Bitbucket due to:
+Faster execution with minimal operational risk.
+Existing toolchain compatibility (Jenkins, ArgoCD).
+Alignment with enterprise DevOps standards and GitHub-first strategy.
+
+
 Subject: GitHub Migration Plan from github.worldpay.com to FIS-Managed GitHub
 
 Overview:
