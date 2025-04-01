@@ -1,3 +1,16 @@
+Just wanted to share a quick update on where we are with the Keycloak migration:
+
+I’m trying to get the following apps deployed into the new EKS cluster via Harness pipelines without any manual steps:
+ingress-nginx, cert-manager, and keycloak for now.
+Will add observability stack and tools later.
+LDAP: The LDAP team has shared a few URLs. They’ll be reaching out to the prod.cloud network team to sort out access into our private EKS cluster.
+Internal ALB URL (Hosted Zone): I raised a ticket with the prod.cloud network team for getting our internal URL working with our own hosted zone. Had a call with them this week—they understood the issue and said they’ll get back with a solution.
+While checking our wiki, noticed some teams are using Akamai even for dev and other non-prod URLs. So planning to reach out to Akamai in parallel for our non-prod URLs too.
+Last week, I tried adding Vault Injector to our EKS cluster (so we could pull secrets from Vault inside the cluster), but it failed because our cluster doesn’t have a public URL and Vault security team only supports public access.
+For now, I’ve worked around it by using Harness’s built-in secrets manager.
+
+
+-----
 Subject: Request for Approval: GitHub Enterprise Access for Hydra Team
 
 Hi Amit,
