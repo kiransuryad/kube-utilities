@@ -1,3 +1,8 @@
+echo "<+secrets.getValue(\"KEYCLOAK_ADMIN\")>" | sed -E 's/.*value: (.*)}/\1/' | base64 > /tmp/kc_admin.txt
+
+echo "{value: keycloakadmin}" | awk -F'value: ' '{print $2}' | tr -d '}'
+
+
 echo "<+secrets.getValue(\"KEYCLOAK_ADMIN\")>" | grep -oP '(?<=value: ).*' > /tmp/kc_admin.txt
 cat /tmp/kc_admin.txt
 
