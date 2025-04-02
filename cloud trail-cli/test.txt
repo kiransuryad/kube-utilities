@@ -1,3 +1,7 @@
+curl -k https://<NLB-DNS> -H "Host: sample.test.internal"
+
+
+----
 controller:
   replicaCount: 2
 
