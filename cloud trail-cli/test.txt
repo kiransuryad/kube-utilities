@@ -1,3 +1,33 @@
+replicaCount: 1
+
+image:
+  repository: httpd
+  tag: 2.4-alpine
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: cio-ca-issuer
+  hosts:
+    - host: sample.test.internal
+      paths:
+        - path: /sample
+          pathType: Prefix
+  tls:
+    - secretName: sample-app-tls
+      hosts:
+        - sample.test.internal
+
+
+
+
+-------
 curl -k https://<NLB-DNS> -H "Host: sample.test.internal"
 
 
