@@ -1,3 +1,21 @@
+LDAP Configuration for Keycloak in CIO Environment
+
+Hi Casey & Rajesh,
+
+Hope you're both doing well.
+
+We’re approaching the testing phase of Keycloak in our new CIO environment, and I had a quick query regarding the LDAP configuration.
+
+Currently, in our EDA Management account, we are using ldap://worldpay.local. However, since we don’t have access to this LDAP from our new CIO AWS account, we’ll need to connect to an alternative.
+
+Could you please advise on the preferred Active Directory LDAP that we should connect to from the CIO environment? Below is the list I received from the LDAP team—please let me know if any of these would be suitable, or if there's a recommended option we should use for our Ethos LDAP setup.
+
+Thank you!
+
+Best regards,
+Kiran
+
+-------
 GitHub Migration Plan: github.worldpay.com → FIS GitHub Enterprise
 
 Current Status & Activities
