@@ -1,3 +1,39 @@
+GitHub Migration Plan: github.worldpay.com → FIS GitHub Enterprise
+
+Current Status & Activities
+License Procurement
+License request for FIS GitHub Enterprise has been raised with the respective teams.
+Procurement is currently in progress.
+Access Provisioning
+Access request for FIS GitHub has been submitted.
+This is currently being processed.
+Migration Coordination
+Engaged with Kailash and team for detailed planning.
+A ServiceNow ticket has been raised with the GitHub migration team for both DTS and EDP organization migrations.
+DTS Organization Migration
+Current State: Hosted on github.worldpay.com.
+Migration Type: Straightforward, as it’s still within the same platform.
+Repository Count: ~405 repositories total.
+POC Plan:
+
+Initial Scope: 20 representative repositories selected for a Proof of Concept (POC).
+Timeline: Migration team committed to delivering these 20 repos in FIS GitHub by early next week.
+Next Step:
+Validate the POC repositories once delivered.
+Provide confirmation/feedback.
+Upon approval, the migration team will proceed with the remaining ~385 repositories.
+Final migration timeline: To be confirmed based on POC outcome.
+EDP Organization Migration
+Current State: Already migrated by Worldpay to their GitHub Cloud instance a week ago.
+Decision Pending: Need to confirm the source of truth for EDP migration:
+Should the migration be from:
+github.worldpay.com (legacy), or
+Worldpay GitHub Cloud (new)?
+Next Step:
+Await confirmation from the application team.
+Once confirmed, the migration team will finalize the migration plan and timeline accordingly.
+
+----
 echo "<+secrets.getValue(\"KEYCLOAK_ADMIN\")>" | sed -E 's/.*value: (.*)}/\1/' | base64 > /tmp/kc_admin.txt
 
 echo "{value: keycloakadmin}" | awk -F'value: ' '{print $2}' | tr -d '}'
