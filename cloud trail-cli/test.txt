@@ -1,3 +1,23 @@
+Access Verification
+ Verify access to new GitHub repositories (UI + CLI).
+ Request missing access if needed.
+CI/CD Service Account Setup
+ Verify existing service accounts have access to new repos.
+ Create/update service accounts or tokens as needed.
+Update References
+ Update pipeline configurations (Jenkins, GitHub Actions, Azure DevOps, etc.) with new repo URLs.
+ Update Git URLs in tools like Jenkins, ArgoCD, FluxCD, etc.
+ Update any local .git/config or workspace references (for developers or tools).
+ Update any scripts or IaC templates that use hardcoded Git URLs.
+Validation
+ Trigger CI/CD pipelines end-to-end.
+ Confirm that pipeline stages can fetch the repo successfully.
+ Verify ArgoCD/git-sync-based tools are deploying as expected.
+Cleanup (Optional)
+ Remove references to old GitHub URLs.
+ Archive or decommission old repositories if applicable.
+
+------
 ✅ Step 1: Export the Vault namespace
 export VAULT_NAMESPACE="Caas-Parent/A10003579-Harness"
 export VAULT_ADDR="https://your-vault-url"
