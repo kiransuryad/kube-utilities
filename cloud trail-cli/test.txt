@@ -1,3 +1,69 @@
+✅ Step 1: Export the Vault namespace
+export VAULT_NAMESPACE="Caas-Parent/A10003579-Harness"
+export VAULT_ADDR="https://your-vault-url"
+export VAULT_TOKEN="your-admin-or-root-token"
+✅ Step 2: Enable the AppRole auth method (if not already)
+vault auth enable approle
+If it's already enabled, you’ll get a warning which can be ignored.
+
+✅ Step 3: Enable KV secret engine (if not already)
+vault secrets enable -path=kv kv-v2
+Verify with:
+
+vault secrets list
+✅ Step 4: Create a policy
+Create a file harness-policy.hcl:
+
+path "kv/data/harness/*" {
+  capabilities = ["read", "create", "update", "delete", "list"]
+}
+
+path "kv/metadata/harness/*" {
+  capabilities = ["list", "delete"]
+}
+Apply it:
+
+vault policy write harness-policy harness-policy.hcl
+✅ Step 5: Create the AppRole and bind the policy
+vault write auth/approle/role/harness-role \
+    token_ttl=8760h token_max_ttl=8760h \
+    secret_id_ttl=8760h \
+    token_policies="harness-policy"
+8760h = 1 year
+Check role ID:
+
+vault read auth/approle/role/harness-role/role-id
+Get secret ID:
+
+vault write -f auth/approle/role/harness-role/secret-id
+✅ Step 6: Test by logging in via AppRole
+vault write auth/approle/login \
+    role_id="<copied-role-id>" \
+    secret_id="<copied-secret-id>"
+This gives you a Vault token valid for 1 year.
+
+Save this securely, as this token is what Harness can use.
+
+✅ Step 7: Use in Harness
+In Harness, go to:
+
+Project → Connectors → Secrets Manager → Add New Vault
+
+Vault URL: https://your-vault-url
+Auth Method: AppRole
+Role ID: <from Step 5>
+Secret ID: <from Step 5>
+Vault Namespace: Caas-Parent/A10003579-Harness (if using Enterprise)
+KV Version: v2
+Secret Path Prefix: kv/harness
+Save and test the connection.
+
+🧪 (Optional) Step 8: Store a sample secret in Vault
+vault kv put kv/harness/sample-secret \
+    username="admin" password="p@ssw0rd"
+
+
+--------
 LDAP Configuration for Keycloak in CIO Environment
 
 Hi Casey & Rajesh,
