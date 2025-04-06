@@ -1,3 +1,16 @@
+Run the queries via Steampipe:
+steampipe query --output csv --file queries.sql
+This will create multiple .csv files in your folder.
+Generate the final report:
+python generate_report.py
+You'll get:
+aws_inventory_report.xlsx — for Excel users
+aws_inventory_report.html — viewable in any browser
+
+
+
+
+------
 Access Verification
  Verify access to new GitHub repositories (UI + CLI).
  Request missing access if needed.
