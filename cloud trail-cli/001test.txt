@@ -1,3 +1,20 @@
+SELECT
+  usage_type,
+  product_code,
+  SUM(unblended_cost_amount)::numeric::money AS cost_usd
+FROM
+  aws_cost_usage_monthly
+WHERE
+  line_item_product_code = 'AmazonEC2'
+  AND date_trunc('month', usage_start_date) = DATE '2025-03-01'
+  AND usage_type NOT ILIKE '%BoxUsage%'  -- exclude EC2 compute
+GROUP BY
+  usage_type, product_code
+ORDER BY
+  cost_usd DESC;
+
+
+---
 SELECT DISTINCT service
 FROM aws_cost_by_service_monthly
 WHERE date_trunc('month', period_start) = DATE '2025-03-01'
