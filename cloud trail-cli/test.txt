@@ -1,3 +1,62 @@
+-- Comprehensive EC2 Instance Inventory with EBS Volume Details
+SELECT
+  -- EC2 Instance Details
+  i.instance_id,
+  i.instance_type,
+  i.instance_state,
+  i.availability_zone,
+  i.region,
+  i.tags,
+  i.launch_time,
+  i.private_ip_address,
+  i.public_ip_address,
+  i.vpc_id,
+  i.subnet_id,
+  
+  -- Instance Usage and Last Activity
+  i.state_transition_time as last_state_change,
+  i.cpu_options_core_count as cpu_cores,
+  i.cpu_options_threads_per_core as threads_per_core,
+  i.metadata_options_http_endpoint as metadata_endpoint,
+  
+  -- EBS Volume Details
+  v.volume_id,
+  v.volume_type,
+  v.size as volume_size_gb,
+  v.iops,
+  v.throughput,
+  v.encrypted as volume_encrypted,
+  v.state as volume_state,
+  v.create_time as volume_create_time,
+  v.tags as volume_tags,
+  
+  -- Cost information (last 30 days)
+  COALESCE(cost.cost_usd, 0) as cost_last_30_days
+FROM
+  aws_ec2_instance as i
+LEFT JOIN
+  aws_ebs_volume as v
+  ON v.attachments @> ANY(ARRAY[jsonb_build_object('InstanceId', i.instance_id)])
+LEFT JOIN (
+  SELECT
+    resource_id,
+    SUM(unblended_cost_amount) as cost_usd
+  FROM
+    aws_cost_by_resource_daily
+  WHERE
+    service = 'Amazon Elastic Compute Cloud - Compute'
+    AND period_start >= current_date - interval '30 days'
+  GROUP BY
+    resource_id
+) as cost
+  ON cost.resource_id = i.instance_id
+WHERE
+  i.region = 'us-east-1'  -- Change this to your desired region
+ORDER BY
+  i.instance_id, v.volume_id;
+
+
+-------
 Option 1: Using CloudTrail Events
 
 Tracks last interaction with EC2 instances.
