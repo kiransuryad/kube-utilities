@@ -1,3 +1,24 @@
+WITH vpc_cost AS (
+  SELECT
+    vpc_id,
+    SUM(unblended_cost_amount)::numeric::money AS cost
+  FROM
+    aws_cost_usage_resource_monthly
+  WHERE
+    date_trunc('month', usage_start_date) = DATE '2025-03-01'
+  GROUP BY
+    vpc_id
+)
+SELECT
+  vpc_id,
+  cost
+FROM
+  vpc_cost
+ORDER BY
+  cost DESC;
+
+
+-----
 import pandas as pd
 import subprocess
 import io
