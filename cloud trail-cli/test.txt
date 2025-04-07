@@ -1,3 +1,94 @@
+
+import pandas as pd
+from pathlib import Path
+
+# Load cost summary
+cost_df = pd.read_csv("active_services_cost.csv")
+
+# Map service name to corresponding CSV file
+service_to_file = {csv.stem: csv for csv in Path(".").glob("*.csv") if csv.name != "active_services_cost.csv"}
+
+# Service table name mappings (simplified key from table file name)
+service_file_map = {
+    "ec2": "EC2 - Other",
+    "s3": "Amazon Simple Storage Service",
+    "rds_db_instance": "Amazon Relational Database Service",
+    "ebs_volume": "Amazon Elastic Block Store",
+    "dynamodb_table": "Amazon DynamoDB",
+    "ecr_repository": "Amazon EC2 Container Registry (ECR)"
+}
+
+# Field mappings for size metrics
+size_fields = {
+    "s3": ("bucket_size_bytes", 1e9),
+    "rds_db_instance": ("allocated_storage", 1),
+    "ebs_volume": ("size", 1),
+    "dynamodb_table": ("table_size_bytes", 1e9),
+    "ecr_repository": ("image_size_bytes", 1e9)
+}
+
+summary_rows = []
+
+for index, row in cost_df.iterrows():
+    service_name = row["service"]
+    cost = row["cost_usd"]
+    matched = None
+    for key, label in service_file_map.items():
+        if label == service_name:
+            matched = key
+            break
+
+    csv_filename = f"{matched}.csv" if matched else None
+    resource_count = 0
+    total_storage = 0
+    region_count = 0
+    last_updated = None
+
+    if csv_filename and Path(csv_filename).exists():
+        df = pd.read_csv(csv_filename)
+        resource_count = len(df)
+        region_count = len(df["region"].unique()) if "region" in df.columns else 0
+        if "launch_time" in df.columns:
+            try:
+                df["launch_time"] = pd.to_datetime(df["launch_time"], errors="coerce")
+                last_updated = df["launch_time"].max()
+            except:
+                pass
+        if matched in size_fields:
+            size_col, divisor = size_fields[matched]
+            if size_col in df.columns:
+                total_storage = round(df[size_col].fillna(0).astype(float).sum() / divisor, 2)
+
+    summary_rows.append({
+        "Service": service_name,
+        "Cost (USD)": round(cost, 2),
+        "Resource Count": resource_count,
+        "Total Storage (GB)": total_storage,
+        "Regions Used": region_count,
+        "Last Updated": last_updated
+    })
+
+# Convert and save
+summary_df = pd.DataFrame(summary_rows)
+summary_df = summary_df.sort_values(by="Cost (USD)", ascending=False)
+
+# Write to Excel
+with pd.ExcelWriter("aws_inventory_report_enhanced.xlsx", engine="xlsxwriter") as writer:
+    summary_df.to_excel(writer, sheet_name="Summary", index=False)
+
+    for file in service_to_file.values():
+        try:
+            df = pd.read_csv(file)
+            df.to_excel(writer, sheet_name=file.stem[:31], index=False)
+        except Exception as e:
+            print(f"Failed to include {file.name}: {e}")
+
+print("✅ Enhanced Excel report generated: aws_inventory_report_enhanced.xlsx")
+
+
+
+
+------
 -- Comprehensive EC2 Instance Inventory with EBS Volume Details and Cost Information
 WITH ec2_service_costs AS (
   SELECT
