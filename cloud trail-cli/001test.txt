@@ -1,49 +1,41 @@
+SELECT DISTINCT service
+FROM aws_cost_by_service_monthly
+WHERE date_trunc('month', period_start) = DATE '2025-03-01'
+ORDER BY service;
+
+
+
+======
 WITH ec2_instance_count AS (
   SELECT
     COUNT(*) AS resource_count
   FROM
     aws_ec2_instance
 ),
-cost_data AS (
+march_ec2_cost AS (
   SELECT
-    service,
-    period_start,
-    unblended_cost_amount AS this_month,
-    LAG(unblended_cost_amount, -1) OVER (
-      PARTITION BY service
-      ORDER BY period_start DESC
-    ) AS previous_month
+    SUM(unblended_cost_amount)::numeric::money AS march_2025_cost
   FROM
     aws_cost_by_service_monthly
   WHERE
-    service = 'Amazon Elastic Compute Cloud'
-),
-latest_cost AS (
-  SELECT
-    period_start,
-    this_month::numeric::money AS current_month_cost,
-    previous_month::numeric::money AS previous_month_cost,
-    CASE
-      WHEN previous_month = 0 AND this_month = 0 THEN 0
-      WHEN previous_month = 0 THEN 999
-      ELSE ROUND((100 * ((this_month - previous_month) / previous_month))::numeric, 2)
-    END AS percent_change
-  FROM
-    cost_data
-  ORDER BY
-    period_start DESC
-  LIMIT 1
+    service IN (
+      'Amazon Elastic Compute Cloud',
+      'Amazon Elastic Compute Cloud - Compute',
+      'Amazon Elastic Compute Cloud - Other',
+      'EC2-Instances',
+      'EC2-Other'
+    )
+    AND date_trunc('month', period_start) = DATE '2025-03-01'
 )
 SELECT
   'Elastic Compute Cloud provides resizable compute capacity in the cloud.' AS description,
   i.resource_count,
-  l.current_month_cost AS cost_this_month,
-  l.previous_month_cost AS cost_last_month,
-  l.percent_change AS percent_change_in_cost,
+  c.march_2025_cost AS cost_march_2025,
   'N/A (Compute instances don’t directly track data usage in this context)' AS data_used
 FROM
   ec2_instance_count i
-  CROSS JOIN latest_cost l;
+  CROSS JOIN march_ec2_cost c;
+
 
 
 ----
