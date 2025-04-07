@@ -1,3 +1,38 @@
+WITH ec2_other_cost AS (
+  SELECT
+    usage_type,
+    SUM(unblended_cost_amount)::numeric::money AS unblended_cost
+  FROM
+    aws_cost_by_service_usage_type_monthly
+  WHERE
+    service = 'Amazon Elastic Compute Cloud'
+    AND date_trunc('month', period_start) = DATE '2025-03-01'
+    AND usage_type NOT ILIKE '%BoxUsage%'  -- exclude EC2 compute
+  GROUP BY
+    usage_type
+),
+ebs_sizes AS (
+  SELECT
+    'EBS:' || volume_type AS usage_type_key,
+    ROUND(SUM(size)) AS total_volume_gb
+  FROM
+    aws_ebs_volume
+  GROUP BY
+    volume_type
+)
+SELECT
+  e.usage_type,
+  e.unblended_cost,
+  s.total_volume_gb
+FROM
+  ec2_other_cost e
+  LEFT JOIN ebs_sizes s
+    ON e.usage_type ILIKE s.usage_type_key || '%'
+ORDER BY
+  e.unblended_cost DESC;
+
+
+---
 SELECT
   service,
   usage_type,
