@@ -25,6 +25,53 @@ ebs_sizes AS (
 SELECT
   c.usage_type,
   c.unblended_cost,
+  COALESCE(s.total_volume_gb::text, 'NA') AS total_volume_gb
+FROM
+  ec2_other_cost c
+  LEFT JOIN ebs_sizes s
+    ON (
+      (c.usage_type ILIKE '%gp3%' AND s.volume_type = 'gp3') OR
+      (c.usage_type ILIKE '%gp2%' AND s.volume_type = 'gp2') OR
+      (c.usage_type ILIKE '%io1%' AND s.volume_type = 'io1') OR
+      (c.usage_type ILIKE '%io2%' AND s.volume_type = 'io2') OR
+      (c.usage_type ILIKE '%st1%' AND s.volume_type = 'st1') OR
+      (c.usage_type ILIKE '%sc1%' AND s.volume_type = 'sc1')
+    )
+ORDER BY
+  c.unblended_cost DESC
+LIMIT 5;
+
+
+
+
+-----
+WITH ec2_other_cost AS (
+  SELECT
+    usage_type,
+    SUM(unblended_cost_amount)::numeric::money AS unblended_cost
+  FROM
+    aws_cost_by_service_usage_type_monthly
+  WHERE
+    service = 'Amazon Elastic Compute Cloud'
+    AND date_trunc('month', period_start) = DATE '2025-03-01'
+    AND usage_type NOT ILIKE '%BoxUsage%'  -- exclude EC2 compute
+  GROUP BY
+    usage_type
+),
+ebs_sizes AS (
+  SELECT
+    volume_type,
+    ROUND(SUM(size)) AS total_volume_gb
+  FROM
+    aws_ebs_volume
+  WHERE
+    state = 'in-use'
+  GROUP BY
+    volume_type
+)
+SELECT
+  c.usage_type,
+  c.unblended_cost,
   s.total_volume_gb
 FROM
   ec2_other_cost c
