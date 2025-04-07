@@ -1,3 +1,45 @@
+import pandas as pd
+import subprocess
+import io
+
+steampipe_sql = """
+-- paste the SQL query above here
+"""
+
+print("Running Steampipe VPC cost + count summary query...")
+proc = subprocess.run(
+    ["steampipe", "query", "--output", "csv"],
+    input=steampipe_sql.encode(),
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    check=True
+)
+
+df = pd.read_csv(io.StringIO(proc.stdout.decode()))
+print("Query result loaded into DataFrame.")
+
+# Convert cost column from money to float
+df["cost"] = df["cost"].replace('[\$,]', '', regex=True).astype(float)
+
+# Append total summary row
+total_row = {
+    "service": "TOTAL",
+    "usage_type": "",
+    "cost": df["cost"].sum(),
+    "total_vpcs": df["total_vpcs"].iloc[0]  # all values are the same
+}
+df = pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
+
+# Re-format cost for display
+df["cost"] = df["cost"].apply(lambda x: f"${x:,.2f}")
+
+# Export to Excel
+excel_path = "vpc_summary_report.xlsx"
+df.to_excel(excel_path, index=False, engine='openpyxl')
+print(f"Excel file saved: {excel_path}")
+
+
+---
 WITH vpc_count AS (
   SELECT COUNT(*) AS total_vpcs
   FROM aws_vpc
