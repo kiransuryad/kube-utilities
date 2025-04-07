@@ -1,3 +1,34 @@
+WITH ebs AS (
+  SELECT 'EBS' AS service, COUNT(*) AS resource_count, SUM(size) AS total_gb
+  FROM aws_ebs_volume
+),
+rds AS (
+  SELECT 'RDS' AS service, COUNT(*) AS resource_count, SUM(allocated_storage) AS total_gb
+  FROM aws_rds_db_cluster
+),
+dynamodb AS (
+  SELECT 'DynamoDB' AS service,
+         COUNT(*) AS resource_count,
+         ROUND(SUM(table_size_bytes) / 1024 / 1024 / 1024, 2) AS total_gb
+  FROM aws_dynamodb_table
+),
+s3 AS (
+  SELECT 'S3' AS service,
+         COUNT(DISTINCT bucket_name) AS resource_count,
+         ROUND(SUM(storage_bytes) / 1024 / 1024 / 1024, 2) AS total_gb
+  FROM aws_s3_bucket_metric
+)
+SELECT * FROM ebs
+UNION ALL
+SELECT * FROM rds
+UNION ALL
+SELECT * FROM dynamodb
+UNION ALL
+SELECT * FROM s3;
+
+
+
+-------
 import pandas as pd
 import subprocess
 import io
