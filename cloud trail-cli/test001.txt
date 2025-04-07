@@ -1,0 +1,107 @@
+
+import pandas as pd
+from pathlib import Path
+
+# Load cost summary
+cost_df = pd.read_csv("active_services_cost.csv")
+
+# Collect all service CSVs
+csv_files = list(Path(".").glob("*.csv"))
+csv_map = {csv.stem.lower(): csv for csv in csv_files if csv.name != "active_services_cost.csv"}
+
+# Known size fields per service (for storage GB calc)
+size_fields = {
+    "s3": ("bucket_size_bytes", 1e9),
+    "rds db instance": ("allocated_storage", 1),
+    "ebs volume": ("size", 1),
+    "dynamodb table": ("table_size_bytes", 1e9),
+    "ecr repository": ("image_size_bytes", 1e9)
+}
+
+summary_rows = []
+
+print("\n===== Debug Matching Log =====")
+
+for index, row in cost_df.iterrows():
+    service_name = row["service"]
+    cost = row["cost_usd"]
+
+    normalized = service_name.lower().replace("amazon", "").replace("aws", "").replace("-", "").strip()
+    matched_file = None
+
+    for stem, path in csv_map.items():
+        if stem in normalized:
+            matched_file = path
+            print(f"✔ Matched: '{service_name}' -> {path.name}")
+            break
+
+    if not matched_file:
+        print(f"❌ No match found for: '{service_name}'")
+        summary_rows.append({
+            "Service": service_name,
+            "Cost (USD)": round(cost, 2),
+            "Resource Count": 0,
+            "Total Storage (GB)": 0,
+            "Regions Used": 0,
+            "Last Updated": None
+        })
+        continue
+
+    try:
+        df = pd.read_csv(matched_file, on_bad_lines="skip")
+        if df.empty:
+            print(f"⚠ File is empty: {matched_file}")
+            raise Exception("Empty")
+
+        resource_count = len(df)
+        region_count = len(df["region"].unique()) if "region" in df.columns else 0
+        last_updated = None
+
+        if "launch_time" in df.columns:
+            df["launch_time"] = pd.to_datetime(df["launch_time"], errors="coerce")
+            last_updated = df["launch_time"].max()
+
+        total_storage = 0
+        for key, (col, div) in size_fields.items():
+            if key in matched_file.stem and col in df.columns:
+                total_storage = round(df[col].fillna(0).astype(float).sum() / div, 2)
+
+        summary_rows.append({
+            "Service": service_name,
+            "Cost (USD)": round(cost, 2),
+            "Resource Count": resource_count,
+            "Total Storage (GB)": total_storage,
+            "Regions Used": region_count,
+            "Last Updated": last_updated
+        })
+
+    except Exception as e:
+        print(f"⚠ Failed to parse {matched_file}: {e}")
+        summary_rows.append({
+            "Service": service_name,
+            "Cost (USD)": round(cost, 2),
+            "Resource Count": 0,
+            "Total Storage (GB)": 0,
+            "Regions Used": 0,
+            "Last Updated": None
+        })
+
+# Generate summary
+summary_df = pd.DataFrame(summary_rows)
+summary_df = summary_df.sort_values(by="Cost (USD)", ascending=False)
+
+# Save to Excel
+with pd.ExcelWriter("aws_inventory_report_enhanced.xlsx", engine="xlsxwriter") as writer:
+    summary_df.to_excel(writer, sheet_name="Summary", index=False)
+
+    for csv_file in csv_files:
+        if csv_file.name == "active_services_cost.csv":
+            continue
+        try:
+            df = pd.read_csv(csv_file, on_bad_lines="skip")
+            if not df.empty:
+                df.to_excel(writer, sheet_name=csv_file.stem[:31], index=False)
+        except Exception as e:
+            print(f"Failed to include {csv_file.name}: {e}")
+
+print("\n✅ Debug-enhanced report generated: aws_inventory_report_enhanced.xlsx")
