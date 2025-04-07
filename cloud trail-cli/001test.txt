@@ -1,0 +1,338 @@
+Steampipe SQL Queries (Save these as .sql files):
+
+Create separate .sql files for each AWS service to retrieve the necessary information.
+
+ec2.sql:
+
+SQL
+select
+  count(*) as instance_count
+from aws_ec2_instance;
+ s3.sql:
+
+SQL
+select
+  count(*) as bucket_count,
+  sum(size) as total_size_bytes
+from aws_s3_bucket;
+ secretsmanager.sql:
+
+SQL
+select
+  count(*) as secret_count
+from aws_secretsmanager_secret;
+ dynamodb.sql:
+
+SQL
+select
+  count(*) as table_count,
+  sum(table_size_bytes) as total_size_bytes
+from aws_dynamodb_table;
+ rds.sql:
+
+SQL
+select
+  count(*) as instance_count,
+  sum(allocated_storage * 1024 * 1024 * 1024) as total_allocated_storage_bytes
+from aws_rds_db_instance;
+ vpc.sql:
+
+SQL
+select
+  count(*) as vpc_count
+from aws_vpc;
+ subnet.sql:
+
+SQL
+select
+  count(*) as subnet_count
+from aws_subnet;
+ elb.sql (Classic ELB):
+
+SQL
+select
+  count(*) as elb_count
+from aws_elb;
+ elbv2.sql (Application/Network ELB):
+
+SQL
+select
+  count(*) as alb_nlb_count
+from aws_elbv2_load_balancer;
+ ebs.sql:
+
+SQL
+select
+  count(*) as volume_count,
+  sum(size * 1024 * 1024 * 1024) as total_size_bytes
+from aws_ebs_volume;
+ iam_user.sql:
+
+SQL
+select
+  count(*) as user_count
+from aws_iam_user;
+ iam_role.sql:
+
+SQL
+select
+  count(*) as role_count
+from aws_iam_role;
+ kms.sql:
+
+SQL
+select
+  count(*) as key_count
+from aws_kms_key;
+ cloudwatch_alarms.sql:
+
+SQL
+select
+  count(*) as alarm_count
+from aws_cloudwatch_alarm;
+ cloudformation.sql:
+
+SQL
+select
+  count(*) as stack_count
+from aws_cloudformation_stack
+where stack_status not in ('DELETE_COMPLETE');
+ lambda.sql:
+
+SQL
+select
+  count(*) as function_count
+from aws_lambda_function;
+ sns.sql:
+
+SQL
+select
+  count(*) as topic_count
+from aws_sns_topic;
+ sqs.sql:
+
+SQL
+select
+  count(*) as queue_count
+from aws_sqs_queue;
+ 2. Python Script to Execute Steampipe and Process Data:
+
+Python
+import subprocess
+import json
+
+def execute_steampipe(query_file):
+    """Executes a Steampipe SQL query and returns the result as a dictionary."""
+    try:
+        result = subprocess.run(
+            ["steampipe", "query", "-f", query_file, "--output", "json"],
+            capture_output=True,
+            text=True,
+            check=True  # Raise an exception for non-zero exit codes
+        )
+        data = json.loads(result.stdout)
+        if data:
+            return data[0]
+        else:
+            return {}
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing Steampipe query for {query_file}: {e}")
+        print(f"Stderr: {e.stderr}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON output for {query_file}: {e}")
+        print(f"Stdout: {result.stdout}")
+        return None
+
+def get_aws_summary():
+    """Retrieves and summarizes information about various AWS services."""
+    summary = {}
+
+    # EC2
+    ec2_data = execute_steampipe("ec2.sql")
+    if ec2_data:
+        summary["EC2"] = {
+            "description": "Elastic Compute Cloud provides resizable compute capacity in the cloud.",
+            "resource_count": ec2_data.get("instance_count", 0),
+            "cost": "Cost information is dynamic and requires AWS Cost Explorer or similar tools.",
+            "data_used": "N/A (Compute instances don't directly track data usage in this context)"
+        }
+
+    # S3
+    s3_data = execute_steampipe("s3.sql")
+    if s3_data:
+        total_size_gb = round(s3_data.get("total_size_bytes", 0) / (1024 ** 3), 2)
+        summary["S3"] = {
+            "description": "Simple Storage Service offers scalable object storage in the cloud.",
+            "resource_count": s3_data.get("bucket_count", 0),
+            "cost": "Cost depends on storage class, data transfer, and requests. Use AWS Cost Explorer.",
+            "data_used": f"{total_size_gb} GB (approximate total size of all buckets)"
+        }
+
+    # Secrets Manager
+    secrets_data = execute_steampipe("secretsmanager.sql")
+    if secrets_data:
+        summary["Secrets Manager"] = {
+            "description": "Helps you manage, retrieve, and rotate database credentials, API keys, and other secrets.",
+            "resource_count": secrets_data.get("secret_count", 0),
+            "cost": "Priced per secret stored and per API request. See AWS pricing.",
+            "data_used": "N/A"
+        }
+
+    # DynamoDB
+    dynamodb_data = execute_steampipe("dynamodb.sql")
+    if dynamodb_data:
+        total_size_gb = round(dynamodb_data.get("total_size_bytes", 0) / (1024 ** 3), 2)
+        summary["DynamoDB"] = {
+            "description": "A fully managed NoSQL database service.",
+            "resource_count": dynamodb_data.get("table_count", 0),
+            "cost": "Based on provisioned/on-demand capacity, storage, and data transfer. Use AWS Cost Explorer.",
+            "data_used": f"{total_size_gb} GB (approximate total size of all tables)"
+        }
+
+    # RDS
+    rds_data = execute_steampipe("rds.sql")
+    if rds_data:
+        total_allocated_gb = round(rds_data.get("total_allocated_storage_bytes", 0) / (1024 ** 3), 2)
+        summary["RDS"] = {
+            "description": "Relational Database Service makes it easy to set up, operate, and scale a relational database in the cloud.",
+            "resource_count": rds_data.get("instance_count", 0),
+            "cost": "Depends on instance type, storage, data transfer, and backups. Use AWS Cost Explorer.",
+            "data_used": f"{total_allocated_gb} GB (total allocated storage across all instances)"
+        }
+
+    # VPC
+    vpc_data = execute_steampipe("vpc.sql")
+    if vpc_data:
+        summary["VPC"] = {
+            "description": "Virtual Private Cloud lets you provision a logically isolated section of the AWS Cloud.",
+            "resource_count": vpc_data.get("vpc_count", 0),
+            "cost": "Generally no direct cost, but costs can be associated with NAT Gateways, VPNs, etc.",
+            "data_used": "N/A"
+        }
+
+    # Subnets
+    subnet_data = execute_steampipe("subnet.sql")
+    if subnet_data:
+        summary["Subnets"] = {
+            "description": "Subdivisions of a VPC that you can use to group resources based on security and operational needs.",
+            "resource_count": subnet_data.get("subnet_count", 0),
+            "cost": "No direct cost.",
+            "data_used": "N/A"
+        }
+
+    # ELB (Handling both Classic and Application/Network ELBs)
+    elb_classic_data = execute_steampipe("elb.sql")
+    elb_v2_data = execute_steampipe("elbv2.sql")
+    elb_count = (elb_classic_data.get("elb_count", 0) if elb_classic_data else 0) + \
+                (elb_v2_data.get("alb_nlb_count", 0) if elb_v2_data else 0)
+    summary["Elastic Load Balancing (ELB)"] = {
+        "description": "Distributes incoming application traffic across multiple targets.",
+        "resource_count": elb_count,
+        "cost": "Depends on the type of ELB, duration, and data processed. See AWS pricing.",
+        "data_used": "N/A"
+    }
+
+    # EBS
+    ebs_data = execute_steampipe("ebs.sql")
+    if ebs_data:
+        total_size_gb = round(ebs_data.get("total_size_bytes", 0) / (1024 ** 3), 2)
+        summary["EBS"] = {
+            "description": "Elastic Block Store provides block-level storage volumes for use with EC2 instances.",
+            "resource_count": ebs_data.get("volume_count", 0),
+            "cost": "Based on volume type and provisioned IOPS/throughput. See AWS pricing.",
+            "data_used": f"{total_size_gb} GB (total provisioned storage across all volumes)"
+        }
+
+    # IAM
+    iam_user_data = execute_steampipe("iam_user.sql")
+    iam_role_data = execute_steampipe("iam_role.sql")
+    user_count = iam_user_data.get("user_count", 0) if iam_user_data else 0
+    role_count = iam_role_data.get("role_count", 0) if iam_role_data else 0
+    summary["IAM"] = {
+        "description": "Identity and Access Management enables you to manage access to AWS services and resources securely.",
+        "resource_count": f"{user_count} Users, {role_count} Roles",
+        "cost": "No additional charge for IAM.",
+        "data_used": "N/A"
+    }
+
+    # KMS
+    kms_data = execute_steampipe("kms.sql")
+    if kms_data:
+        summary["KMS"] = {
+            "description": "Key Management Service makes it easy for you to create and manage keys and control the use of encryption across AWS services.",
+            "resource_count": kms_data.get("key_count", 0),
+            "cost": "Priced per KMS key and API request. See AWS pricing.",
+            "data_used": "N/A"
+        }
+
+    # CloudWatch
+    cloudwatch_data = execute_steampipe("cloudwatch_alarms.sql")
+    if cloudwatch_data:
+        summary["CloudWatch"] = {
+            "description": "A monitoring and observability service built for DevOps engineers, developers, SREs, and IT managers.",
+            "resource_count": f"{cloudwatch_data.get('alarm_count', 0)} Alarms",
+            "cost": "Depends on metrics ingested, alarms, logs, and events. See AWS pricing.",
+            "data_used": "N/A"
+        }
+
+    # CloudFormation
+    cloudformation_data = execute_steampipe("cloudformation.sql")
+    if cloudformation_data:
+        summary["CloudFormation"] = {
+            "description": "Provides a way to model, provision, and manage AWS and third-party resources as code.",
+            "resource_count": f"{cloudformation_data.get('stack_count', 0)} Stacks",
+            "cost": "No additional charge for CloudFormation itself, but you pay for the AWS resources provisioned.",
+            "data_used": "N/A"
+        }
+
+    # Lambda
+    lambda_data = execute_steampipe("lambda.sql")
+    if lambda_data:
+        summary["Lambda"] = {
+            "description": "A serverless, event-driven compute service that lets you run code without provisioning or managing servers.",
+            "resource_count": f"{lambda_data.get('function_count', 0)} Functions",
+            "cost": "Based on the number of requests and compute duration. See AWS pricing.",
+            "data_used": "N/A"
+        }
+
+    # SNS
+    sns_data = execute_steampipe("sns.sql")
+    if sns_data:
+        summary["SNS"] = {
+            "description": "Simple Notification Service is a highly available, durable, secure, and fully managed messaging service.",
+            "resource_count": f"{sns_data.get('topic_count', 0)} Topics",
+            "cost": "Based on the number of requests and data transfer. See AWS pricing.",
+            "data_used": "N/A"
+        }
+
+    # SQS
+    sqs_data = execute_steampipe("sqs.sql")
+    if sqs_data:
+        summary["SQS"] = {
+            "description": "Simple Queue Service is a fully managed message queuing service that enables you to decouple and scale microservices, distributed systems, and serverless applications.",
+            "resource_count": f"{sqs_data.get('queue_count', 0)} Queues",
+            "cost": "Based on the number of requests. See AWS pricing.",
+            "data_used": "N/A"
+        }
+
+    return summary
+
+def format_summary(summary_data):
+    """Formats the summary data into a readable one-page output."""
+    output = ""
+    for service, details in summary_data.items():
+        output += f"## {service}\n\n"
+        output += f"{details['description']}\n"
+        output += f"- **Resources:** {details['resource_count']}\n"
+        output += f"- **Cost:** {details['cost']}\n"
+        output += f"- **Data Used:** {details['data_used']}\n\n"
+    return output
+
+if __name__ == "__main__":
+    aws_summary = get_aws_summary()
+    if aws_summary:
+        formatted_output = format_summary(aws_summary)
+        print(formatted_output)
+    else:
+        print("Failed to retrieve AWS summary.")
