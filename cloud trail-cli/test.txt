@@ -1,4 +1,40 @@
+steampipe query --output=json <<< "
+select service, sum(unblended_cost_amount) as cost_usd
+from aws_cost_by_service_monthly
+where period_start >= current_date - interval '30 days'
+group by service
+having sum(unblended_cost_amount) > 0
+order by cost_usd desc;
+"
 
+
+
+
+-------
+cost_data = json.loads(result.stdout)
+
+# Validate the structure
+if not cost_data or "columns" not in cost_data[0] or "rows" not in cost_data[0]:
+    print("Error: Unexpected or empty response from Steampipe.")
+    print("Raw output:", result.stdout)
+    exit(1)
+
+columns = cost_data[0]["columns"]
+rows = cost_data[0]["rows"]
+
+# Build DataFrame safely
+if len(rows) == 0:
+    print("No active services with cost > 0 found.")
+    exit(0)
+
+cost_df = pd.DataFrame(rows, columns=columns)
+cost_df.to_csv("active_services_cost.csv", index=False)
+print("✅ Saved active services with cost > 0 to active_services_cost.csv")
+
+
+
+
+-------------
 import subprocess
 import pandas as pd
 import json
