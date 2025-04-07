@@ -1,4 +1,32 @@
+Subject: Security Issue – Context and Planned Remediation for Keycloak Exposure
+Dear Stakeholders,
 
+We would like to provide context and clarity around a recently raised security concern regarding a publicly accessible Keycloak instance within our CIO-managed AWS Account.
+
+As part of our ongoing migration and onboarding into the CIO-managed AWS environment, we had initially deployed a default (vanilla) Keycloak service manually into an empty EKS cluster for initial validation purposes. This deployment was temporary and intended for internal validation only.
+
+Late last week, the Akamai team assisted us in provisioning an internet-facing URL via ALB, which inadvertently exposed the default Keycloak service externally. As this was a vanilla setup, it used a default admin password, making it susceptible to unauthorized access.
+
+Current Status:
+This Keycloak deployment was never intended for production or external exposure.
+It served as a proof-of-concept to validate EKS setup and application compatibility.
+We have identified the exposure and are taking immediate corrective actions.
+Planned Actions:
+The current manual Keycloak deployment will be completely decommissioned.
+We are in the process of implementing a fully automated infrastructure deployment using Terraform.
+All applications including cert-manager, nginx, and Keycloak will be deployed through Harness pipelines.
+These pipelines are designed to fully comply with FIS security guidelines, including:
+Storing and managing secrets securely via CaaS-managed HashiCorp Vault.
+Dynamic secret injection during pipeline execution (no hardcoded credentials).
+MFA enforcement and SSO integration with internal LDAP post-deployment.
+We are treating this incident with the highest priority and ensuring that no such exposure will occur in future stages of our deployment.
+
+Please let us know if you need any further clarification or wish to review the updated deployment plan.
+
+Best regards,
+
+
+----
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
