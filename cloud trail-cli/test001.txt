@@ -1,4 +1,104 @@
 
+import pandas as pd
+from pathlib import Path
+
+# Load cost summary
+cost_df = pd.read_csv("active_services_cost.csv")
+
+# Collect all aws_*.csv files (excluding the cost summary itself)
+csv_files = {
+    csv.stem: csv
+    for csv in Path(".").glob("aws_*.csv")
+    if csv.name != "active_services_cost.csv"
+}
+
+# Storage fields per table
+size_fields = {
+    "aws_s3_bucket": ("bucket_size_bytes", 1e9),
+    "aws_rds_db_instance": ("allocated_storage", 1),
+    "aws_ebs_volume": ("size", 1),
+    "aws_dynamodb_table": ("table_size_bytes", 1e9),
+    "aws_ecr_repository": ("image_size_bytes", 1e9)
+}
+
+summary_rows = []
+
+# Map service name to table name for accuracy
+service_table_map = {
+    "Amazon EC2": "aws_ec2_instance",
+    "Amazon Simple Storage Service": "aws_s3_bucket",
+    "Amazon DynamoDB": "aws_dynamodb_table",
+    "Amazon RDS": "aws_rds_db_instance",
+    "Amazon Elastic Block Store": "aws_ebs_volume",
+    "AWS CloudTrail": "aws_cloudtrail_trail",
+    "AWS CloudWatch": "aws_cloudwatch_log_group",
+    "AWS IAM": "aws_iam_user",
+    "AWS Secrets Manager": "aws_secretsmanager_secret",
+    "AWS Key Management Service": "aws_kms_key",
+    "Amazon SQS": "aws_sqs_queue",
+    "Amazon SNS": "aws_sns_topic",
+    "Amazon ECR": "aws_ecr_repository",
+    "AWS Lambda": "aws_lambda_function",
+    "AWS Config": "aws_config_configuration_recorder",
+    "AWS CloudFormation": "aws_cloudformation_stack"
+}
+
+# Build enhanced summary
+for _, row in cost_df.iterrows():
+    service = row["service"]
+    cost = row["cost_usd"]
+    table_name = service_table_map.get(service, None)
+
+    resource_count = 0
+    total_storage = 0
+    region_count = 0
+    last_updated = None
+
+    if table_name and table_name in csv_files:
+        try:
+            df = pd.read_csv(csv_files[table_name], on_bad_lines="skip")
+            if not df.empty:
+                resource_count = len(df)
+                region_count = len(df["region"].unique()) if "region" in df.columns else 0
+                if "launch_time" in df.columns:
+                    df["launch_time"] = pd.to_datetime(df["launch_time"], errors="coerce")
+                    last_updated = df["launch_time"].max()
+                if table_name in size_fields:
+                    size_col, div = size_fields[table_name]
+                    if size_col in df.columns:
+                        total_storage = round(df[size_col].fillna(0).astype(float).sum() / div, 2)
+        except Exception as e:
+            print(f"⚠️ Failed to parse {table_name}: {e}")
+
+    summary_rows.append({
+        "Service": service,
+        "Cost (USD)": round(cost, 2),
+        "Resource Count": resource_count,
+        "Total Storage (GB)": total_storage,
+        "Regions Used": region_count,
+        "Last Updated": last_updated
+    })
+
+summary_df = pd.DataFrame(summary_rows).sort_values(by="Cost (USD)", ascending=False)
+
+# Save final Excel report
+with pd.ExcelWriter("aws_inventory_report_enhanced.xlsx", engine="xlsxwriter") as writer:
+    summary_df.to_excel(writer, sheet_name="Summary", index=False)
+
+    for name, path in csv_files.items():
+        try:
+            df = pd.read_csv(path, on_bad_lines="skip")
+            if not df.empty:
+                df.to_excel(writer, sheet_name=name[:31], index=False)
+        except Exception as e:
+            print(f"❌ Skipped {path.name}: {e}")
+
+print("✅ Final enhanced Excel report generated: aws_inventory_report_enhanced.xlsx")
+
+
+
+
+-----------------
 import subprocess
 import pandas as pd
 import json
