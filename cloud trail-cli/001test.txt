@@ -27,6 +27,210 @@ def run_steampipe_query(sql):
             return pd.DataFrame()
         return pd.read_csv(io.StringIO(output))
     except subprocess.CalledProcessError as e:
+        print(f"Steampipe error: {e.stderr.decode()}")
+        return pd.DataFrame()
+    except pd.errors.EmptyDataError:
+        print("Empty CSV from Steampipe.")
+        return pd.DataFrame()
+
+# ----------------------
+# 1. Total Monthly Cost Trend
+# ----------------------
+print("Generating Total Account Cost Trend...")
+steampipe_trend_sql = """
+SELECT
+  TO_CHAR(period_start, 'YYYY-MM') AS month,
+  SUM(unblended_cost_amount)::numeric::money AS total_cost
+FROM
+  aws_cost_by_service_monthly
+WHERE
+  period_start IN (
+    DATE '2025-01-01',
+    DATE '2025-02-01',
+    DATE '2025-03-01'
+  )
+GROUP BY
+  period_start
+ORDER BY
+  period_start;
+"""
+df_trend = run_steampipe_query(steampipe_trend_sql)
+df_trend["total_cost"] = df_trend["total_cost"].replace('[\$,]', '', regex=True).astype(float)
+df_trend["Trend vs Prev Month"] = df_trend["total_cost"].diff().fillna(0).apply(lambda x: f"${x:,.2f}")
+df_trend["% Change"] = df_trend["total_cost"].pct_change().fillna(0).apply(lambda x: f"{x*100:.2f}%")
+df_trend["total_cost"] = df_trend["total_cost"].apply(lambda x: f"${x:,.2f}")
+
+# ----------------------
+# 2. Top 10 Services with Top 5 Usage Types
+# ----------------------
+print("Generating Service Usage Breakdown...")
+steampipe_main_sql = """
+WITH active_services AS (
+  SELECT service, SUM(unblended_cost_amount) AS total_cost
+  FROM aws_cost_by_service_monthly
+  WHERE period_start = DATE '2025-03-01'
+  GROUP BY service
+  ORDER BY total_cost DESC
+  LIMIT 10
+),
+ranked_usage_types AS (
+  SELECT s.service, s.usage_type, SUM(s.unblended_cost_amount) AS usage_cost,
+         RANK() OVER (PARTITION BY s.service ORDER BY SUM(s.unblended_cost_amount) DESC) AS usage_rank
+  FROM aws_cost_by_service_usage_type_monthly s
+  WHERE s.period_start = DATE '2025-03-01'
+  GROUP BY s.service, s.usage_type
+)
+SELECT a.service,
+       a.total_cost::numeric::money AS total_service_cost,
+       u.usage_type,
+       u.usage_cost::numeric::money AS usage_type_cost
+FROM active_services a
+JOIN ranked_usage_types u ON a.service = u.service
+WHERE u.usage_rank <= 5
+ORDER BY a.total_cost DESC, u.usage_cost DESC;
+"""
+df = run_steampipe_query(steampipe_main_sql)
+df["total_service_cost"] = df["total_service_cost"].replace('[\$,]', '', regex=True).astype(float)
+df["usage_type_cost"] = df["usage_type_cost"].replace('[\$,]', '', regex=True).astype(float)
+df["usage_%_of_service"] = ((df["usage_type_cost"] / df["total_service_cost"]) * 100).round(2)
+df["total_service_cost_str"] = df["total_service_cost"].apply(lambda x: f"${x:,.2f}")
+df["usage_type_cost_str"] = df["usage_type_cost"].apply(lambda x: f"${x:,.2f}")
+df["usage_%_of_service_str"] = df["usage_%_of_service"].apply(lambda x: f"{x:.2f}%")
+df["service_display"] = df["service"]
+df["total_service_cost_display"] = df["total_service_cost_str"]
+df.loc[df["service_display"].duplicated(), "service_display"] = ""
+df.loc[df["total_service_cost_display"].duplicated(), "total_service_cost_display"] = ""
+df_main = df[["service_display", "total_service_cost_display", "usage_type", "usage_type_cost_str", "usage_%_of_service_str"]]
+df_main.columns = ["Service", "Total Service Cost", "Usage Type", "Usage Type Cost", "% of Service Cost"]
+
+# ----------------------
+# 3. Data Services Summary (EBS, RDS, DynamoDB, S3)
+# ----------------------
+print("Generating Data Service Summary...")
+bucket_query = "SELECT name FROM aws_s3_bucket;"
+df_buckets = run_steampipe_query(bucket_query)
+bucket_names = df_buckets["name"].tolist()
+s3_resource_count = len(bucket_names)
+bucket_sizes = []
+
+for bucket in bucket_names:
+    metric_stat = {
+        "Metric": {
+            "Namespace": "AWS/S3",
+            "MetricName": "BucketSizeBytes",
+            "Dimensions": [
+                {"Name": "BucketName", "Value": bucket},
+                {"Name": "StorageType", "Value": "StandardStorage"}
+            ]
+        },
+        "Stat": "Maximum"
+    }
+
+    sql = f"""
+    SELECT value AS size_bytes, timestamp
+    FROM aws_cloudwatch_metric_data_point
+    WHERE id = 'e1' AND metric_stat = '{json.dumps(metric_stat)}'
+    ORDER BY timestamp DESC
+    LIMIT 1;
+    """
+    df_metric = run_steampipe_query(sql)
+    if not df_metric.empty and "size_bytes" in df_metric.columns:
+        size_bytes = df_metric.iloc[0]["size_bytes"]
+        size_gb = round(size_bytes / 1024 / 1024 / 1024, 2)
+        bucket_sizes.append(size_gb)
+
+s3_total_gb = round(sum(bucket_sizes), 2)
+
+steampipe_sql = """
+WITH ebs AS (
+  SELECT 'EBS' AS service, COUNT(*) AS resource_count, SUM(size) AS total_gb
+  FROM aws_ebs_volume
+),
+rds AS (
+  SELECT 'RDS' AS service, COUNT(*) AS resource_count, SUM(allocated_storage) AS total_gb
+  FROM aws_rds_db_cluster
+),
+dynamodb AS (
+  SELECT 'DynamoDB' AS service,
+         COUNT(*) AS resource_count,
+         ROUND(SUM(table_size_bytes) FILTER (WHERE table_size_bytes > 0) / 1024 / 1024 / 1024, 2) AS total_gb
+  FROM aws_dynamodb_table
+  WHERE table_size_bytes IS NOT NULL
+)
+SELECT * FROM ebs
+UNION ALL
+SELECT * FROM rds
+UNION ALL
+SELECT * FROM dynamodb;
+"""
+df_others = run_steampipe_query(steampipe_sql)
+df_others.columns = ["Service", "Resource Count", "Total Size (GB)"]
+df_s3_row = pd.DataFrame([{
+    "Service": "S3",
+    "Resource Count": s3_resource_count,
+    "Total Size (GB)": s3_total_gb
+}])
+df_data_services = pd.concat([df_others, df_s3_row], ignore_index=True)
+
+# ----------------------
+# 4. Write to Excel
+# ----------------------
+print("Writing final Excel report...")
+with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+    df_trend.to_excel(writer, sheet_name="Cost Summary", startrow=1, index=False)
+    workbook = writer.book
+    sheet = writer.sheets["Cost Summary"]
+    sheet.cell(row=1, column=1).value = "Total AWS Account Cost Trend"
+
+    row_offset = len(df_trend) + 4
+    sheet.cell(row=row_offset, column=1).value = "Top 10 Services (with Top 5 Usage Types)"
+    for r_idx, row in enumerate(dataframe_to_rows(df_main, index=False, header=True), start=row_offset + 1):
+        for c_idx, value in enumerate(row, start=1):
+            sheet.cell(row=r_idx, column=c_idx).value = value
+
+    row_offset += len(df_main) + 4
+    sheet.cell(row=row_offset, column=1).value = "Data Services Summary (Resource Count + Size in GB)"
+    for r_idx, row in enumerate(dataframe_to_rows(df_data_services, index=False, header=True), start=row_offset + 1):
+        for c_idx, value in enumerate(row, start=1):
+            sheet.cell(row=r_idx, column=c_idx).value = value
+
+print("Report successfully written to Excel: aws_cost_full_summary.xlsx")
+
+
+
+
+
+
+----------
+# aws_cost_full_summary.py
+
+import pandas as pd
+import subprocess
+import io
+import json
+from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font
+
+excel_path = "aws_cost_full_summary.xlsx"
+
+# ----------------------
+# Utility: Run SQL Query
+# ----------------------
+def run_steampipe_query(sql):
+    try:
+        proc = subprocess.run(
+            ["steampipe", "query", "--output", "csv"],
+            input=sql.encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True
+        )
+        output = proc.stdout.decode()
+        if not output.strip():
+            return pd.DataFrame()
+        return pd.read_csv(io.StringIO(output))
+    except subprocess.CalledProcessError as e:
         print(f"\u274c Steampipe error: {e.stderr.decode()}")
         return pd.DataFrame()
     except pd.errors.EmptyDataError:
