@@ -1,21 +1,38 @@
-WITH vpc_cost AS (
+WITH vpc_count AS (
+  SELECT COUNT(*) AS total_vpcs
+  FROM aws_vpc
+),
+vpc_related_costs AS (
   SELECT
-    vpc_id,
+    service,
+    usage_type,
     SUM(unblended_cost_amount)::numeric::money AS cost
   FROM
-    aws_cost_usage_resource_monthly
+    aws_cost_by_service_usage_type_monthly
   WHERE
-    date_trunc('month', usage_start_date) = DATE '2025-03-01'
+    period_start = DATE '2025-03-01'
+    AND (
+      service = 'Amazon Virtual Private Cloud' OR
+      usage_type ILIKE '%NatGateway%' OR
+      usage_type ILIKE '%VPN%' OR
+      usage_type ILIKE '%DataTransfer%' OR
+      usage_type ILIKE '%ElasticIP%' OR
+      usage_type ILIKE '%VPC%'
+    )
   GROUP BY
-    vpc_id
+    service, usage_type
 )
 SELECT
-  vpc_id,
-  cost
+  c.service,
+  c.usage_type,
+  c.cost,
+  v.total_vpcs
 FROM
-  vpc_cost
+  vpc_related_costs c
+  CROSS JOIN vpc_count v
 ORDER BY
-  cost DESC;
+  c.cost DESC;
+
 
 
 -----
