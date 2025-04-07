@@ -1,3 +1,88 @@
+import pandas as pd
+import subprocess
+import io
+import json
+
+def run_steampipe_query(sql):
+    """Execute a Steampipe SQL query and return as DataFrame."""
+    try:
+        proc = subprocess.run(
+            ["steampipe", "query", "--output", "csv"],
+            input=sql.encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True
+        )
+        return pd.read_csv(io.StringIO(proc.stdout.decode()))
+    except subprocess.CalledProcessError as e:
+        print(f"Error running query:\n{e.stderr.decode()}")
+        return pd.DataFrame()
+
+# 1️⃣ Get list of all S3 buckets
+bucket_query = "SELECT name FROM aws_s3_bucket;"
+df_buckets = run_steampipe_query(bucket_query)
+bucket_names = df_buckets["name"].tolist()
+
+# 2️⃣ Collect bucket size metrics
+bucket_sizes = []
+
+for bucket in bucket_names:
+    metric_stat = {
+        "Metric": {
+            "Namespace": "AWS/S3",
+            "MetricName": "BucketSizeBytes",
+            "Dimensions": [
+                {"Name": "BucketName", "Value": bucket},
+                {"Name": "StorageType", "Value": "StandardStorage"}
+            ]
+        },
+        "Stat": "Maximum"
+    }
+
+    sql = f"""
+    SELECT
+      value AS size_bytes,
+      ROUND(value / 1024 / 1024 / 1024, 2) AS size_gb,
+      timestamp
+    FROM
+      aws_cloudwatch_metric_data_point
+    WHERE
+      metric_stat = '{json.dumps(metric_stat)}'
+    ORDER BY
+      timestamp DESC
+    LIMIT 1;
+    """
+
+    df_metric = run_steampipe_query(sql)
+    if not df_metric.empty:
+        size_gb = df_metric.iloc[0]["size_gb"]
+        bucket_sizes.append({
+            "bucket_name": bucket,
+            "size_gb": size_gb,
+            "timestamp": df_metric.iloc[0]["timestamp"]
+        })
+
+# 3️⃣ Create final DataFrame
+df_sizes = pd.DataFrame(bucket_sizes)
+df_sizes.sort_values(by="size_gb", ascending=False, inplace=True)
+
+# 4️⃣ Total and Top 5 buckets
+total_size = df_sizes["size_gb"].sum()
+top5 = df_sizes.head(5)
+
+print("\n📦 Top 5 Largest S3 Buckets:")
+print(top5.to_string(index=False))
+
+print(f"\n🧮 Total S3 Usage: {total_size:,.2f} GB across {len(df_sizes)} buckets")
+
+# 5️⃣ Optionally export to CSV or Excel
+df_sizes.to_csv("s3_bucket_sizes.csv", index=False)
+print("✅ Full bucket size data saved to s3_bucket_sizes.csv")
+
+
+
+
+----------
 SELECT
   dimensions ->> 'BucketName' AS bucket_name,
   dimensions ->> 'StorageType' AS storage_type,
