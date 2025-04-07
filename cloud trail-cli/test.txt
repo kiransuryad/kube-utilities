@@ -1,3 +1,19 @@
+select
+  service,
+  round(sum(unblended_cost), 2) as cost_usd
+from
+  aws_cost_by_service_monthly
+where
+  start_time >= current_date - interval '30 days'
+group by
+  service
+having sum(unblended_cost) > 0
+order by
+  cost_usd desc;
+
+
+
+----
 Run the queries via Steampipe:
 steampipe query --output csv --file queries.sql
 This will create multiple .csv files in your folder.
