@@ -1,5 +1,10 @@
+import pandas as pd
+import subprocess
+import io
+import json
+
 def run_steampipe_query(sql):
-    """Execute a Steampipe SQL query and return as DataFrame (safe empty fallback)."""
+    """Run a Steampipe SQL query and return as DataFrame, with safe fallback."""
     try:
         proc = subprocess.run(
             ["steampipe", "query", "--output", "csv"],
@@ -9,15 +14,98 @@ def run_steampipe_query(sql):
             check=True
         )
         output = proc.stdout.decode()
-        if not output.strip():  # Handle completely empty stdout
+        if not output.strip():
+            print("⚠️ Steampipe query returned no output.")
             return pd.DataFrame()
         return pd.read_csv(io.StringIO(output))
     except subprocess.CalledProcessError as e:
-        print(f"Error running query:\n{e.stderr.decode()}")
+        print(f"❌ Steampipe error: {e.stderr.decode()}")
         return pd.DataFrame()
     except pd.errors.EmptyDataError:
-        print("Empty result returned by Steampipe (no columns).")
+        print("⚠️ Empty CSV result from Steampipe.")
         return pd.DataFrame()
+
+# 1️⃣ Get all bucket names
+bucket_query = "SELECT name FROM aws_s3_bucket;"
+df_buckets = run_steampipe_query(bucket_query)
+bucket_names = df_buckets["name"].tolist()
+
+print(f"🔍 Found {len(bucket_names)} buckets to scan...\n")
+
+# 2️⃣ Loop through each bucket and collect size metrics
+bucket_sizes = []
+
+for bucket in bucket_names:
+    print(f"📦 Checking bucket: {bucket}")
+
+    metric_stat = {
+        "Metric": {
+            "Namespace": "AWS/S3",
+            "MetricName": "BucketSizeBytes",
+            "Dimensions": [
+                {"Name": "BucketName", "Value": bucket},
+                {"Name": "StorageType", "Value": "StandardStorage"}
+            ]
+        },
+        "Stat": "Maximum"
+    }
+
+    sql = f"""
+    SELECT
+      value AS size_bytes,
+      timestamp
+    FROM
+      aws_cloudwatch_metric_data_point
+    WHERE
+      metric_stat = '{json.dumps(metric_stat)}'
+    ORDER BY
+      timestamp DESC
+    LIMIT 1;
+    """
+
+    df_metric = run_steampipe_query(sql)
+
+    if df_metric.empty:
+        print(f"⚠️ No metric returned for: {bucket}")
+        continue
+
+    if "size_bytes" not in df_metric.columns:
+        print(f"❗ Missing 'size_bytes' column for: {bucket}")
+        continue
+
+    size_bytes = df_metric.iloc[0]["size_bytes"]
+    timestamp = df_metric.iloc[0]["timestamp"]
+    size_gb = round(size_bytes / 1024 / 1024 / 1024, 2)
+
+    print(f"   ✅ Size: {size_gb} GB @ {timestamp}")
+
+    bucket_sizes.append({
+        "bucket_name": bucket,
+        "timestamp": timestamp,
+        "size_gb": size_gb
+    })
+
+# 3️⃣ Build final DataFrame
+df_sizes = pd.DataFrame(bucket_sizes)
+
+if df_sizes.empty:
+    print("❌ No bucket sizes could be retrieved. Exiting.")
+    exit()
+
+df_sizes.sort_values(by="size_gb", ascending=False, inplace=True)
+
+# 4️⃣ Show top 5
+print("\n📊 Top 5 S3 Buckets by Size:")
+print(df_sizes.head(5).to_string(index=False))
+
+# 5️⃣ Total
+total_size = df_sizes["size_gb"].sum()
+print(f"\n🧮 Total Tracked S3 Storage: {total_size:,.2f} GB across {len(df_sizes)} buckets")
+
+# 6️⃣ Save to CSV
+df_sizes.to_csv("s3_bucket_sizes.csv", index=False)
+print("\n✅ Report saved to: s3_bucket_sizes.csv")
+
 
 
 
