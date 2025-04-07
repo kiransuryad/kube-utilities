@@ -1,3 +1,36 @@
+# ------------------- Total Storage Calculation -------------------
+
+# Initialize total storage per service
+storage_summary = {}
+
+# EBS Volumes (from aws_ebs_volume.csv)
+try:
+    ebs_df = pd.read_csv("aws_ebs_volume.csv")
+    ebs_total_gb = ebs_df['size'].fillna(0).sum()
+    storage_summary["EC2 - Other"] = round(ebs_total_gb, 2)
+    print(f"✓ EBS Total: {ebs_total_gb:.2f} GB")
+except Exception as e:
+    print(f"✗ EBS Volume CSV error: {e}")
+
+# DynamoDB (from aws_dynamodb_table.csv)
+try:
+    dynamo_df = pd.read_csv("aws_dynamodb_table.csv")
+    dynamo_total_bytes = dynamo_df['table_size_bytes'].fillna(0).sum()
+    dynamo_total_gb = dynamo_total_bytes / (1024 ** 3)
+    storage_summary["Amazon DynamoDB"] = round(dynamo_total_gb, 2)
+    print(f"✓ DynamoDB Total: {dynamo_total_gb:.2f} GB")
+except Exception as e:
+    print(f"✗ DynamoDB CSV error: {e}")
+
+# ------------------- Patch Summary Sheet -------------------
+# Apply to the final summary DataFrame
+for idx, row in summary_df.iterrows():
+    service = row["Service"]
+    if service in storage_summary:
+        summary_df.at[idx, "Total Storage (GB)"] = storage_summary[service]
+
+
+--------
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
