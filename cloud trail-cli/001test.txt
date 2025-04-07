@@ -1,3 +1,22 @@
+SELECT
+  dimensions ->> 'BucketName' AS bucket_name,
+  dimensions ->> 'StorageType' AS storage_type,
+  MAX(timestamp) AS latest_data_ts,
+  MAX(average) AS size_bytes,
+  ROUND(MAX(average) / 1024 / 1024 / 1024, 2) AS size_gb
+FROM
+  aws_cloudwatch_metric_data_point
+WHERE
+  namespace = 'AWS/S3'
+  AND metric_name = 'BucketSizeBytes'
+  AND dimensions ->> 'StorageType' = 'StandardStorage'
+GROUP BY
+  dimensions ->> 'BucketName', dimensions ->> 'StorageType'
+ORDER BY
+  size_bytes DESC;
+
+
+---
 import pandas as pd
 import subprocess
 import io
