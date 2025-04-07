@@ -1,3 +1,48 @@
+WITH active_services AS (
+  SELECT
+    service,
+    SUM(unblended_cost_amount) AS total_cost
+  FROM
+    aws_cost_by_service_monthly
+  WHERE
+    period_start = DATE '2025-03-01'
+  GROUP BY
+    service
+),
+service_usage_ranked AS (
+  SELECT
+    s.service,
+    s.usage_type,
+    SUM(s.unblended_cost_amount) AS usage_cost,
+    RANK() OVER (
+      PARTITION BY s.service
+      ORDER BY SUM(s.unblended_cost_amount) DESC
+    ) AS usage_rank
+  FROM
+    aws_cost_by_service_usage_type_monthly s
+  WHERE
+    s.period_start = DATE '2025-03-01'
+  GROUP BY
+    s.service, s.usage_type
+)
+SELECT
+  a.service,
+  a.total_cost::numeric::money AS total_service_cost,
+  u.usage_type,
+  u.usage_cost::numeric::money AS usage_type_cost
+FROM
+  active_services a
+JOIN
+  service_usage_ranked u
+ON
+  a.service = u.service
+WHERE
+  u.usage_rank <= 5
+ORDER BY
+  a.total_cost DESC, u.usage_cost DESC;
+
+
+---
 SELECT
   service,
   usage_type,
