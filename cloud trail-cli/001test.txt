@@ -1,3 +1,103 @@
+import pandas as pd
+import subprocess
+import io
+
+# SQL: Top 10 services with top 5 usage types per service
+steampipe_sql = """
+WITH active_services AS (
+  SELECT
+    service,
+    SUM(unblended_cost_amount) AS total_cost
+  FROM
+    aws_cost_by_service_monthly
+  WHERE
+    period_start = DATE '2025-03-01'
+  GROUP BY
+    service
+  ORDER BY
+    total_cost DESC
+  LIMIT 10
+),
+ranked_usage_types AS (
+  SELECT
+    s.service,
+    s.usage_type,
+    SUM(s.unblended_cost_amount) AS usage_cost,
+    RANK() OVER (
+      PARTITION BY s.service
+      ORDER BY SUM(s.unblended_cost_amount) DESC
+    ) AS usage_rank
+  FROM
+    aws_cost_by_service_usage_type_monthly s
+  WHERE
+    s.period_start = DATE '2025-03-01'
+  GROUP BY
+    s.service, s.usage_type
+)
+SELECT
+  a.service,
+  a.total_cost::numeric::money AS total_service_cost,
+  u.usage_type,
+  u.usage_cost::numeric::money AS usage_type_cost
+FROM
+  active_services a
+JOIN
+  ranked_usage_types u ON a.service = u.service
+WHERE
+  u.usage_rank <= 5
+ORDER BY
+  a.total_cost DESC, u.usage_cost DESC;
+"""
+
+# Run steampipe query
+print("Running Steampipe top 10 services usage breakdown query...")
+proc = subprocess.run(
+    ["steampipe", "query", "--output", "csv"],
+    input=steampipe_sql.encode(),
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    check=True
+)
+
+# Load CSV into DataFrame
+df = pd.read_csv(io.StringIO(proc.stdout.decode()))
+print("Query result loaded into DataFrame.")
+
+# Clean up cost columns
+df["total_service_cost"] = df["total_service_cost"].replace('[\$,]', '', regex=True).astype(float)
+df["usage_type_cost"] = df["usage_type_cost"].replace('[\$,]', '', regex=True).astype(float)
+
+# Add percentage of usage type within its service
+df["usage_%_of_service"] = ((df["usage_type_cost"] / df["total_service_cost"]) * 100).round(2)
+
+# Format costs and percentages as strings
+df["total_service_cost_str"] = df["total_service_cost"].apply(lambda x: f"${x:,.2f}")
+df["usage_type_cost_str"] = df["usage_type_cost"].apply(lambda x: f"${x:,.2f}")
+df["usage_%_of_service_str"] = df["usage_%_of_service"].apply(lambda x: f"{x:.2f}%")
+
+# Blank out repeated service rows for aesthetic output
+df["service_display"] = df["service"]
+df["total_service_cost_display"] = df["total_service_cost_str"]
+df.loc[df["service_display"].duplicated(), "service_display"] = ""
+df.loc[df["total_service_cost_display"].duplicated(), "total_service_cost_display"] = ""
+
+# Final clean dataframe for Excel
+df_final = df[[
+    "service_display",
+    "total_service_cost_display",
+    "usage_type",
+    "usage_type_cost_str",
+    "usage_%_of_service_str"
+]]
+df_final.columns = ["Service", "Total Service Cost", "Usage Type", "Usage Type Cost", "% of Service Cost"]
+
+# Export to Excel
+excel_path = "top10_service_cost_summary_grouped.xlsx"
+df_final.to_excel(excel_path, index=False, engine='openpyxl')
+print(f"✅ Excel file saved successfully: {excel_path}")
+
+
+----
 WITH active_services AS (
   SELECT
     service,
