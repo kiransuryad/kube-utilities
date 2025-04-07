@@ -1,3 +1,92 @@
+
+import pandas as pd
+from pathlib import Path
+from datetime import datetime
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+# Mapping service names to CSV files
+service_to_csv = {
+    "Amazon Elastic Compute Cloud - Compute": "aws_ec2_instance.csv",
+    "EC2 - Other": "aws_ec2_instance.csv",
+    "Amazon Virtual Private Cloud": "aws_vpc.csv",
+    "AWS CloudTrail": "aws_cloudtrail_trail.csv",
+    "AmazonCloudWatch": "aws_cloudwatch_log_group.csv",
+    "Amazon Elastic Load Balancing": "aws_elb_load_balancer.csv",
+    "AWS Directory Service": "aws_directory_service_directory.csv",
+    "AWS Key Management Service": "aws_kms_key.csv",
+    "Red Hat Enterprise Linux": "aws_ec2_instance.csv",
+    "Amazon GuardDuty": "aws_guardduty_detector.csv",
+    "Amazon DynamoDB": "aws_dynamodb_table.csv",
+    "AWS Config": "aws_config_configuration_recorder.csv",
+    "Amazon Simple Storage Service": "aws_s3_bucket.csv",
+    "Amazon Route 53": "aws_route53_zone.csv",
+    "Amazon Elastic Container Service": "aws_ecs_cluster.csv",
+    "AWS Cost Explorer": "",
+    "Amazon Elastic Container Registry Public": "aws_ecr_repository.csv",
+    "Amazon EC2 Container Registry (ECR)": "aws_ecr_repository.csv",
+    "AWS Secrets Manager": "aws_secretsmanager_secret.csv",
+    "Amazon Simple Queue Service": "aws_sqs_queue.csv",
+    "AWS Lambda": "aws_lambda_function.csv",
+    "Amazon Simple Notification Service": "aws_sns_topic.csv",
+    "AWS Step Functions": "aws_sfn_state_machine.csv",
+    "Amazon Glacier": "aws_glacier_vault.csv"
+}
+
+# Load the active service summary
+summary_df = pd.read_csv("active_services_cost.csv")
+summary_df["Resource Count"] = 0
+summary_df["Total Storage (GB)"] = 0
+summary_df["Regions Used"] = 0
+summary_df["Last Updated"] = 0
+
+def extract_storage(df, service):
+    if "size" in df.columns:
+        return df["size"].fillna(0).sum()
+    elif "table_size_bytes" in df.columns:
+        return df["table_size_bytes"].fillna(0).sum() / 1024**3
+    elif "bucket_size_bytes" in df.columns:
+        return df["bucket_size_bytes"].fillna(0).sum() / 1024**3
+    return 0
+
+# Loop through services and enrich summary
+for i, row in summary_df.iterrows():
+    service = row["service"]
+    csv_name = service_to_csv.get(service)
+    if not csv_name:
+        print(f"⚠ No CSV mapped for: {service}")
+        continue
+
+    csv_path = Path(csv_name)
+    if not csv_path.exists():
+        print(f"❌ File not found: {csv_name}")
+        continue
+
+    try:
+        df = pd.read_csv(csv_path, on_bad_lines='skip')
+        summary_df.at[i, "Resource Count"] = len(df)
+        if "region" in df.columns:
+            summary_df.at[i, "Regions Used"] = df["region"].nunique()
+        if "launch_time" in df.columns:
+            try:
+                df["launch_time"] = pd.to_datetime(df["launch_time"], errors='coerce')
+                summary_df.at[i, "Last Updated"] = df["launch_time"].dt.date.max()
+            except:
+                pass
+        summary_df.at[i, "Total Storage (GB)"] = round(extract_storage(df, service), 2)
+        print(f"✓ Processed: {service} ({csv_name})")
+    except Exception as e:
+        print(f"⚠ Failed to process {csv_name}: {e}")
+
+# Output Excel
+output_file = "aws_inventory_report_enhanced.xlsx"
+summary_df.to_excel(output_file, index=False, sheet_name="Summary")
+print(f"✅ Final Excel report generated: {output_file}")
+
+
+
+
+-------
 # ------------------- Total Storage Calculation -------------------
 
 # Initialize total storage per service
