@@ -1,4 +1,48 @@
+Option 1: Using CloudTrail Events
 
+Tracks last interaction with EC2 instances.
+
+select
+  recipient_account_id,
+  event_name,
+  event_time,
+  user_identity ->> 'arn' as user,
+  resources -> 0 ->> 'ARN' as resource_arn
+from
+  aws_cloudtrail_event
+where
+  event_source = 'ec2.amazonaws.com'
+  and event_name in ('StartInstances', 'StopInstances', 'RebootInstances', 'TerminateInstances')
+order by
+  event_time desc
+limit 50;
+🔍 What you get:
+Most recent EC2 actions per account
+Good for admin-triggered events
+✅ Option 2: Using CloudWatch Metrics
+
+Tracks actual usage like CPU or network activity.
+
+select
+  namespace,
+  metric_name,
+  resource_id,
+  max(datapoints -> 0 ->> 'Timestamp') as last_active_time
+from
+  aws_cloudwatch_metric_statistics_set
+where
+  namespace = 'AWS/EC2'
+  and metric_name = 'CPUUtilization'
+group by
+  namespace, metric_name, resource_id
+order by
+  last_active_time desc
+limit 50;
+
+
+
+
+-----------
 select
   instance_id,
   instance_type,
