@@ -1,4 +1,94 @@
 
+import subprocess
+import pandas as pd
+import json
+from pathlib import Path
+
+# === Step 1: Get active services from Steampipe cost table (final query) ===
+print("📊 Fetching active services with cost > 0...")
+
+cost_query = """
+select
+  service,
+  sum(unblended_cost_amount) as cost_usd
+from
+  aws_cost_by_service_monthly
+where
+  period_start >= current_date - interval '30 days'
+group by
+  service
+having
+  sum(unblended_cost_amount) > 0
+order by
+  cost_usd desc;
+"""
+
+result = subprocess.run(
+    ["steampipe", "query", "--output=json", cost_query],
+    text=True,
+    capture_output=True
+)
+
+if result.returncode != 0:
+    print("❌ Failed to fetch cost data:", result.stderr)
+    exit(1)
+
+cost_data = json.loads(result.stdout)
+rows = cost_data.get("rows", [])
+columns = [col["name"] for col in cost_data.get("columns", [])]
+cost_df = pd.DataFrame(rows, columns=columns)
+cost_df.to_csv("active_services_cost.csv", index=False)
+print("✅ Saved active services with cost > 0 to active_services_cost.csv")
+
+# === Step 2: Define relevant AWS service table mappings ===
+# You can customize this list as per your needs
+service_table_map = {
+    "Amazon EC2": "aws_ec2_instance",
+    "Amazon Simple Storage Service": "aws_s3_bucket",
+    "Amazon DynamoDB": "aws_dynamodb_table",
+    "Amazon RDS": "aws_rds_db_instance",
+    "Amazon Elastic Block Store": "aws_ebs_volume",
+    "AWS CloudTrail": "aws_cloudtrail_trail",
+    "AWS CloudWatch": "aws_cloudwatch_log_group",
+    "AWS IAM": "aws_iam_user",
+    "AWS Secrets Manager": "aws_secretsmanager_secret",
+    "AWS Key Management Service": "aws_kms_key",
+    "Amazon SQS": "aws_sqs_queue",
+    "Amazon SNS": "aws_sns_topic",
+    "Amazon ECR": "aws_ecr_repository",
+    "AWS Lambda": "aws_lambda_function",
+    "AWS Config": "aws_config_configuration_recorder",
+    "AWS CloudFormation": "aws_cloudformation_stack"
+}
+
+# === Step 3: Run Steampipe queries for matched tables ===
+print("\n🚀 Querying active services by Steampipe table...")
+
+for service, table in service_table_map.items():
+    print(f"→ Querying {service} ({table}) ...")
+    query = f"select * from {table} limit 10000;"
+    try:
+        result = subprocess.run(
+            ["steampipe", "query", "--output=csv", "--", query],
+            text=True,
+            capture_output=True
+        )
+        if result.returncode == 0 and len(result.stdout.strip().splitlines()) > 1:
+            csv_file = f"{table}.csv"
+            Path(csv_file).write_text(result.stdout)
+            print(f"   ✅ Saved to {csv_file}")
+        else:
+            print(f"   ⚠ No data returned for {table}")
+    except Exception as e:
+        print(f"   ❌ Failed to query {table}: {e}")
+
+print("\n🎉 Done! All active service data collected.")
+
+
+
+
+
+-----------------------
 import pandas as pd
 from pathlib import Path
 
