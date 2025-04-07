@@ -1,4 +1,21 @@
 
+select
+  instance_id,
+  instance_type,
+  region,
+  availability_zone,
+  state,
+  launch_time,
+  private_ip_address,
+  public_ip_address,
+  tags
+from
+  aws_ec2_instance
+where
+  region = 'us-east-1'
+limit 10;
+
+------------------
 
 import pandas as pd
 from pathlib import Path
