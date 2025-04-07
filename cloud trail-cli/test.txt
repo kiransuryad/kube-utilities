@@ -1,4 +1,22 @@
 cost_data = json.loads(result.stdout)
+
+if "rows" not in cost_data:
+    print("Error: No 'rows' in Steampipe output.")
+    exit(1)
+
+rows = cost_data["rows"]
+if len(rows) == 0:
+    print("No active services with cost > 0 found.")
+    exit(0)
+
+cost_df = pd.DataFrame(rows)
+cost_df.to_csv("active_services_cost.csv", index=False)
+print("✅ Saved active services with cost > 0 to active_services_cost.csv")
+
+
+
+--------
+cost_data = json.loads(result.stdout)
 # Validate the structure
 if not cost_data or "columns" not in cost_data[0] or "rows" not in cost_data[0]:
     print("Error: Unexpected or empty response from Steampipe.")
