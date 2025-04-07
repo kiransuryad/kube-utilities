@@ -1,107 +1,96 @@
-
-
 import pandas as pd
 from pathlib import Path
+from datetime import datetime
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
-cost_df = pd.read_csv("active_services_cost.csv")
-
-csv_files = {
-    csv.stem: csv
-    for csv in Path(".").glob("*.csv")
-    if csv.name != "active_services_cost.csv"
+# Mapping from Cost Explorer service name to corresponding CSV file
+service_to_csv = {
+    "Amazon Elastic Compute Cloud - Compute": "aws_ec2_instance.csv",
+    "EC2 - Other": "aws_ec2_instance.csv",
+    "Amazon Virtual Private Cloud": "aws_vpc.csv",
+    "AWS CloudTrail": "aws_cloudtrail_trail.csv",
+    "AmazonCloudWatch": "aws_cloudwatch_log_group.csv",
+    "Amazon Elastic Load Balancing": "aws_elb_load_balancer.csv",
+    "AWS Directory Service": "aws_directory_service_directory.csv",
+    "AWS Key Management Service": "aws_kms_key.csv",
+    "Red Hat Enterprise Linux": "aws_ec2_instance.csv",
+    "Amazon GuardDuty": "aws_guardduty_detector.csv",
+    "Amazon DynamoDB": "aws_dynamodb_table.csv",
+    "AWS Config": "aws_config_configuration_recorder.csv",
+    "Amazon Simple Storage Service": "aws_s3_bucket.csv",  # Fallback if bucket metrics missing
+    "Amazon Route 53": "aws_route53_zone.csv",
+    "Amazon Elastic Container Service": "aws_ecs_cluster.csv",
+    "AWS Cost Explorer": "",  # No CSV expected
+    "Amazon Elastic Container Registry Public": "aws_ecr_repository.csv",
+    "Amazon EC2 Container Registry (ECR)": "aws_ecr_repository.csv",
+    "AWS Secrets Manager": "aws_secretsmanager_secret.csv",
+    "Amazon Simple Queue Service": "aws_sqs_queue.csv",
+    "AWS Lambda": "aws_lambda_function.csv",
+    "Amazon Simple Notification Service": "aws_sns_topic.csv",
+    "AWS Step Functions": "aws_sfn_state_machine.csv",
+    "Amazon Glacier": "aws_glacier_vault.csv"
 }
 
-# Explicit map to force correct file usage
-forced_table_usage = {
-    "Amazon Elastic Block Store": "aws_ebs_volume",
-    "Amazon DynamoDB": "aws_dynamodb_table"
-}
+# Load the summary sheet from previous query
+summary_df = pd.read_csv("active_services_cost.csv")
+summary_df["Resource Count"] = 0
+summary_df["Total Storage (GB)"] = 0
+summary_df["Regions Used"] = 0
+summary_df["Last Updated"] = ""
 
-size_fields = {
-    "aws_s3_bucket": ("bucket_size_bytes", 1e9),
-    "aws_rds_db_instance": ("allocated_storage", 1),
-    "aws_ebs_volume": ("size", 1),
-    "aws_dynamodb_table": ("table_size_bytes", 1e9)
-}
+def extract_storage(df):
+    if "size" in df.columns:
+        return df["size"].fillna(0).sum()
+    elif "table_size_bytes" in df.columns:
+        return df["table_size_bytes"].fillna(0).sum() / (1024 ** 3)
+    elif "bucket_size_bytes" in df.columns:
+        return df["bucket_size_bytes"].fillna(0).sum() / (1024 ** 3)
+    return 0
 
-summary_rows = []
-
-print("\n===== Matching Services to CSVs =====")
-
-for _, row in cost_df.iterrows():
+# Walk each service row and enrich
+print("===== Matching Services to CSVs =====")
+for idx, row in summary_df.iterrows():
     service = row["service"]
-    cost = row["cost_usd"]
-    matched_file = None
-
-    # Check forced override first
-    if service in forced_table_usage:
-        matched_file = forced_table_usage[service]
-    else:
-        # Fallback: try normalized match
-        for table in csv_files:
-            if table.replace("aws_", "").replace("_", "") in service.lower().replace(" ", ""):
-                matched_file = table
-                break
-
-    resource_count = 0
-    total_storage = 0
-    region_count = 0
-    last_updated = None
-
-    if matched_file and matched_file in csv_files:
-        print(f"✔ Matched '{service}' to {matched_file}.csv")
-        try:
-            df = pd.read_csv(csv_files[matched_file], on_bad_lines="skip")
-            if not df.empty:
-                resource_count = len(df)
-                region_count = len(df["region"].unique()) if "region" in df.columns else 0
-
-                if "launch_time" in df.columns:
-                    try:
-                        df["launch_time"] = pd.to_datetime(df["launch_time"], errors="coerce")
-                        df["launch_time"] = df["launch_time"].dt.tz_localize(None)
-                        last_updated = df["launch_time"].max()
-                    except Exception as e:
-                        print(f"⚠ Skipped launch_time for {matched_file}: {e}")
-
-                if matched_file in size_fields:
-                    size_col, div = size_fields[matched_file]
-                    if size_col in df.columns:
-                        try:
-                            storage_sum = df[size_col].fillna(0).astype(float).sum()
-                            total_storage = round(storage_sum / div, 2)
-                            print(f"  ↪ {service} total storage: {total_storage} GB")
-                        except Exception as e:
-                            print(f"⚠ Could not compute storage for {matched_file}: {e}")
-                    else:
-                        print(f"⚠ No column '{size_col}' in {matched_file}.csv")
-        except Exception as e:
-            print(f"⚠ Failed to process {matched_file}.csv: {e}")
-    else:
+    csv_file = service_to_csv.get(service)
+    if not csv_file:
         print(f"❌ No CSV match found for: {service}")
+        continue
 
-    summary_rows.append({
-        "Service": service,
-        "Cost (USD)": round(cost, 2),
-        "Resource Count": resource_count,
-        "Total Storage (GB)": total_storage,
-        "Regions Used": region_count,
-        "Last Updated": last_updated
-    })
+    path = Path(csv_file)
+    if not path.exists():
+        print(f"❌ File not found: {csv_file}")
+        continue
 
-summary_df = pd.DataFrame(summary_rows).sort_values(by="Cost (USD)", ascending=False)
+    try:
+        df = pd.read_csv(path, on_bad_lines='skip')
 
-with pd.ExcelWriter("aws_inventory_report_enhanced.xlsx", engine="xlsxwriter") as writer:
-    summary_df.to_excel(writer, sheet_name="Summary", index=False)
-    for name, path in csv_files.items():
-        try:
-            df = pd.read_csv(path, on_bad_lines="skip")
-            if not df.empty:
-                for col in df.select_dtypes(include=["datetime", "datetimetz"]).columns:
-                    df[col] = pd.to_datetime(df[col], errors="coerce").dt.tz_localize(None)
-                df.to_excel(writer, sheet_name=name[:31], index=False)
-        except Exception as e:
-            print(f"⚠ Skipped {path.name}: {e}")
+        # Count resources
+        summary_df.at[idx, "Resource Count"] = len(df)
 
-print("\n✅ Final Excel report with EBS + DynamoDB storage included: aws_inventory_report_enhanced.xlsx")
+        # Count regions
+        if "region" in df.columns:
+            summary_df.at[idx, "Regions Used"] = df["region"].nunique()
 
+        # Last updated date
+        if "launch_time" in df.columns:
+            try:
+                df["launch_time"] = pd.to_datetime(df["launch_time"], errors='coerce')
+                last_used = df["launch_time"].dropna().max()
+                if pd.notnull(last_used):
+                    summary_df.at[idx, "Last Updated"] = last_used.strftime("%Y-%m-%d")
+            except Exception as e:
+                print(f"⚠ Warning: launch_time parse issue in {csv_file}: {e}")
+
+        # Add up storage size
+        total_storage = extract_storage(df)
+        summary_df.at[idx, "Total Storage (GB)"] = round(total_storage, 2)
+
+        print(f"✅ Matched {service} to {csv_file}")
+    except Exception as e:
+        print(f"❌ Failed to process {csv_file}: {e}")
+
+# Save to Excel
+excel_file = "aws_inventory_report_enhanced.xlsx"
+summary_df.to_excel(excel_file, index=False, sheet_name="Summary")
+print(f"\n✅ Final Excel report with storage summary: {excel_file}")
