@@ -1,5 +1,38 @@
-cost_data = json.loads(result.stdout)
 
+import subprocess
+import pandas as pd
+import json
+from pathlib import Path
+
+# === Step 1: Get active services from Steampipe cost table (final query) ===
+print("Fetching active services with cost > 0...")
+cost_query = """
+select
+  service,
+  sum(unblended_cost_amount) as cost_usd
+from
+  aws_cost_by_service_monthly
+where
+  period_start >= current_date - interval '30 days'
+group by
+  service
+having sum(unblended_cost_amount) > 0
+order by
+  cost_usd desc;
+"""
+
+result = subprocess.run(
+    ["steampipe", "query", "--output=json"],
+    input=cost_query,
+    text=True,
+    capture_output=True
+)
+
+if result.returncode != 0:
+    print("Failed to fetch cost data:", result.stderr)
+    exit(1)
+
+cost_data = json.loads(result.stdout)
 if "rows" not in cost_data:
     print("Error: No 'rows' in Steampipe output.")
     exit(1)
@@ -13,34 +46,66 @@ cost_df = pd.DataFrame(rows)
 cost_df.to_csv("active_services_cost.csv", index=False)
 print("✅ Saved active services with cost > 0 to active_services_cost.csv")
 
+# === Step 2: Query inventory per service across known regions ===
+regions = ["us-east-1", "eu-west-1", "eu-west-2"]
 
+# Expanded service mappings
+service_table_map = {
+    "EC2 - Other": "aws_ec2_instance",
+    "Amazon Elastic Compute Cloud - Compute": "aws_ec2_instance",
+    "Amazon Virtual Private Cloud": "aws_vpc",
+    "Amazon CloudWatch": "aws_cloudwatch_log_group",
+    "Amazon Simple Storage Service": "aws_s3_bucket",
+    "Amazon Relational Database Service": "aws_rds_db_instance",
+    "Amazon DynamoDB": "aws_dynamodb_table",
+    "AWS Lambda": "aws_lambda_function",
+    "AWS Key Management Service": "aws_kms_key",
+    "AWS Secrets Manager": "aws_secretsmanager_secret",
+    "Elastic Load Balancing": "aws_elbv2_load_balancer",
+    "Amazon SNS": "aws_sns_topic",
+    "Amazon SQS": "aws_sqs_queue",
+    "Amazon Route 53": "aws_route53_zone",
+    "AWS Directory Service": "aws_directory_service_directory",
+    "AWS Config": "aws_config_configuration_recorder",
+    "AWS CloudFormation": "aws_cloudformation_stack",
+    "AWS Identity and Access Management": "aws_iam_role",
+    "Amazon EC2 Container Registry (ECR)": "aws_ecr_repository",
+    "Amazon Elastic Container Service": "aws_ecs_cluster",
+    "Amazon GuardDuty": "aws_guardduty_detector"
+}
 
---------
-cost_data = json.loads(result.stdout)
-# Validate the structure
-if not cost_data or "columns" not in cost_data[0] or "rows" not in cost_data[0]:
-    print("Error: Unexpected or empty response from Steampipe.")
-    print("Raw output:", result.stdout)
-    exit(1)
-columns = cost_data[0]["columns"]
-rows = cost_data[0]["rows"]
-# Build DataFrame safely
-if len(rows) == 0:
-    print("No active services with cost > 0 found.")
-    exit(0)
-cost_df = pd.DataFrame(rows, columns=columns)
-cost_df.to_csv("active_services_cost.csv", index=False)
-print("✅ Saved active services with cost > 0 to active_services_cost.csv")
+queried_services = []
 
-----
-steampipe query --output=json <<< "
-select service, sum(unblended_cost_amount) as cost_usd
-from aws_cost_by_service_monthly
-where period_start >= current_date - interval '30 days'
-group by service
-having sum(unblended_cost_amount) > 0
-order by cost_usd desc;
-"
+for _, row in cost_df.iterrows():
+    service = row["service"]
+    if service not in service_table_map:
+        continue
+
+    table = service_table_map[service]
+
+    for region in regions:
+        sql = f"select * from {table} where region = '{region}' limit 1000;"
+
+        out_file = f"{table.replace('aws_', '')}_{region}.csv"
+        print(f"Querying {service} ({table}) in {region}...")
+
+        result = subprocess.run(
+            ["steampipe", "query", "--output=csv"],
+            input=sql,
+            text=True,
+            capture_output=True
+        )
+
+        if result.returncode == 0:
+            Path(out_file).write_text(result.stdout)
+            queried_services.append((service, table, region))
+        else:
+            print(f"Failed to query {table} in {region}: {result.stderr}")
+
+# === Step 3: Done ===
+print("✅ All done. Queried services:")
+for s, t, r in queried_services:
+    print(f"  - {s} ({t}) in {r}")
 
 
 
