@@ -1,3 +1,30 @@
+SELECT
+  service,
+  usage_type,
+  SUM(unblended_cost_amount)::numeric::money AS cost
+FROM
+  aws_cost_by_service_usage_type_monthly
+WHERE
+  period_start = DATE '2025-03-01'
+  AND service IN (
+    'Amazon CloudWatch',
+    'AWSCloudTrail',
+    'Amazon GuardDuty',
+    'AWS Directory Service',
+    'AWS Key Management Service',
+    'Amazon Elastic Load Balancing',
+    'Amazon DynamoDB',
+    'Amazon Simple Storage Service',
+    'Amazon Elastic Container Service',
+    'Amazon Route 53'
+  )
+GROUP BY
+  service, usage_type
+ORDER BY
+  cost DESC;
+
+
+---
 import pandas as pd
 import subprocess
 import io
