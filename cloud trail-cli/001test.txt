@@ -1,6 +1,143 @@
 import pandas as pd
 import subprocess
 import io
+from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+
+# 1️⃣ MAIN SERVICE USAGE QUERY
+steampipe_main_sql = """
+WITH active_services AS (
+  SELECT
+    service,
+    SUM(unblended_cost_amount) AS total_cost
+  FROM
+    aws_cost_by_service_monthly
+  WHERE
+    period_start = DATE '2025-03-01'
+  GROUP BY
+    service
+  ORDER BY
+    total_cost DESC
+  LIMIT 10
+),
+ranked_usage_types AS (
+  SELECT
+    s.service,
+    s.usage_type,
+    SUM(s.unblended_cost_amount) AS usage_cost,
+    RANK() OVER (
+      PARTITION BY s.service
+      ORDER BY SUM(s.unblended_cost_amount) DESC
+    ) AS usage_rank
+  FROM
+    aws_cost_by_service_usage_type_monthly s
+  WHERE
+    s.period_start = DATE '2025-03-01'
+  GROUP BY
+    s.service, s.usage_type
+)
+SELECT
+  a.service,
+  a.total_cost::numeric::money AS total_service_cost,
+  u.usage_type,
+  u.usage_cost::numeric::money AS usage_type_cost
+FROM
+  active_services a
+JOIN
+  ranked_usage_types u ON a.service = u.service
+WHERE
+  u.usage_rank <= 5
+ORDER BY
+  a.total_cost DESC, u.usage_cost DESC;
+"""
+
+# 2️⃣ MONTHLY TREND QUERY
+steampipe_trend_sql = """
+SELECT
+  TO_CHAR(period_start, 'YYYY-MM') AS month,
+  SUM(unblended_cost_amount)::numeric::money AS total_cost
+FROM
+  aws_cost_by_service_monthly
+WHERE
+  period_start IN (
+    DATE '2025-01-01',
+    DATE '2025-02-01',
+    DATE '2025-03-01'
+  )
+GROUP BY
+  period_start
+ORDER BY
+  period_start;
+"""
+
+# Function to run Steampipe SQL and return as DataFrame
+def run_steampipe_query(sql):
+    proc = subprocess.run(
+        ["steampipe", "query", "--output", "csv"],
+        input=sql.encode(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True
+    )
+    return pd.read_csv(io.StringIO(proc.stdout.decode()))
+
+# 🟦 1. Run Main Query
+df = run_steampipe_query(steampipe_main_sql)
+
+# Clean and format
+df["total_service_cost"] = df["total_service_cost"].replace('[\$,]', '', regex=True).astype(float)
+df["usage_type_cost"] = df["usage_type_cost"].replace('[\$,]', '', regex=True).astype(float)
+df["usage_%_of_service"] = ((df["usage_type_cost"] / df["total_service_cost"]) * 100).round(2)
+df["total_service_cost_str"] = df["total_service_cost"].apply(lambda x: f"${x:,.2f}")
+df["usage_type_cost_str"] = df["usage_type_cost"].apply(lambda x: f"${x:,.2f}")
+df["usage_%_of_service_str"] = df["usage_%_of_service"].apply(lambda x: f"{x:.2f}%")
+df["service_display"] = df["service"]
+df["total_service_cost_display"] = df["total_service_cost_str"]
+df.loc[df["service_display"].duplicated(), "service_display"] = ""
+df.loc[df["total_service_cost_display"].duplicated(), "total_service_cost_display"] = ""
+
+df_main = df[[
+    "service_display",
+    "total_service_cost_display",
+    "usage_type",
+    "usage_type_cost_str",
+    "usage_%_of_service_str"
+]]
+df_main.columns = ["Service", "Total Service Cost", "Usage Type", "Usage Type Cost", "% of Service Cost"]
+
+# 🟨 2. Run Trend Query
+df_trend = run_steampipe_query(steampipe_trend_sql)
+df_trend["total_cost"] = df_trend["total_cost"].replace('[\$,]', '', regex=True).astype(float)
+
+# Add trend columns
+df_trend["Trend vs Prev Month"] = df_trend["total_cost"].diff().fillna(0).apply(lambda x: f"${x:,.2f}")
+df_trend["% Change"] = df_trend["total_cost"].pct_change().fillna(0).apply(lambda x: f"{x*100:.2f}%")
+df_trend["total_cost"] = df_trend["total_cost"].apply(lambda x: f"${x:,.2f}")
+
+# 🟩 3. Export both tables into one Excel sheet
+excel_path = "aws_cost_report_grouped_with_trend.xlsx"
+with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+    df_main.to_excel(writer, sheet_name="Cost Summary", index=False, startrow=0)
+    
+    # Load workbook and sheet
+    workbook = writer.book
+    sheet = writer.sheets["Cost Summary"]
+
+    # Add some spacing then insert trend data
+    start_row = len(df_main) + 3
+    sheet.cell(row=start_row, column=1).value = "Total Account Cost Trend (Past 3 Months)"
+    for r_idx, row in enumerate(dataframe_to_rows(df_trend, index=False, header=True), start=start_row + 1):
+        for c_idx, value in enumerate(row, start=1):
+            sheet.cell(row=r_idx, column=c_idx).value = value
+
+print(f"✅ Excel file with grouped cost + trend saved: {excel_path}")
+
+
+
+--------
+import pandas as pd
+import subprocess
+import io
 
 # SQL: Top 10 services with top 5 usage types per service
 steampipe_sql = """
