@@ -1,4 +1,21 @@
 SELECT
+  service,
+  usage_type,
+  period_start,
+  unblended_cost_amount::numeric::money AS unblended_cost,
+  amortized_cost_amount::numeric::money AS amortized_cost
+FROM
+  aws_cost_by_service_usage_type_monthly
+WHERE
+  service = 'Amazon Elastic Compute Cloud'
+  AND date_trunc('month', period_start) = DATE '2025-03-01'
+  AND usage_type NOT ILIKE '%BoxUsage%'  -- removes EC2-Instances compute cost
+ORDER BY
+  unblended_cost_amount DESC;
+
+
+---
+SELECT
   usage_type,
   product_code,
   SUM(unblended_cost_amount)::numeric::money AS cost_usd
