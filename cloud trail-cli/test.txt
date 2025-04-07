@@ -1,4 +1,64 @@
 
+
+import pandas as pd
+from pathlib import Path
+
+# Define the CSV files
+cost_summary_file = Path("active_services_cost.csv")
+service_files = list(Path(".").glob("*.csv"))
+service_files.remove(cost_summary_file)  # remove summary from service list
+
+# Load cost summary
+cost_df = pd.read_csv(cost_summary_file)
+
+# Start writing Excel report
+with pd.ExcelWriter("aws_inventory_report.xlsx", engine="xlsxwriter") as writer:
+    # Write cost summary first
+    cost_df.to_excel(writer, sheet_name="Cost Summary", index=False)
+
+    # Write each service file into its own sheet
+    for csv_file in service_files:
+        try:
+            df = pd.read_csv(csv_file)
+            sheet_name = csv_file.stem[:31]  # Excel limit
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+        except Exception as e:
+            print(f"Failed to write {csv_file}: {e}")
+
+print("✅ Excel report generated: aws_inventory_report.xlsx")
+
+# Generate basic HTML version of the cost summary
+html_content = cost_df.to_html(index=False, border=0, classes="table table-striped", justify="center")
+
+# Wrap it in some minimal styling
+html_final = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AWS Inventory Cost Summary</title>
+  <style>
+    body {{ font-family: sans-serif; margin: 40px; }}
+    .table {{ width: 80%; margin: auto; border-collapse: collapse; }}
+    .table td, .table th {{ padding: 8px 12px; border: 1px solid #ddd; }}
+    .table th {{ background-color: #f4f4f4; text-align: center; }}
+    .table-striped tr:nth-child(even) {{ background-color: #f9f9f9; }}
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">AWS Inventory Cost Summary (Last 30 Days)</h2>
+  {html_content}
+</body>
+</html>
+"""
+
+Path("aws_inventory_summary.html").write_text(html_final)
+print("✅ HTML summary generated: aws_inventory_summary.html")
+
+
+
+
+--------------
 import subprocess
 import pandas as pd
 import json
