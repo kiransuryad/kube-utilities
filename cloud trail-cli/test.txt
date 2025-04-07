@@ -1,4 +1,33 @@
--- Comprehensive EC2 Instance Inventory with EBS Volume Details
+-- Comprehensive EC2 Instance Inventory with EBS Volume Details and Cost Information
+WITH ec2_service_costs AS (
+  SELECT
+    usage_type,
+    resource_id,
+    SUM(unblended_cost_amount) as cost_usd
+  FROM
+    aws_cost_by_service_usage_type_daily
+  WHERE
+    service = 'Amazon Elastic Compute Cloud - Compute'
+    AND period_start >= current_date - interval '30 days'
+    AND resource_id IS NOT NULL
+    AND resource_id != ''
+  GROUP BY
+    usage_type, resource_id
+),
+ec2_tag_costs AS (
+  SELECT
+    resource_id,
+    SUM(unblended_cost_amount) as cost_usd
+  FROM
+    aws_cost_by_tag
+  WHERE
+    service = 'Amazon Elastic Compute Cloud - Compute'
+    AND period_start >= current_date - interval '30 days'
+    AND resource_id IS NOT NULL
+    AND resource_id != ''
+  GROUP BY
+    resource_id
+)
 SELECT
   -- EC2 Instance Details
   i.instance_id,
@@ -31,28 +60,24 @@ SELECT
   v.tags as volume_tags,
   
   -- Cost information (last 30 days)
-  COALESCE(cost.cost_usd, 0) as cost_last_30_days
+  COALESCE(usage_costs.cost_usd, 0) as instance_cost_by_usage_30_days,
+  COALESCE(tag_costs.cost_usd, 0) as instance_cost_by_tag_30_days,
+  (COALESCE(usage_costs.cost_usd, 0) + COALESCE(tag_costs.cost_usd, 0)) as total_estimated_cost_30_days
 FROM
   aws_ec2_instance as i
 LEFT JOIN
   aws_ebs_volume as v
   ON v.attachments @> ANY(ARRAY[jsonb_build_object('InstanceId', i.instance_id)])
-LEFT JOIN (
-  SELECT
-    resource_id,
-    SUM(unblended_cost_amount) as cost_usd
-  FROM
-    aws_cost_by_resource_daily
-  WHERE
-    service = 'Amazon Elastic Compute Cloud - Compute'
-    AND period_start >= current_date - interval '30 days'
-  GROUP BY
-    resource_id
-) as cost
-  ON cost.resource_id = i.instance_id
+LEFT JOIN
+  ec2_service_costs usage_costs
+  ON usage_costs.resource_id = i.instance_id
+LEFT JOIN
+  ec2_tag_costs tag_costs
+  ON tag_costs.resource_id = i.instance_id
 WHERE
   i.region = 'us-east-1'  -- Change this to your desired region
 ORDER BY
+  total_estimated_cost_30_days DESC,
   i.instance_id, v.volume_id;
 
 
