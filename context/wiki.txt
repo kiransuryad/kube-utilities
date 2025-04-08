@@ -1,3 +1,6 @@
+scp ec2-user@3.122.45.67:/home/ec2-user/keycloak.log C:\Users\Kiran\Downloads\
+
+----
 Internal Helm Chart Management & Deployment Flow
 
 🎯 Objective
