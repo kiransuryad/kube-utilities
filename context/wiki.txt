@@ -1,3 +1,173 @@
+Here's a breakdown of the process and commands to configure AppRole in HashiCorp Vault and use it in Harness for establishing connectivity:
+
+I. Configure AppRole in HashiCorp Vault:
+
+Step 1: Enable the AppRole Auth Method (if not already enabled)
+
+Bash
+vault auth enable approle
+Step 2: Create a Vault Policy defining the permissions for Harness
+
+This policy will specify what secrets and paths Harness will be allowed to access in Vault.
+
+Terraform
+# Example policy named "harness-approle-policy.hcl"
+path "secret/data/my-application/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/my-application/*" {
+  capabilities = ["list"]
+}
+# Add more paths and capabilities as needed
+Apply the policy to Vault:
+
+Bash
+vault policy write harness-approle-policy harness-approle-policy.hcl
+Step 3: Create an AppRole
+
+Define the AppRole name and link it to the policy you just created.
+
+Bash
+vault write auth/approle/role/harness-approle \
+    token_policies="harness-approle-policy" \
+    token_ttl="1h" \
+    token_max_ttl="24h"
+harness-approle: This is the name of the AppRole you're creating. Choose a descriptive name.
+token_policies="harness-approle-policy": This links the AppRole to the policy you created earlier.
+token_ttl="1h": Sets the initial Time-To-Live for tokens generated using this AppRole.
+token_max_ttl="24h": Sets the maximum Time-To-Live for tokens generated using this AppRole.
+Step 4: Retrieve the Role ID
+
+Harness will need this Role ID to identify the AppRole.
+
+Bash
+vault read auth/approle/role/harness-approle/role-id
+The output will look something like:
+
+Key        Value
+---        -----
+role_id    xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+Step 5: Generate a Secret ID
+
+Harness will use this Secret ID along with the Role ID to authenticate with Vault and obtain a client token. Note: Secret IDs can be configured for single use or multiple uses. For security in Harness, it's generally recommended to use a bound Secret ID if your Harness setup allows it, which ties the Secret ID to specific client IPs or other constraints. However, for simplicity in this example, we'll create a standard Secret ID.
+
+Bash
+vault write -f auth/approle/role/harness-approle/secret-id
+The output will contain the Secret ID:
+
+Key             Value
+---             -----
+secret_id       yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy
+secret_id_accessor  zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz
+Important Security Considerations for Secret IDs:
+
+Single-Use vs. Multiple-Use: By default, Secret IDs can be used multiple times. For enhanced security, you can create single-use Secret IDs using the -once flag:
+Bash
+vault write -f auth/approle/role/harness-approle/secret-id -once
+Bound Secret IDs (Recommended for Production): You can restrict the usage of a Secret ID to specific client IPs or other criteria. This is highly recommended for production environments. Refer to the Vault documentation for details on bound Secret IDs.
+II. Configure Harness to Connect to Vault using AppRole:
+
+The exact steps might vary slightly depending on your specific Harness version and setup. However, the general process is as follows:
+
+Step 1: Navigate to Secret Management in Harness
+
+In your Harness project or organization, go to Security and then Secrets Management.
+Step 2: Add a New Secret Manager
+
+Click on + Add Secret Manager.
+Choose HashiCorp Vault.
+Step 3: Configure the Vault Connection
+
+Name: Give your Secret Manager a descriptive name (e.g., Vault-AppRole).
+Vault URL: Enter the base URL of your HashiCorp Vault instance (e.g., https://my-vault.example.com:8200).
+Authentication Type: Select AppRole.
+Role ID: Enter the Role ID you retrieved from Vault in Step I.4 (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+Secret ID: Enter the Secret ID you generated in Vault in Step I.5 (yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy).
+Namespace (Optional): If your Vault instance uses namespaces, specify the relevant namespace.
+Token TTL (Optional): You can configure a specific TTL for the tokens Harness obtains from Vault. If left blank, it will use the default configured in Vault.
+Use Vault Agent (Optional): If you are using Vault Agent in your Harness environment, you can configure it here.
+SSL Configuration (Optional): Configure SSL settings if your Vault instance uses TLS/SSL with custom certificates.
+Step 4: Test the Connection
+
+Harness usually provides an option to test the connection to your Vault instance. Make sure the test is successful.
+Step 5: Save the Secret Manager
+
+Once the connection is tested successfully, save the Secret Manager configuration.
+III. Using the Vault Connection in Harness
+
+Now that you have configured the Vault Secret Manager using AppRole, you can use it in your Harness pipelines and other configurations to access secrets stored in Vault.
+
+Example: Referencing a Secret in a Harness Pipeline
+
+Let's say you have a secret named my-secret with a key api_key stored in Vault at the path secret/data/my-application/.
+
+In your Harness pipeline step where you need to use this secret, you can reference it using the following syntax (the exact syntax might depend on the specific Harness component you are using):
+
+${secrets.getValue("my-secret", "api_key")}
+Or, if you are using the full path:
+
+${secrets.getValue("secret/data/my-application/my-secret", "api_key")}
+Important Considerations:
+
+Security: Treat the Secret ID as sensitive information. Avoid storing it directly in version control systems. Harness securely stores the Secret ID after you configure the Secret Manager.
+Vault Agent: For more advanced scenarios and enhanced security, consider using Vault Agent with AppRole in Harness. Vault Agent can handle the token lifecycle management.
+Error Handling: Ensure your Harness pipelines and applications have proper error handling in case the connection to Vault fails or the required secrets are not accessible.
+Auditing: Vault provides audit logs that track all actions, including authentication attempts. Monitor these logs for any suspicious activity.
+Policy Granularity: Design your Vault policies with the principle of least privilege in mind. Grant only the necessary permissions to the Harness AppRole.
+Secret ID Rotation: Depending on your security requirements, you might want to implement a process for rotating Secret IDs periodically.
+By following these steps, you can successfully configure AppRole authentication for your HashiCorp Vault and use it within Harness to securely access your secrets. Remember to adapt the commands and configurations to your specific Vault and Harness environment.
+
+2 things, 1. I tried the above process but unable to establish successful connection, 2. I tried successfully using vault token but after 24 hrs I need to manually generate a new token which is defeating the purpose.
+Okay, let's troubleshoot the AppRole connection issue and address the Vault token expiration problem.
+
+1. Troubleshooting AppRole Connection Failure:
+
+Since the previous steps didn't lead to a successful connection, let's systematically check the configuration on both Vault and Harness.
+
+Vault Side Checks:
+
+Verify Vault URL: Ensure the Vault URL you're using in Harness is correct and accessible from where your Harness Delegate is running. You can try to curl or telnet to this URL from the Delegate host.
+Verify AppRole Auth Method is Enabled: Run the following command in your Vault CLI:
+Bash
+vault auth list
+You should see approle/ listed under the Path column. If not, enable it using vault auth enable approle.
+Verify Policy is Created:
+Bash
+vault policy list
+Confirm that the harness-approle-policy (or whatever name you used) is listed.
+Verify Policy Contents: Ensure the policy has the correct paths and capabilities required by Harness.
+Bash
+vault policy read harness-approle-policy
+Verify AppRole is Created:
+Bash
+vault read auth/approle/role/harness-approle
+Confirm that the harness-approle role exists.
+Verify Policy Attached to AppRole: In the output of the command above, under the token_policies section, you should see your policy listed (e.g., harness-approle-policy).
+Verify Role ID: Double-check the Role ID you copied from Vault. You can retrieve it again:
+Bash
+vault read auth/approle/role/harness-approle/role-id
+Verify Secret ID: Ensure you copied the correct Secret ID. If you created a single-use Secret ID, it might have already been consumed. Try generating a new Secret ID (unless you specifically configured bound Secret IDs that require specific conditions to be met).
+Bash
+vault write -f auth/approle/role/harness-approle/secret-id
+vault read auth/approle/role/harness-approle/secret-id
+Vault Server Logs: Check your Vault server logs for any error messages related to authentication attempts from Harness. These logs can provide valuable insights into why the connection is failing. Look for messages related to AppRole, invalid Role ID, or invalid Secret ID.
+Network Connectivity: Ensure there are no firewall rules or network restrictions preventing communication between your Harness Delegate and the Vault server on the specified port (usually 8200).
+Harness Side Checks:
+
+Verify Secret Manager Configuration: Double-check all the details you entered when configuring the HashiCorp Vault Secret Manager in Harness:
+Name: Ensure it's the correct Secret Manager you are trying to use.
+Vault URL: Make absolutely sure this matches your Vault server's address. Pay attention to http vs. https and the port number.
+Authentication Type: Confirm that AppRole is selected.
+Role ID: Carefully re-enter or paste the Role ID you obtained from Vault.
+Secret ID: Carefully re-enter or paste the Secret ID you obtained from Vault.
+Namespace: If you are using namespaces in Vault, ensure the correct namespace is specified in Harness.
+
+
+
+
+
+
+-------------
 import pandas as pd
 import subprocess
 import io
