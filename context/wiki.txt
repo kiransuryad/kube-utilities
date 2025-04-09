@@ -4,7 +4,6 @@ import io
 import json
 
 def run_steampipe_query(sql):
-    """Execute a Steampipe SQL query and return as DataFrame."""
     try:
         proc = subprocess.run(
             ["steampipe", "query", "--output", "csv"],
@@ -17,20 +16,19 @@ def run_steampipe_query(sql):
         if not output.strip():
             return pd.DataFrame()
         return pd.read_csv(io.StringIO(output))
-    except subprocess.CalledProcessError as e:
-        print(f"Steampipe error:\n{e.stderr.decode()}")
-        return pd.DataFrame()
-    except pd.errors.EmptyDataError:
-        print("Steampipe query returned empty CSV.")
+    except Exception as e:
+        print(f"Error running Steampipe query:\n{e}")
         return pd.DataFrame()
 
-# 1️⃣ Get all S3 bucket names
+# Step 1: Get all S3 buckets
+print("Fetching bucket list...")
 bucket_query = "SELECT name FROM aws_s3_bucket;"
 df_buckets = run_steampipe_query(bucket_query)
 bucket_names = df_buckets["name"].tolist()
 
-# 2️⃣ Loop through buckets and retrieve their size from CloudWatch metrics
-bucket_sizes = []
+# Step 2: Get sizes from CloudWatch
+bucket_data = []
+print(f"Found {len(bucket_names)} buckets. Fetching sizes...")
 
 for bucket in bucket_names:
     metric_stat = {
@@ -55,25 +53,26 @@ for bucket in bucket_names:
 
     df_metric = run_steampipe_query(sql)
     if not df_metric.empty and "size_bytes" in df_metric.columns:
-        size_bytes = df_metric.iloc[0]["size_bytes"]
-        size_gb = round(size_bytes / 1024 / 1024 / 1024, 2)
-        bucket_sizes.append({
-            "Bucket Name": bucket,
-            "Size (GB)": size_gb,
-            "Timestamp": df_metric.iloc[0]["timestamp"]
+        size_gb = round(df_metric.iloc[0]["size_bytes"] / 1024 / 1024 / 1024, 2)
+        bucket_data.append({
+            "Bucket": bucket,
+            "Size_GB": size_gb
         })
 
-# 3️⃣ Convert to DataFrame and sort
-df_sizes = pd.DataFrame(bucket_sizes)
-df_sizes.sort_values(by="Size (GB)", ascending=False, inplace=True)
+# Step 3: Convert to DataFrame
+df_sizes = pd.DataFrame(bucket_data)
 
-# 4️⃣ Display Top 10
-print("\n📊 Top 10 S3 Buckets by Size (GB):\n")
-print(df_sizes.head(10).to_string(index=False))
+if df_sizes.empty:
+    print("No size data found for any buckets.")
+else:
+    df_sizes = df_sizes.sort_values(by="Size_GB", ascending=False)
+    print("\nTop 10 Buckets by Size:\n")
+    print(df_sizes.head(10).to_string(index=False))
 
-# 5️⃣ Optional: Save full results to CSV
-df_sizes.to_csv("s3_bucket_sizes.csv", index=False)
-print("\n✅ Full bucket size report saved to: s3_bucket_sizes.csv")
+    # Optional: Save full list
+    df_sizes.to_csv("s3_bucket_sizes_verified.csv", index=False)
+    print("\nSaved: s3_bucket_sizes_verified.csv")
+
 
 
 -----
