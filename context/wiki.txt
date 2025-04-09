@@ -2,6 +2,91 @@ import pandas as pd
 import subprocess
 import io
 import json
+from datetime import datetime, timedelta
+
+def run_steampipe_query(sql):
+    try:
+        proc = subprocess.run(
+            ["steampipe", "query", "--output", "csv"],
+            input=sql.encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True
+        )
+        output = proc.stdout.decode()
+        if not output.strip():
+            return pd.DataFrame()
+        return pd.read_csv(io.StringIO(output))
+    except Exception as e:
+        print(f"Steampipe query error:\n{e}")
+        return pd.DataFrame()
+
+# Get S3 buckets
+print("🔍 Fetching S3 buckets...")
+df_buckets = run_steampipe_query("SELECT name FROM aws_s3_bucket;")
+bucket_names = df_buckets["name"].tolist()
+print(f"✅ Found {len(bucket_names)} buckets")
+
+# Query metrics for each bucket
+bucket_data = []
+end_date = datetime.utcnow()
+start_date = end_date - timedelta(days=7)
+
+for bucket in bucket_names:
+    metric_stat = {
+        "Metric": {
+            "Namespace": "AWS/S3",
+            "MetricName": "BucketSizeBytes",
+            "Dimensions": [
+                {"Name": "BucketName", "Value": bucket},
+                {"Name": "StorageType", "Value": "StandardStorage"}
+            ]
+        },
+        "Stat": "Maximum"
+    }
+
+    sql = f"""
+    SELECT value AS size_bytes, timestamp
+    FROM aws_cloudwatch_metric_data_point
+    WHERE id = 'e1'
+      AND metric_stat = '{json.dumps(metric_stat)}'
+      AND timestamp BETWEEN TIMESTAMP '{start_date.strftime('%Y-%m-%dT00:00:00Z')}'
+                        AND TIMESTAMP '{end_date.strftime('%Y-%m-%dT00:00:00Z')}'
+    ORDER BY value DESC
+    LIMIT 1;
+    """
+
+    df_metric = run_steampipe_query(sql)
+    if not df_metric.empty and "size_bytes" in df_metric.columns:
+        size_gb = round(df_metric.iloc[0]["size_bytes"] / 1024 / 1024 / 1024, 2)
+        bucket_data.append({
+            "Bucket": bucket,
+            "Size_GB": size_gb,
+            "Timestamp": df_metric.iloc[0]["timestamp"]
+        })
+    else:
+        print(f"⚠️ No metric found for: {bucket}")
+
+# Final output
+df_sizes = pd.DataFrame(bucket_data)
+if df_sizes.empty:
+    print("❌ No valid S3 bucket size metrics found.")
+else:
+    df_sizes = df_sizes.sort_values(by="Size_GB", ascending=False)
+    print("\n📊 Top 10 S3 Buckets by Size:\n")
+    print(df_sizes.head(10).to_string(index=False))
+
+    df_sizes.to_csv("s3_bucket_sizes_final.csv", index=False)
+    print("\n✅ Full S3 size data saved to: s3_bucket_sizes_final.csv")
+
+
+
+
+------
+import pandas as pd
+import subprocess
+import io
+import json
 
 def run_steampipe_query(sql):
     try:
