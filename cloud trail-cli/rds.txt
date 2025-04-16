@@ -1,0 +1,35 @@
+Step 1: Restore the Aurora Cluster
+
+aws rds restore-db-cluster-from-snapshot \
+  --db-cluster-identifier xplane-restored-rdsc-keycloak-2025 \
+  --snapshot-identifier rds:xplane-nonprod-rdsc-ethoskeycloak-use1-2025-04-15-02-13 \
+  --engine aurora-postgresql \
+  --engine-version 11.21 \
+  --vpc-security-group-ids sg-09ae0845a4f5ae5427 \
+  --db-subnet-group-name xplane-nonprod-dnet-ethoskeycloak-use1 \
+  --kms-key-id arn:aws:kms:us-east-1:144795442067:key/4d3ae1e7-e8e8-4b83-83e4-b6470ecae000 \
+  --region us-east-1
+Breakdown:
+Cluster ID: xplane-restored-rdsc-keycloak-2025
+Snapshot ID: as seen from your automated backup
+VPC Security Group: sg-09ae0845a4f5ae5427 (same as original)
+Subnet Group: xplane-nonprod-dnet-ethoskeycloak-use1
+KMS Key: You’ve encryption enabled, so we preserve the same KMS key
+Step 2: Create a New Instance in the Restored Cluster
+
+aws rds create-db-instance \
+  --db-instance-identifier xplane-restored-keycloak-writer-2025 \
+  --db-cluster-identifier xplane-restored-rdsc-keycloak-2025 \
+  --engine aurora-postgresql \
+  --db-instance-class db.t4g.medium \
+  --region us-east-1
+Instance Notes:
+Writer instance class: You’re using db.t4g.medium in the original, so we match it.
+You can add a --publicly-accessible false if you want to be explicit (default is false inside private subnets).
+Optional: Add Reader Instance (if needed)
+aws rds create-db-instance \
+  --db-instance-identifier xplane-restored-keycloak-reader-2025 \
+  --db-cluster-identifier xplane-restored-rdsc-keycloak-2025 \
+  --engine aurora-postgresql \
+  --db-instance-class db.t4g.medium \
+  --region us-east-1
