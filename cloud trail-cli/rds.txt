@@ -1,3 +1,69 @@
+🔐 1. Login to PostgreSQL using psql
+psql -h xplane-restored-rdsc-keycloak-2025.cluster-xyz.us-east-1.rds.amazonaws.com \
+     -p 5432 \
+     -U keycloakadmin \
+     -d keycloak
+It will prompt for the password.
+If you want to avoid prompts, you can set PGPASSWORD:
+PGPASSWORD='yourpassword' psql -h ... -U ...
+🔍 2. SQL Commands to Explore the DB
+Show all databases
+
+\l
+Switch database
+
+\c keycloak
+List schemas
+
+\dn
+List tables in current schema
+
+\dt
+List tables in a specific schema (e.g. public)
+
+\dt public.*
+View table structure
+
+\d tablename
+View top 10 rows from a table
+
+SELECT * FROM tablename LIMIT 10;
+Count rows in a table
+
+SELECT COUNT(*) FROM tablename;
+📦 3. Export using pg_dump
+To dump a single database (SQL file format)
+
+pg_dump -h xplane-restored-rdsc-keycloak-2025.cluster-xyz.us-east-1.rds.amazonaws.com \
+        -U keycloakadmin \
+        -d keycloak \
+        -F p \
+        -f keycloak-backup.sql
+To dump in custom format (for pg_restore)
+
+pg_dump -h ... -U keycloakadmin -d keycloak -F c -f keycloak-backup.dump
+-F p = plain SQL
+-F c = custom format (binary, better for partial restores)
+♻️ 4. Restore to a New PostgreSQL DB
+A. Create a new DB first
+
+CREATE DATABASE keycloak_restored;
+B. Restore from .sql (plain format)
+
+psql -h target-host -U keycloakadmin -d keycloak_restored -f keycloak-backup.sql
+C. Restore from .dump (custom format)
+
+pg_restore -h target-host -U keycloakadmin -d keycloak_restored \
+           -Fc keycloak-backup.dump
+Add --clean to drop objects before recreating.
+Add --verbose for progress info.
+⚙️ Optional: Only Restore Schema
+pg_dump -U keycloakadmin -d keycloak --schema-only > schema.sql
+
+
+
+
+----------
 Step 1: Restore the Aurora Cluster
 
 aws rds restore-db-cluster-from-snapshot \
