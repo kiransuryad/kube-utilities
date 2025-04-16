@@ -1,3 +1,14 @@
+Summary: GitHub Migration - Current Status
+Migration Request Initiated: Requested FIS Migration team to migrate DTS Org and EDP Org repositories from github.worldpay.com to FIS GitHub Enterprise.
+Test Migration Completed: Repositories have been migrated to a temporary test location within FIS GitHub Enterprise.
+Validation in Progress: Teams are currently testing connectivity and pipeline integration from the new test repo location.
+Service Account Request Raised: A request for a service account in the new GitHub Enterprise environment has been raised and is currently in progress.
+Next Steps:
+Upon successful validation, the FIS GitHub Enterprise migration team will finalize the migration to the permanent destination.
+Teams will be notified of the new repo paths and necessary updates to pipelines and other integrations will be made accordingly.
+
+
+-------
 # aws_cost_full_summary.py
 
 import pandas as pd
