@@ -1,0 +1,34 @@
+Step-by-Step: Patch the Running Deployment
+1. Create the image pull secret (if not done yet)
+
+kubectl create secret docker-registry jfrog-docker-secret \
+  --docker-server=edas-docker-snapshot-local.docker.fis.dev \
+  --docker-username=<your-username> \
+  --docker-password=<your-api-key> \
+  --docker-email=you@example.com \
+  -n tools
+2. Patch your deployment to use the secret
+
+kubectl patch deployment tools-pod \
+  -n tools \
+  --type='json' \
+  -p='[{"op":"add","path":"/spec/template/spec/imagePullSecrets","value":[{"name":"jfrog-docker-secret"}]}]'
+✅ This adds the imagePullSecrets field to your pod spec, without altering anything else.
+
+3. Restart the deployment
+
+kubectl rollout restart deployment tools-pod -n tools
+4. Watch pod startup
+
+kubectl get pods -n tools -w
+Once you see the pod go from ContainerCreating to Running, you're good!
+
+✅ Once Tested Successfully
+Update your Helm chart’s values.yaml:
+imagePullSecrets:
+  - name: jfrog-docker-secret
+Ensure your deployment.yaml uses:
+spec:
+  imagePullSecrets:
+    {{- toYaml .Values.imagePullSecrets | nindent 6 }}
+Push this to Git, and re-deploy using Harness.
