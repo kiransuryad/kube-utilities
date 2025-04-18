@@ -1,3 +1,32 @@
+#!/bin/bash
+
+echo "Ensuring secret 'jfrog-docker-secret' exists or is updated..."
+
+ENCODED_AUTH=$(echo -n "${HARNESS_JFROG_USERNAME}:${HARNESS_JFROG_API_KEY}" | base64)
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jfrog-docker-secret
+  namespace: tools
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: $(echo -n '{
+    "auths": {
+      "edas-docker-snapshot-local.docker.fis.dev": {
+        "username": "'${HARNESS_JFROG_USERNAME}'",
+        "password": "'${HARNESS_JFROG_API_KEY}'",
+        "email": "your@email.com",
+        "auth": "'${ENCODED_AUTH}'"
+      }
+    }
+  }' | base64 -w 0)
+EOF
+
+
+
+----
 Step 1: Update values.yaml in Your Helm Chart
 Add this:
 
