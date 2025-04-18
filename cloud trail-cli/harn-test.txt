@@ -1,3 +1,41 @@
+Step 1: Update values.yaml in Your Helm Chart
+Add this:
+
+imagePullSecrets:
+  - name: jfrog-docker-secret
+Update your templates/deployment.yaml if it isn’t already:
+
+spec:
+  imagePullSecrets:
+    {{- toYaml .Values.imagePullSecrets | nindent 6 }}
+This ensures Harness will always use the correct pull secret when deploying the chart.
+
+⚙️ Step 2: Add a Shell Script Step in Harness (Before Helm Deploy)
+Purpose:
+
+Ensure the secret exists (idempotent), skip if already created.
+
+📄 Script Content:
+
+#!/bin/bash
+
+kubectl get secret jfrog-docker-secret -n tools >/dev/null 2>&1
+
+if [ $? -ne 0 ]; then
+  echo "Secret not found. Creating..."
+  kubectl create secret docker-registry jfrog-docker-secret \
+    --docker-server=edas-docker-snapshot-local.docker.fis.dev \
+    --docker-username=${HARNESS_JFROG_USERNAME} \
+    --docker-password=${HARNESS_JFROG_API_KEY} \
+    --docker-email=your@email.com \
+    -n tools
+else
+  echo "Secret already exists. Skipping creation."
+fi
+
+
+
+---
 Step-by-Step: Patch the Running Deployment
 1. Create the image pull secret (if not done yet)
 
