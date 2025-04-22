@@ -8,6 +8,17 @@ volumes:
     secret:
       secretName: keycloak-tls
 
+extraVolumeMounts:
+  - name: tls-secret
+    mountPath: /etc/x509/https
+    readOnly: true
+
+extraVolumes:
+  - name: tls-secret
+    secret:
+      secretName: keycloak-tls
+
+
 
 extraEnv:
   - name: KC_HTTP_ENABLED
