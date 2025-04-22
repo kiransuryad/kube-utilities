@@ -1,3 +1,34 @@
+volumeMounts:
+  - name: tls-secret
+    mountPath: /etc/x509/https
+    readOnly: true
+
+volumes:
+  - name: tls-secret
+    secret:
+      secretName: keycloak-tls
+
+
+extraEnv:
+  - name: KC_HTTP_ENABLED
+    value: "false"
+  - name: KC_HTTPS_PORT
+    value: "8443"
+  - name: KC_HTTPS_CERTIFICATE_FILE
+    value: /etc/x509/https/tls.crt
+  - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+    value: /etc/x509/https/tls.key
+  - name: KC_HOSTNAME
+    value: keycloak.test.internal
+  - name: KC_HOSTNAME_STRICT
+    value: "true"
+  - name: KC_HOSTNAME_STRICT_HTTPS
+    value: "true"
+
+
+
+
+
 {{- if .Values.tls.enabled }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
