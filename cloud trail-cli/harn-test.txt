@@ -1,3 +1,26 @@
+Hi Diwakar and Team,
+
+Thanks for the update and for sharing the details regarding the POC migration of the DTS and EDP organizations. We appreciate the effort and coordination so far.
+
+We have reviewed the current status, including the information shared below regarding the migration of 405 DTS repositories and the estimated 14-hour execution window (in batches due to the API limits per user). The test migration has been successfully validated from our side, including access from both local environments and pipelines.
+
+However, we would like to request that the final cutover migration be held until next week, as we are currently in the process of:
+
+Finalizing onboarding to the capital-markets organization in FIS GitHub.
+Creating the required team structure and access controls under capital-markets.
+Coordinating the update of CI/CD pipelines to point to the new GitHub org structure post-cutover.
+We will confirm once all prerequisites are in place, and request that the full migration be scheduled accordingly. This will help ensure a smooth transition without any disruptions to ongoing support operations.
+
+Let us know if this impacts any of your planning or if you need any additional information from our side in the meantime.
+
+Thanks again for your support.
+
+Best regards,
+Kiran
+
+
+
+----------
 Hi All,
 
 Thanks to the GitHub migration team for their excellent coordination and support so far.
