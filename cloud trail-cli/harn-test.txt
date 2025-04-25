@@ -1,3 +1,46 @@
+Hi All,
+
+Thanks to the GitHub migration team for their excellent coordination and support so far.
+
+✅ Current Status
+We have been provided with a test location in the new FIS GitHub where the migrated repositories are available.
+We’ve successfully validated access both locally and through our pipelines, confirming that integrations are functioning as expected.
+
+🔄 Next Steps
+Onboarding to capital-markets Organization:
+In the upcoming week, we will onboard into the FIS GitHub capital-markets team.
+This will allow us to create our child team and follow the standard access pattern used by capital-markets.
+Repo Migration:
+Once onboarding is complete, the GitHub migration team will migrate the remaining repositories to the capital-markets org over the weekend.
+Post-migration, we will update our CI/CD pipelines to point to the new FIS GitHub locations.
+Post-Migration Archival:
+After cutover, repositories in github.worldpay.com will be archived.
+Teams will retain read-only access, and write/edit permissions will be removed.
+🛠️ Action Required – Service Accounts Setup
+@Sushanth, @John –
+Could you please confirm if your teams were able to:
+
+Create Service Accounts in FIS GitHub?
+Generate Personal Access Tokens (PATs) for these service accounts?
+📋 FIS GitHub Onboarding Checklist
+For anyone still waiting to be onboarded to FIS GitHub, please follow the steps below:
+
+Raise access request to FIS GitHub via Dash.
+Request creation of FIS GitHub Service Account via ServiceNow.
+Once created, retrieve service account credentials (password) from CyberArk.
+Login with service account and generate Fine-Grained PATs required for pipeline access.
+Raise onboarding request to capital-markets team in FIS GitHub using [this link – insert link here].
+After migration team confirms cutover is complete, verify access and update your workflows accordingly.
+⚠️ Please Note:
+The cutover migration is planned for next week, after which write access will be disabled on github.worldpay.com.
+Let us know ASAP if you have any concerns or blockers related to this transition.
+
+Thanks & Regards,
+Kiran Gonela
+
+
+
+----
 volumeMounts:
   - name: tls-secret
     mountPath: /etc/x509/https
