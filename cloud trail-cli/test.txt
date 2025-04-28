@@ -1,3 +1,74 @@
+Option 1: Extract the dockerconfigjson and manually test
+
+Your Kubernetes docker-registry type secret (jfrog-docker-secret) contains a base64-encoded .dockerconfigjson.
+You can decode it locally and try a docker login manually.
+
+Here's how:
+
+Step 1: Get the current secret
+kubectl get secret jfrog-docker-secret -n keycloak-eda -o jsonpath="{.data.\.dockerconfigjson}" | base64 --decode > dockerconfig.json
+✅ This will create a local dockerconfig.json file.
+
+Step 2: Inspect the dockerconfig.json
+Open it:
+
+cat dockerconfig.json
+You should see something like:
+
+{
+  "auths": {
+    "edas-docker-snapshot-local.docker.fis.dev": {
+      "username": "your-username",
+      "password": "your-password-or-token",
+      "auth": "base64(username:password)"
+    }
+  }
+}
+✅ Confirm the registry hostname matches. ✅ Confirm username/password look correct.
+
+Step 3: Try Docker Login Using Extracted Details
+Run:
+
+docker login edas-docker-snapshot-local.docker.fis.dev
+It will ask for username and password:
+
+Use the username from the JSON
+Use the password from the JSON
+If login succeeds ✅, your secret is correct.
+If login fails ❌ (401 Unauthorized), your secret is bad and needs recreation.
+
+Option 2: Simulate Kubernetes Pull with Test Pod
+
+If you want, you can also launch a dummy pod to test the pull separately.
+
+Sample YAML:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-image-pull
+spec:
+  containers:
+  - name: test
+    image: edas-docker-snapshot-local.docker.fis.dev/test/hydra-custom-keycloak-themes:0.0.1
+    command: ["sleep", "3600"]
+  imagePullSecrets:
+  - name: jfrog-docker-secret
+  restartPolicy: Never
+Apply:
+
+kubectl apply -f test-image-pull.yaml -n keycloak-eda
+Then check:
+
+kubectl describe pod test-image-pull -n keycloak-eda
+✅ If it pulls successfully, your secret is good. ❌ If it fails with 401 Unauthorized, secret is wrong.
+
+
+
+
+
+
+--------
 I hope you are doing well.
 
 To provide you with some context, we are currently hosting our Ethos Keycloak application inside our EDA cluster. As part of our ongoing initiatives, we are now migrating Ethos Keycloak into a CIO-managed AWS account.
