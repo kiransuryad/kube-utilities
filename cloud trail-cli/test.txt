@@ -1,4 +1,12 @@
+I hope you are doing well.
 
+To provide you with some context, we are currently hosting our Ethos Keycloak application inside our EDA cluster. As part of our ongoing initiatives, we are now migrating Ethos Keycloak into a CIO-managed AWS account.
+
+At present, our Keycloak application is integrated with the worldpay.local LDAP server. When we reached out to the team managing the LDAP service, we were provided with the updated server details listed below.
+
+As part of the migration, we would like to continue leveraging this LDAP service from within our CIO-managed AWS accounts. Could you please advise if this approach is recommended? If there are any concerns or limitations with using the LDAP server in this way, we would appreciate your suggestions on a better or more appropriate alternative.
+
+Looking forward to your guidance.
 
 
 import pandas as pd
