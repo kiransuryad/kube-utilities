@@ -1,3 +1,19 @@
+Subject: Confirmation of Access and Responsibilities Post Cut-over
+
+Current State:
+We currently have access to github.worldpay.com, with full ability to view, edit, and manage the repositories hosted there.
+
+Final State (Post Cut-over):
+You will proceed with your cut-over as planned. However, our access to github.worldpay.com will remain unchanged. The repositories will not be archived and will continue to be accessible in their current state.
+
+Actions and Responsibilities:
+
+We will retain the ability to make updates to the existing repositories, particularly in case of emergency or critical requests.
+We take full responsibility for keeping these repositories in sync with the new repositories following your cut-over.
+
+
+
+------------
 Option 1: Extract the dockerconfigjson and manually test
 
 Your Kubernetes docker-registry type secret (jfrog-docker-secret) contains a base64-encoded .dockerconfigjson.
