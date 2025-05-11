@@ -1,3 +1,8 @@
+/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080/auth --realm master --user keycloakadmin --password <pwd>
+
+
+
+----
 DELETE FROM credential WHERE user_id = '<user_id>';
 
 INSERT INTO credential (
