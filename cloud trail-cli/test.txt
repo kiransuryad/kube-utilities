@@ -1,3 +1,17 @@
+DELETE FROM credential WHERE user_id = '<user_id>';
+
+INSERT INTO credential (
+  id, type, created_date, user_id, secret_data, credential_data, priority
+) VALUES (
+  gen_random_uuid(), 'password', extract(epoch from now()) * 1000,
+  '<user_id>',
+  '{"value":"UyOaezXWyCUX3lDYaQlGoN5HOq5F3SRX0Swkl4hIH4nr+IdJxtqLs9YV8rUu7u4tQo+dW9IvN6a1E4G/Ci8Bfg==", "salt":"kyFfTdoKlpUgaPikzA0iwA=="}',
+  '{"hashIterations":27500,"algorithm":"pbkdf2-sha256","additionalParameters":{}}',
+  0
+);
+
+
+---
 INSERT INTO credential (
   id, type, created_date, user_id, secret_data, credential_data
 ) VALUES (
