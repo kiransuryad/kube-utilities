@@ -1,3 +1,17 @@
+INSERT INTO user_role_mapping (user_id, role_id)
+SELECT u.id, r.id
+FROM user_entity u, keycloak.role r
+WHERE u.username = 'keycloakadmnew'
+  AND u.realm_id = '633a1156-997c-46d9-babe-6c62241c466f'
+  AND r.name = 'realm-admin'
+  AND r.client_role = true
+  AND r.client_id = '6d1fc753-6d23-43b0-aeb1-2debb1728b86';
+
+
+
+----------
+
+
 
 -- Grant full realm admin privileges from the realm-management client
 INSERT INTO user_role_mapping (user_id, role_id)
