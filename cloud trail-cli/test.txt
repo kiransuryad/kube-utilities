@@ -1,3 +1,4 @@
+ThisIsNewBeginning@EthFIS
 -- 1. Create new user
 INSERT INTO user_entity (
   id, email, email_constraint, enabled, email_verified,
