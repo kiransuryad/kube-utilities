@@ -1,3 +1,33 @@
+FROM node:18-alpine
+
+# Create user for consistency with your base image
+RUN addgroup -S keycloakthemes && adduser -S -u 1000 -G keycloakthemes keycloakthemes
+USER keycloakthemes
+WORKDIR /home/keycloakthemes
+
+# Copy your custom Keycloak theme first
+COPY containers/keycloak-themes/keycloak-theme/theme/worldpay /opt/keycloak/themes/worldpay
+
+# Init npm and install required frontend packages
+RUN npm init -y && \
+    npm install patternfly zocial-css && \
+    mkdir -p /opt/keycloak/themes/worldpay/login/resources/css && \
+    cp node_modules/patternfly/dist/css/patternfly.min.css \
+       node_modules/patternfly/dist/css/patternfly-additions.min.css \
+       node_modules/zocial-css/css/zocial.css \
+       /opt/keycloak/themes/worldpay/login/resources/css/
+
+
+
+----
+styles=css/patternfly.min.css css/patternfly-additions.min.css css/zocial.css css/login.css css/styles.css
+
+
+
+
+
+
+---------
 curl -X POST https://login.microsoftonline.com/e3f19d08-34c8-4b15-a0b4-18916aa6c575/oauth2/v2.0/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials" \
