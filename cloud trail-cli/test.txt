@@ -1,5 +1,38 @@
 FROM node:18-alpine
 
+RUN apk add --no-cache unzip wget
+
+# Create non-root user
+RUN addgroup -S keycloakthemes && \
+    adduser -S -u 1001 -G keycloakthemes keycloakthemes
+
+USER keycloakthemes
+WORKDIR /home/keycloakthemes
+
+# Copy your Keycloak themes
+COPY containers/keycloak-themes/keycloak-theme/theme /opt/keycloak/themes/
+
+# Install PatternFly and download full Zocial assets (css + fonts)
+RUN npm init -y && \
+    npm install patternfly && \
+    wget -q https://github.com/smcllns/css-social-buttons/archive/refs/tags/v1.4.0.zip -O /tmp/zocial.zip && \
+    unzip -q /tmp/zocial.zip -d /tmp && \
+    for theme in worldpay aric ethos prod-local; do \
+      mkdir -p /opt/keycloak/themes/$theme/login/resources/patternfly && \
+      mkdir -p /opt/keycloak/themes/$theme/login/resources/zocial && \
+      # Copy PatternFly
+      cp -r node_modules/patternfly/dist/* /opt/keycloak/themes/$theme/login/resources/patternfly/ && \
+      # Copy all Zocial CSS + fonts
+      cp /tmp/css-social-buttons-1.4.0/css/* /opt/keycloak/themes/$theme/login/resources/zocial/; \
+    done
+
+
+styles=patternfly/css/patternfly.min.css patternfly/css/patternfly-additions.min.css zocial/zocial.css css/login.css css/styles.css
+
+
+-------
+FROM node:18-alpine
+
 # Set working directory (optional, can be anywhere since we use absolute paths)
 WORKDIR /tmp
 
