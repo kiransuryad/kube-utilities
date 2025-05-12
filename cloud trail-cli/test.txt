@@ -1,5 +1,36 @@
 FROM node:18-alpine
 
+# Safe user creation
+RUN addgroup -S keycloakthemes || true && \
+    adduser -S -u 1000 -G keycloakthemes keycloakthemes || true
+
+USER keycloakthemes
+WORKDIR /home/keycloakthemes
+
+# Copy all themes into a temp location
+COPY containers/keycloak-themes/keycloak-theme/theme /opt/keycloak/themes/
+
+# Install frontend dependencies
+RUN npm init -y && \
+    npm install patternfly zocial-css && \
+    for theme in worldpay aric ethos prod-local; do \
+      mkdir -p /opt/keycloak/themes/$theme/login/resources/css && \
+      cp node_modules/patternfly/dist/css/patternfly.min.css \
+         node_modules/patternfly/dist/css/patternfly-additions.min.css \
+         node_modules/zocial-css/css/zocial.css \
+         /opt/keycloak/themes/$theme/login/resources/css/; \
+    done
+
+
+
+-----
+styles=css/patternfly.min.css css/patternfly-additions.min.css css/zocial.css css/login.css css/styles.css
+
+
+
+----
+FROM node:18-alpine
+
 # Setup user and working directory
 RUN addgroup -S keycloakthemes && adduser -S -u 1000 -G keycloakthemes keycloakthemes
 USER keycloakthemes
