@@ -1,3 +1,13 @@
+curl -X POST https://login.microsoftonline.com/e3f19d08-34c8-4b15-a0b4-18916aa6c575/oauth2/v2.0/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=ca8b52f7-0708-44bb-bd07-b692ae7449ff" \
+  -d "client_secret=51e64f0c-8c56-4440-86b2-748d23409dea" \
+  -d "scope=https://graph.microsoft.com/.default"
+
+
+
+----
 INSERT INTO user_role_mapping (user_id, role_id)
 SELECT u.id, r.id
 FROM user_entity u, keycloak.role r
