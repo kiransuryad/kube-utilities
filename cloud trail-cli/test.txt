@@ -1,5 +1,30 @@
 FROM node:18-alpine
 
+# Create the user once
+RUN addgroup -S keycloakthemes && \
+    adduser -S -u 1000 -G keycloakthemes keycloakthemes
+
+USER keycloakthemes
+WORKDIR /home/keycloakthemes
+
+# Copy themes
+COPY containers/keycloak-themes/keycloak-theme/theme /worldpay-themes/
+
+# Install frontend dependencies and copy shared CSS to each theme
+RUN npm init -y && \
+    npm install patternfly zocial-css && \
+    for theme in worldpay aric ethos prod-local; do \
+      mkdir -p /worldpay-themes/$theme/login/resources/css && \
+      cp node_modules/patternfly/dist/css/patternfly.min.css \
+         node_modules/patternfly/dist/css/patternfly-additions.min.css \
+         node_modules/zocial-css/css/zocial.css \
+         /worldpay-themes/$theme/login/resources/css/; \
+    done
+
+
+---
+FROM node:18-alpine
+
 # Safe user creation
 RUN addgroup -S keycloakthemes || true && \
     adduser -S -u 1000 -G keycloakthemes keycloakthemes || true
