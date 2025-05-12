@@ -1,3 +1,36 @@
+Meeting Summary
+Subject: GitHub Migration – DTS & EDP Organizations
+Date: [Insert Date of Call]
+Attendees: [Optional: List names if needed]
+
+Summary:
+Thank you for the call today. Below is a summary of the key discussion points and next steps related to the migration of DTS and EDP organizations from github.worldpay.com to FIS.github.com.
+
+Key Points Discussed:
+
+Migration Ownership:
+Kailash and team will continue to lead the migration efforts from github.worldpay.com to FIS.github.com.
+Access to Existing Repositories:
+We will retain access to github.worldpay.com repositories until the end of June 2025.
+Post-Migration Validation (Target: End of May 2025):
+Once migration is complete, we will:
+Validate and test the new repositories.
+Update our CI/CD pipelines to reference the new repository locations.
+Ensure there are no issues impacting production support.
+Decommissioning Legacy Access:
+Upon successful validation, we will formally remove our dependency on the old repositories.
+Access to github.worldpay.com will be revoked in a phased manner to monitor for any remaining dependencies.
+The goal is to ensure a clean and complete transition by the end of June 2025.
+Next Steps:
+
+Migration to continue under Kailash’s ownership.
+Our team to complete testing and pipeline updates by end of May 2025.
+Plan phased deactivation of github.worldpay.com access post-validation.
+
+
+
+
+-------------------------
 FROM node:18-alpine
 
 RUN apk add --no-cache unzip wget
