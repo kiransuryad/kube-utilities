@@ -1,31 +1,32 @@
 FROM node:18-alpine
 
-# Set working directory
-WORKDIR /opt/keycloak
+# Set working directory (optional, can be anywhere since we use absolute paths)
+WORKDIR /tmp
 
-# Copy theme files
-COPY keycloak-themes/keycloak-theme/ /opt/keycloak/worldpay-themes/
+# Copy theme files into the correct path
+COPY keycloak-themes/keycloak-theme/ /worldpay-themes/
 
-# Install npm packages and download shared CSS files as root
+# Install dependencies and download shared CSS files as root
 RUN npm install patternfly && \
     mkdir -p /tmp/zocial && \
     wget -q https://raw.githubusercontent.com/samcollins/css-social-buttons/master/zocial.css -O /tmp/zocial/zocial.css
 
-# Create non-root user and set ownership
+# Create a non-root user and ensure proper permissions on /worldpay-themes
 RUN adduser -S -u 1001 keycloakthemes && \
-    chown -R keycloakthemes:keycloakthemes /opt/keycloak
+    chown -R keycloakthemes:keycloakthemes /worldpay-themes
 
 # Switch to non-root user
 USER keycloakthemes
 
-# Copy shared CSS files into each theme
+# Copy shared CSS into each theme
 RUN for theme in worldpay aric ethos prod-local; do \
-      mkdir -p /opt/keycloak/worldpay-themes/$theme/login/resources/css && \
+      mkdir -p /worldpay-themes/$theme/login/resources/css && \
       cp /tmp/zocial/zocial.css \
          node_modules/patternfly/dist/css/patternfly.min.css \
          node_modules/patternfly/dist/css/patternfly-additions.min.css \
-         /opt/keycloak/worldpay-themes/$theme/login/resources/css/; \
+         /worldpay-themes/$theme/login/resources/css/; \
     done
+
 
 
 
