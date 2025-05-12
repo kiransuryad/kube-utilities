@@ -1,5 +1,32 @@
 FROM node:18-alpine
 
+# Create a safe non-root user
+RUN addgroup -S keycloakthemes && \
+    adduser -S -u 1001 -G keycloakthemes keycloakthemes
+
+USER keycloakthemes
+WORKDIR /home/keycloakthemes
+
+# Copy your existing themes into the image
+COPY containers/keycloak-themes/keycloak-theme/theme /opt/keycloak/themes/
+
+# Install frontend dependencies and inject CSS into each theme
+RUN npm init -y && \
+    npm install patternfly && \
+    mkdir -p /tmp/zocial && \
+    wget -q https://raw.githubusercontent.com/samcollins/css-social-buttons/master/zocial.css -O /tmp/zocial/zocial.css && \
+    for theme in worldpay aric ethos prod-local; do \
+      mkdir -p /opt/keycloak/themes/$theme/login/resources/css && \
+      cp /tmp/zocial/zocial.css \
+         node_modules/patternfly/dist/css/patternfly.min.css \
+         node_modules/patternfly/dist/css/patternfly-additions.min.css \
+         /opt/keycloak/themes/$theme/login/resources/css/; \
+    done
+
+
+-----
+FROM node:18-alpine
+
 # 1. Add user & group only once
 RUN addgroup -S keycloakthemes && \
     adduser -S -u 1000 -G keycloakthemes keycloakthemes
