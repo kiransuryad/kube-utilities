@@ -1,5 +1,43 @@
 FROM node:18-alpine
 
+# Setup user and working directory
+RUN addgroup -S keycloakthemes && adduser -S -u 1000 -G keycloakthemes keycloakthemes
+USER keycloakthemes
+WORKDIR /home/keycloakthemes
+
+# Copy all theme folders
+COPY containers/keycloak-themes/keycloak-theme/theme /opt/keycloak/themes/
+
+# Install required frontend CSS packages
+RUN npm init -y && \
+    npm install patternfly zocial-css && \
+    mkdir -p /opt/keycloak/themes/common-resources/css && \
+    cp node_modules/patternfly/dist/css/patternfly.min.css \
+       node_modules/patternfly/dist/css/patternfly-additions.min.css \
+       node_modules/zocial-css/css/zocial.css \
+       /opt/keycloak/themes/common-resources/css/
+
+
+---
+
+styles=../common-resources/css/patternfly.min.css \
+       ../common-resources/css/patternfly-additions.min.css \
+       ../common-resources/css/zocial.css \
+       css/login.css \
+       css/styles.css
+---
+---
+
+------
+
+
+
+
+
+
+-------
+FROM node:18-alpine
+
 # Create user for consistency with your base image
 RUN addgroup -S keycloakthemes && adduser -S -u 1000 -G keycloakthemes keycloakthemes
 USER keycloakthemes
