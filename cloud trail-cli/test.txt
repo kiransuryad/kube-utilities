@@ -1,3 +1,36 @@
+locals {
+  allowed_ingress_ips = jsondecode(file("${path.module}/allowed_ips.json"))
+}
+
+resource "aws_security_group_rule" "alb_ingress_whitelist" {
+  for_each = toset(local.allowed_ingress_ips)
+
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = [each.key]
+  security_group_id = aws_security_group.test_alb_sec_grp.id
+  description       = "Allow HTTPS from ${each.key}"
+}
+
+output "allowed_ingress_ips_checksum" {
+  value = filesha256("${path.module}/allowed_ips.json")
+}
+
+
+
+[
+  "1.2.3.4/32",
+  "5.6.7.8/32",
+  "203.0.113.45/32",
+  "198.51.100.12/32",
+  "192.168.10.0/24"
+]
+
+
+
+------------
 Meeting Summary
 Subject: GitHub Migration – DTS & EDP Organizations
 Date: [Insert Date of Call]
