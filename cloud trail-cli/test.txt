@@ -1,3 +1,60 @@
+/* =============================================
+   Style: Show/Hide Password Inline Toggle Button
+   Location: resources/css/login.css
+   ============================================= */
+
+/* Ensure container can position children absolutely */
+#kc-form-password,
+.form-group.password {
+  position: relative;
+}
+
+/* Style the toggle button */
+button[data-password-toggle] {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #555;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  z-index: 2;
+}
+
+/* Optional hover/focus styles for better UX */
+button[data-password-toggle]:hover,
+button[data-password-toggle]:focus {
+  color: #000;
+  outline: none;
+}
+
+/* Replace emoji with elegant Unicode icon */
+button[data-password-toggle]::before {
+  content: '🔓'; /* Use open lock as the default symbol */
+  margin-right: 4px;
+}
+
+/* Optional: if data-password="hidden" toggle is used dynamically in JS, this switches icons */
+/*
+button[data-password-toggle][data-password="hidden"]::before {
+  content: '🔒';  // Closed lock when password is hidden
+}
+*/
+
+/* Adjust input padding if needed to make room inside the field */
+input[name="password"] {
+  padding-right: 40px;
+}
+
+
+
+
+---------
 locals {
   allowed_ingress_ips = jsondecode(file("${path.module}/allowed_ips.json"))
 }
