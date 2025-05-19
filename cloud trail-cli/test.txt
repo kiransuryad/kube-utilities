@@ -34,6 +34,11 @@ input[name="password"] {
 }
 
 
+#kc-form-login .form-group:nth-child(3) button {
+  background-color: red !important;
+}
+
+
 
 ------
 /* =============================================
