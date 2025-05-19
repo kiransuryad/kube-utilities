@@ -1,4 +1,43 @@
- body:before {
+/* Debug banner to confirm CSS loaded */
+body:before {
+  content: "✅ custom.css loaded";
+  display: block;
+  color: green;
+  font-size: 14px;
+  background: #fff7d4;
+  padding: 8px;
+}
+
+/* Ensure parent container is positioned relative */
+#kc-form-password,
+.form-group.password {
+  position: relative;
+}
+
+/* Style the Show/Hide password button */
+input[name="password"] + button[data-password-toggle] {
+  position: absolute !important;
+  top: 50% !important;
+  right: 10px !important;
+  transform: translateY(-50%) !important;
+  background: #f0f0f0 !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  color: #333 !important;
+  font-size: 0.9rem !important;
+  padding: 4px 8px !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+}
+
+/* Add space inside input box for the button */
+input[name="password"] {
+  padding-right: 60px !important;
+}
+
+
+--------
+body:before {
   content: "✅ custom.css loaded";
   display: block;
   color: green;
