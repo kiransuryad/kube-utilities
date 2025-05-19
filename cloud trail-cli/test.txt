@@ -1,55 +1,30 @@
-echo "body { background-color: yellow !important; }" >> login.css
-
-
----
-button[data-password-toggle] {
-  background: red !important;
-  position: absolute !important;
-  top: 50% !important;
-  right: 10px !important;
+ body:before {
+  content: "✅ custom.css loaded";
+  display: block;
+  color: green;
+  font-size: 14px;
+  background: #fff7d4;
+  padding: 8px;
 }
 
-
-----
-/* Ensure parent is positioned for inline layout */
-#kc-form-password,
-.form-group.password {
-  position: relative;
-}
-
-/* Stronger selector to override PatternFly */
-#kc-form-password button[data-password-toggle],
-#kc-form-buttons + div button[data-password-toggle] {
+/* Real selector for your password toggle */
+input[name="password"] + button[data-password-toggle] {
   position: absolute !important;
   top: 50% !important;
   right: 12px !important;
   transform: translateY(-50%) !important;
   background: transparent !important;
-  border: none !important;
+  color: #000 !important;
   font-size: 1rem !important;
-  font-weight: bold !important;
-  color: #555 !important;
-  cursor: pointer !important;
-  padding: 4px !important;
-  line-height: 1 !important;
-  z-index: 2 !important;
+  z-index: 5 !important;
+  border: 1px solid #ccc !important;
 }
 
-/* Optional icon prefix */
-#kc-form-password button[data-password-toggle]::before {
-  content: '🔓';
-  margin-right: 4px;
-}
-
-/* Extra space inside input field */
+/* Ensure space inside the input for the button */
 input[name="password"] {
   padding-right: 40px !important;
 }
 
-
-#kc-form-login .form-group:nth-child(3) button {
-  background-color: red !important;
-}
 
 
 
