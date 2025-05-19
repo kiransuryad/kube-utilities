@@ -1,3 +1,7 @@
+echo "body { background-color: yellow !important; }" >> login.css
+
+
+---
 button[data-password-toggle] {
   background: red !important;
   position: absolute !important;
