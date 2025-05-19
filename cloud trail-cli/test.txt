@@ -1,3 +1,12 @@
+button[data-password-toggle] {
+  background: red !important;
+  position: absolute !important;
+  top: 50% !important;
+  right: 10px !important;
+}
+
+
+----
 /* Ensure parent is positioned for inline layout */
 #kc-form-password,
 .form-group.password {
