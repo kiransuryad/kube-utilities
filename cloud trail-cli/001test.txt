@@ -1,3 +1,43 @@
+Subject: New Keycloak Deployment – Access Details & Next Steps for Azure AD Integration
+
+Good morning all,
+
+We’re pleased to inform you that the new Keycloak instance has been successfully deployed inside the CIO-managed AWS Account. You can access it using the following URL:
+
+🔗 [<Insert New Keycloak URL>]
+
+This is a fresh deployment of Keycloak version 26, and we’ve migrated our existing non-productive data from the legacy Keycloak 18 environment. As you're aware, Keycloak has transitioned from the JBoss-based model to Quarkus, which brought several core configuration changes.
+
+✅ What’s Changed:
+Keycloak Version Upgrade: From v18 (JBoss) to v26 (Quarkus)
+Authentication Flow: We have replaced the older prod.local offline LDAP authentication with Azure Active Directory (prod.cloud AD) integration.
+Login Method: You can now access the admin console using your Azure AD (fisglobal) credentials.
+🔍 Action Required:
+Please take a moment to access the new environment and verify if:
+
+You can log in successfully using your Azure AD credentials.
+Your expected data is visible and accessible.
+📌 Next Steps – Azure AD Access Control:
+We would appreciate your suggestions and support on the following:
+
+Access Scope:
+Should we allow login access to all users with a fisglobal.com email address?
+Default Permissions:
+What should be the default role or permission for users who are able to authenticate via Azure AD?
+Role Assignments:
+What is the preferred approach for assigning roles and privileges to specific users or groups?
+Azure AD Controls:
+Do we have any existing access restrictions or group-based policies defined at the Azure AD level that we can leverage?
+If you have any information or policies regarding this, please share them. Otherwise, we can coordinate with the Azure AD team to define the right approach for access governance moving forward.
+
+Looking forward to your feedback and guidance.
+
+Best regards,
+Kiran Gonela
+
+
+
+-------
 Summary: GitHub Migration - Current Status
 Migration Request Initiated: Requested FIS Migration team to migrate DTS Org and EDP Org repositories from github.worldpay.com to FIS GitHub Enterprise.
 Test Migration Completed: Repositories have been migrated to a temporary test location within FIS GitHub Enterprise.
