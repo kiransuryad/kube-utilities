@@ -1,3 +1,28 @@
+sh '''
+  echo "Helm version check:"
+  helm version
+
+  echo "Docker version check:"
+  docker version || echo "Docker not installed or not needed"
+
+  echo "Enable OCI support"
+  export HELM_EXPERIMENTAL_OCI=1
+
+  echo "Attempting OCI helm pull"
+  helm pull oci://registry-1.docker.io/bitnamicharts/metrics-server --version 7.4.5
+
+  echo "List downloaded files:"
+  ls -l metrics-server-*.tgz || echo "Expected .tgz chart not found"
+
+  echo "Inspect file type:"
+  file metrics-server-*.tgz || echo "File inspection failed"
+
+  echo "Optional: print SHA256 for integrity"
+  sha256sum metrics-server-*.tgz || echo "Checksum failed"
+'''
+
+
+-------
 Subject: New Keycloak Deployment – Access Details & Next Steps for Azure AD Integration
 
 Good morning all,
