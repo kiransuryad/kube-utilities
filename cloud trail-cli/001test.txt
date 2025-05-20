@@ -1,3 +1,50 @@
+Step-by-Step: Get Admin Token
+
+🔐 1. Login with the admin-cli client
+Use a POST request to the token endpoint:
+
+export KEYCLOAK_URL="http://<keycloak-host-or-svc>:8080"  # or use HTTPS if exposed externally
+
+export TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=<admin-user>" \
+  -d "password=<admin-password>" \
+  -d "grant_type=password" \
+  -d "client_id=admin-cli" \
+  | jq -r .access_token)
+🔐 Replace:
+<admin-user> → your admin username (usually admin)
+<admin-password> → admin password
+If not using jq, remove the | jq -r .access_token part and parse manually.
+🧪 2. Test the Token (Optional)
+You can inspect the token to ensure it was retrieved:
+
+echo $TOKEN | cut -c1-50
+🚀 3. Use the Token in Admin API
+Now you can make admin requests, like updating a realm:
+
+curl -i -X PUT "$KEYCLOAK_URL/admin/realms/master" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "displayName": "Updated Realm" }'
+Expected response: 204 No Content → success
+
+# Get token
+TOKEN=$(curl -s -X POST https://<host>/realms/master/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin" \
+  -d "password=yourpass" \
+  -d "grant_type=password" \
+  -d "client_id=admin-cli" | jq -r .access_token)
+
+# Try update
+curl -i -X PUT https://<host>/admin/realms/master \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"displayName": "Test Realm Name"}'
+
+
+------
 sh '''
   echo "Helm version check:"
   helm version
