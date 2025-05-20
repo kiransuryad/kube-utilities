@@ -1,3 +1,20 @@
+extraEnv:
+  - name: KC_LOG_LEVEL
+    value: DEBUG
+  - name: KC_LOG_LEVEL_ORG_KEYCLOAK_SERVICES_RESOURCES_ADMIN
+    value: DEBUG
+  - name: KC_LOG_LEVEL_ORG_KEYCLOAK_STORAGE_USERSTORAGEPROVIDER
+    value: DEBUG
+  - name: KC_LOG_LEVEL_ORG_KEYCLOAK_AUTHENTICATION
+    value: DEBUG
+  - name: KC_LOG_LEVEL_ORG_KEYCLOAK_EVENTS
+    value: DEBUG
+  - name: KC_LOG_LEVEL_ORG_KEYCLOAK_MODELS
+    value: DEBUG
+
+
+
+---------
 /* Debug banner to confirm CSS loaded */
 body:before {
   content: "✅ custom.css loaded";
