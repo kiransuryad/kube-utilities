@@ -1,3 +1,20 @@
+Dear Akamai Support Team,
+
+I hope you're well.
+
+We are currently integrating the Keycloak Admin Console into our internal infrastructure, and we’ve identified that HTTP PUT requests are being blocked at the Akamai layer for our Keycloak endpoint:
+
+https://test-keycloak.fiscloudservices.com
+These PUT requests are essential for several administrative operations, including:
+
+Updating realm configurations (e.g., theme selection, login settings)
+Managing user credentials (e.g., setting/resetting passwords)
+Applying client and policy updates through the admin UI
+At the moment, these operations are failing with 501 Not Implemented responses,
+
+
+
+--------------
 extraEnv:
   - name: KC_LOG_LEVEL
     value: DEBUG
