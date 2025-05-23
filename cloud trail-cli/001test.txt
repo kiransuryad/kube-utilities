@@ -1,3 +1,23 @@
+Immediate To-Do (Step 2.1): Mirror the Chart
+
+Helm Source	Value
+Chart repo URL	https://prometheus-community.github.io/helm-charts
+Chart name	kube-prometheus-stack
+Version	60.0.2 (stable, bundles Prometheus v2.51, Grafana 10.x)
+Jenkins mirror form input:
+Field	Value
+SRC_REPO_URL	https://prometheus-community.github.io/helm-charts
+SRC_REPO_NAME	prometheus-community
+SRC_CHART_NAME	kube-prometheus-stack
+SRC_CHART_VERSION	60.0.2
+TARGET_REPO	hydra-helm-upstreams
+
+
+
+
+
+
+----------------
 Step-by-Step: Get Admin Token
 
 🔐 1. Login with the admin-cli client
