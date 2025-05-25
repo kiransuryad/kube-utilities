@@ -1,3 +1,13 @@
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+
+helm uninstall prometheus-stack -n kube-prometheus-stack
+kubectl delete pvc -n kube-prometheus-stack -l app.kubernetes.io/name=grafana
+kubectl delete pvc -n kube-prometheus-stack -l app.kubernetes.io/name=prometheus
+kubectl delete pvc -n kube-prometheus-stack -l app.kubernetes.io/name=alertmanager
+
+
+--------
 grafana.ini:
   server:
     root_url: "%(protocol)s://%(domain)s/grafana/"
