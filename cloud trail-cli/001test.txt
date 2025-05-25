@@ -1,4 +1,113 @@
+global:
+  rbac:
+    create: true
 
+nameOverride: prometheus-stack
+fullnameOverride: prometheus-stack
+
+commonLabels:
+  team: "platform"
+  environment: "nonprod"
+  cluster: "eks-keycloak-nonprod"
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    replicas: 2
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+          storageClassName: gp3
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    replicas: 2
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+          storageClassName: gp3
+    externalLabels:
+      cluster: "eks-keycloak-nonprod"
+      environment: "nonprod"
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    enableAdminAPI: true
+    enableFeatures:
+      - remote-write-receiver
+
+grafana:
+  enabled: true
+  adminUser: grafanaadmin
+  adminPassword: "<your-strong-password>"  # Replace with Harness Secret
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      nginx.ingress.kubernetes.io/rewrite-target: /
+    hosts:
+      - internal-alb-1234567890.us-east-1.elb.amazonaws.com  # <-- your ALB URL (temporary)
+      - grafana.fiscloudservices.com                         # <-- future DNS
+    paths:
+      - /
+    pathType: Prefix
+    tls:
+      - hosts:
+          - internal-alb-1234567890.us-east-1.elb.amazonaws.com
+          - grafana.fiscloudservices.com
+        secretName: cio-cert-tls
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/"
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+    datasources:
+      enabled: true
+  rbac:
+    pspEnabled: false
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: gp3
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
+
+kubelet:
+  enabled: true
+
+coreDns:
+  enabled: true
+
+prometheusOperator:
+  admissionWebhooks:
+    enabled: true
+  tls:
+    enabled: true
+
+-----------------
+------------------------
 
 
 {{- if .Values.monitoring.enabled }}
