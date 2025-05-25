@@ -1,3 +1,19 @@
+grafana.ini:
+  server:
+    root_url: "%(protocol)s://%(domain)s/grafana/"
+
+
+grafana:
+  ingress:
+    hosts:
+      - internal-alb-1234567890.us-east-1.elb.amazonaws.com
+    paths:
+      - /grafana(/|$)(.*)
+    pathType: ImplementationSpecific
+
+
+
+-----
 global:
   rbac:
     create: true
