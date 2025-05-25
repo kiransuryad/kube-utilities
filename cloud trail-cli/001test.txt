@@ -1,3 +1,6 @@
+
+
+
 {{- if .Values.monitoring.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -21,6 +24,23 @@ spec:
       interval: 30s
 {{- end }}
 
+
+---
+
+serviceMonitor:
+  enabled: true
+  path: /auth/metrics
+  port: http-internal                # Your 9000 port name
+  interval: 30s
+  scrapeTimeout: 10s
+  scheme: http
+  namespaceSelector:
+    matchNames:
+      - keycloak-eda                 # or leave blank to use current namespace
+  labels:
+    release: prometheus-stack
+
+extraServiceMonitor: {}             # Required placeholder, leave empty
 
 ---
 
