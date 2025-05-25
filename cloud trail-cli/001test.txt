@@ -1,3 +1,14 @@
+#!/bin/bash
+
+set -euo pipefail
+
+echo "Checking if 'gp3-encrypted' storage class already exists..."
+
+if kubectl get storageclass gp3-encrypted >/dev/null 2>&1; then
+  echo "StorageClass 'gp3-encrypted' already exists. Skipping creation."
+else
+  echo "Creating StorageClass 'gp3-encrypted'..."
+  cat <<EOF | kubectl apply -f -
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -8,6 +19,10 @@ parameters:
   encrypted: "true"
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
+EOF
+  echo "StorageClass 'gp3-encrypted' created successfully."
+fi
+
 
 
 
