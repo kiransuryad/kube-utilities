@@ -1,3 +1,41 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "keycloak.fullname" . }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    release: prometheus-stack
+    app.kubernetes.io/name: keycloakx
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- toYaml .Values.service.selector | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.monitoring.portName }}
+      path: {{ .Values.monitoring.path }}
+      interval: 30s
+{{- end }}
+
+
+---
+
+monitoring:
+  enabled: true
+  portName: http-internal     # Matches the port name 9000 in your Service
+  path: /auth/metrics
+
+service:
+  selector:
+    app.kubernetes.io/name: keycloakx  # Matches metadata.labels on the Service
+
+
+
+-----
 Immediate To-Do (Step 2.1): Mirror the Chart
 
 Helm Source	Value
