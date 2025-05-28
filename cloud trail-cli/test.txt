@@ -1,3 +1,50 @@
+{{- range .Values.hosts }}
+- host: {{ .host }}
+  http:
+    paths:
+    {{- if .allowAdminConsole }}
+      - path: /auth/admin
+        pathType: Prefix
+        backend:
+          service:
+            name: keycloak
+            port:
+              number: 8080
+    {{- else }}
+      - path: /auth/admin
+        pathType: Prefix
+        backend:
+          service:
+            name: dummy-service
+            port:
+              number: 80
+        return:
+          code: 403
+          body: "Admin Console Access Denied"
+    {{- end }}
+
+    # Common routes (e.g., /auth)
+      - path: /auth
+        pathType: Prefix
+        backend:
+          service:
+            name: keycloak
+            port:
+              number: 8080
+{{- end }}
+
+
+hosts:
+  - host: admin-allowed.example.com
+    allowAdminConsole: true
+
+  - host: admin-blocked.example.com
+    allowAdminConsole: false
+
+
+
+
+--------
 Dear Akamai Support Team,
 
 I hope you're well.
