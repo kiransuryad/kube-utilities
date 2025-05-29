@@ -1,4 +1,7 @@
-            - "-listen=:5678"
+Hi, we already have an Azure AD app in place. Could you please create two Azure AD groups named A10003579-ethos-keycloak-admins and A10003579-ethos-keycloak-members? Membership should be managed via SNOW request, with Casey and Rajesh set as group admins for both groups. Thanks!
+
+---
+- "-listen=:5678"
             - "-text=403 Forbidden - Admin Access Denied"
             - "-code=403"
 
