@@ -1,3 +1,30 @@
+{{- range .Values.adminIngressRules }}
+{{- if .blockAdminConsole }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "keycloak.fullname" $ }}-adminblock-{{ .host | replace "." "-" }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  ingressClassName: {{ $.Values.ingress.ingressClassName }}
+  rules:
+    - host: {{ .host }}
+      http:
+        paths:
+          - path: /auth/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: block-service
+                port:
+                  number: 80
+---
+{{- end }}
+{{- end }}
+
+
+
+----------
 {{- if and .Values.enableBlockService .Values.adminIngressRules }}
 {{- if .Values.adminIngressRules }}
 apiVersion: v1
