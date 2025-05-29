@@ -1,3 +1,39 @@
+Subject: Keycloak Environment URL Planning and Akamai Redirection
+
+Hi Casey & Rajesh,
+
+I hope you're both doing well.
+
+As part of our Keycloak migration and environment setup, I wanted to share the planned URLs we intend to use across the Dev, Non-Prod, and Prod environments. These will complement the existing fisglobal URLs, with some changes in access control as noted below.
+
+✅ Planned Keycloak URLs (Environment-wise)
+Dev: https://dev.fiscloudservices.com/auth
+Non-Prod: https://nonprod.fiscloudservices.com/auth
+Prod: https://prod.fiscloudservices.com/auth
+These fiscloudservices URLs will provide access to the master realm.
+
+In contrast, the current fisglobal URLs will not have access to the master realm, which is a deliberate decision for better access control and boundary definition across environments.
+
+🔄 Redirection Plan via Akamai
+Once we receive your sign-off for the Non-Prod environment, we will proceed to raise a request with the Akamai team to redirect the existing non-prod URL to the new fiscloudservices non-prod URL.
+
+We will follow the same approach for Prod after the respective sign-off, ensuring smooth transition and minimal disruption.
+
+👥 Azure AD Group Alignment (already in progress)
+As a quick update, we have initiated the creation of the following Azure AD groups to support role-based access to Keycloak:
+
+A10003579-ethos-keycloak-admins
+A10003579-ethos-keycloak-members
+Membership into these groups will be controlled via SNOW request approvals, with both of you set as the group admins.
+
+❓Action Items / Queries
+Could you please review and confirm your comfort with the above URL structure and access design?
+Once Non-Prod is verified, can you please share a quick sign-off so we can raise the Akamai request?
+Let us know if there are any objections or preferences regarding the redirection timelines or access control plans.
+
+
+
+---------
 Hi, we already have an Azure AD app in place. Could you please create two Azure AD groups named A10003579-ethos-keycloak-admins and A10003579-ethos-keycloak-members? Membership should be managed via SNOW request, with Casey and Rajesh set as group admins for both groups. Thanks!
 
 ---
