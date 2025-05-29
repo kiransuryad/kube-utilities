@@ -1,3 +1,50 @@
+{{- if and .Values.enableBlockService .Values.adminIngressRules }}
+{{- if .Values.adminIngressRules }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: block-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: block
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: block
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: block
+  template:
+    metadata:
+      labels:
+        app: block
+    spec:
+      containers:
+        - name: block
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          command: ["sh", "-c"]
+          args: ["echo '<h1>403 Forbidden</h1>' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
+{{- end }}
+{{- end }}
+---
+
+
+enableBlockService: true
+
+
+
+-----
 # existing ingress section
 ingress:
   enabled: true
