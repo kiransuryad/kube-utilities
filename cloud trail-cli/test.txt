@@ -1,3 +1,44 @@
+{{- if and .Values.enableBlockService .Values.adminIngressRules }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: block-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: block
+  ports:
+    - port: 80
+      targetPort: 5678
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: block
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: block
+  template:
+    metadata:
+      labels:
+        app: block
+    spec:
+      containers:
+        - name: block
+          image: hashicorp/http-echo:latest
+          args:
+            - "-text=403 Forbidden - Admin Access Denied"
+            - "-status=403"
+          ports:
+            - containerPort: 5678
+{{- end }}
+
+
+----
 {{- range .Values.adminIngressRules }}
 {{- if .blockAdminConsole }}
 apiVersion: networking.k8s.io/v1
