@@ -1,3 +1,7 @@
+Is there a way to verify through the Azure portal whether authentication for a given resource is indeed being handled via Entra ID (e.g., using User Assigned or System Assigned Managed Identity)?
+Since key-based authentication methods have been explicitly disabled, does this also imply that Multi-Factor Authentication (MFA) is bypassed or not applicable in this context?
+
+---
 Subject: Keycloak Environment URL Planning and Akamai Redirection
 
 Hi Casey & Rajesh,
