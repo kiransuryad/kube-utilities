@@ -1,3 +1,34 @@
+Subject: Non-Prod Environment for CIO Keycloak Now Live – Please Validate
+
+Hello All,
+
+I’m pleased to inform you that the non-production environment for the new CIO-hosted Keycloak instance is now up and running successfully.
+
+✅ Current Status
+The new environment is live and accessible at:
+🔗 https://dev-ethos-idp.fiscloudservices.com
+I have migrated data from the old EDA non-prod Keycloak up to yesterday’s snapshot.
+For initial access and testing, I have created two local admin users:
+Rajesh
+Casey
+I’ll be sharing their login credentials via separate, individual emails shortly for security reasons.
+🔍 Your Action
+Please begin validating the environment based on your respective use cases and workflows. If you encounter any issues or need assistance, do reach out, and we’ll help resolve them promptly.
+
+🔄 What Happens Next
+Once we receive confirmation that testing is successful:
+
+We will coordinate with the Akamai team to switch over the non-prod fisglobal domain to point to this new CIO Keycloak instance.
+After this non-prod switch is validated and signed off, we will replicate the same steps for production deployment and cutover.
+Thank you for your support and collaboration during this transition. Looking forward to your feedback.
+
+Best regards,
+Kiran Gonela
+
+
+
+
+----------------
 https://login.microsoftonline.com/e3ff91d8-34c8-4b15-a0b4-18910a6ac575/v2.0/.well-known/openid-configuration
 
 
