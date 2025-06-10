@@ -1,3 +1,8 @@
+https://login.microsoftonline.com/e3ff91d8-34c8-4b15-a0b4-18910a6ac575/v2.0/.well-known/openid-configuration
+
+
+
+-----------
 Step 1: Identify All LDAP Components
 SELECT id, name FROM component WHERE provider_id = 'ldap';
 Assume you get one or more component IDs — e.g., 'ldap-1234-uuid'.
