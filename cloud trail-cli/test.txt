@@ -1,3 +1,44 @@
+Step 1: Identify All LDAP Components
+SELECT id, name FROM component WHERE provider_id = 'ldap';
+Assume you get one or more component IDs — e.g., 'ldap-1234-uuid'.
+
+Step 2: Delete Component Configs (Required)
+This removes key-value settings tied to the LDAP components.
+
+DELETE FROM component_config
+WHERE component_id IN (
+  SELECT id FROM component WHERE provider_id = 'ldap'
+);
+This must be done before deleting from component.
+
+Step 3: Delete Subcomponents (Mappers, etc.)
+These are usually mappers tied to the LDAP provider.
+
+DELETE FROM component_config
+WHERE component_id IN (
+  SELECT id FROM component
+  WHERE parent_id IN (
+    SELECT id FROM component WHERE provider_id = 'ldap'
+  )
+);
+
+DELETE FROM component
+WHERE parent_id IN (
+  SELECT id FROM component WHERE provider_id = 'ldap'
+);
+Step 4: Delete the Main LDAP Component
+Now that dependencies are gone, delete the main entries.
+
+DELETE FROM component
+WHERE provider_id = 'ldap';
+✅ Optional Final Clean-Up (Any orphaned config)
+
+DELETE FROM component_config
+WHERE component_id NOT IN (SELECT id FROM component);
+
+
+
+------
 🔍 1.1: Review LDAP Configuration (Optional)
 SELECT id, name, provider_id, parent_id
 FROM component
