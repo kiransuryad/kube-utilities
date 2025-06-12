@@ -1,3 +1,55 @@
+FROM alpine:3.20
+
+ENV VAULT_VERSION=1.15.2 \
+    AWS_CLI_VERSION=2.15.59 \
+    KUBECTL_VERSION=1.30.1
+
+# Install core debugging tools
+RUN apk update && apk add --no-cache \
+    bash \
+    curl \
+    wget \
+    jq \
+    iproute2 \
+    iputils \
+    bind-tools \
+    busybox-extras \
+    net-tools \
+    tcpdump \
+    postgresql15-client \
+    unzip \
+    py3-pip \
+    gettext \
+    groff \
+    libc6-compat
+
+# Install Vault CLI
+RUN wget https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip && \
+    unzip vault_${VAULT_VERSION}_linux_amd64.zip -d /usr/local/bin && \
+    rm vault_${VAULT_VERSION}_linux_amd64.zip
+
+# Install kubectl
+RUN curl -L https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl && \
+    chmod +x /usr/local/bin/kubectl
+
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWS_CLI_VERSION}.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws
+
+# Drop to non-root user
+RUN addgroup -S debug && adduser -S debug -G debug
+USER debug
+
+WORKDIR /home/debug
+
+CMD [ "bash" ]
+
+
+
+
+---------
 Subject: Non-Prod Environment for CIO Keycloak Now Live – Please Validate
 
 Hello All,
