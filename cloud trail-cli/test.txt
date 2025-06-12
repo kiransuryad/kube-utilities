@@ -1,3 +1,50 @@
+FROM alpine:3.20
+
+# Install only required tools
+RUN apk add --no-cache unzip wget
+
+# Set working directory
+WORKDIR /tmp
+
+# Copy your base Keycloak themes (assumes structure includes login2.css and styles.css)
+COPY containers/keycloak-themes/keycloak-theme/theme /worldpay-themes
+
+# Download Zocial CSS
+RUN wget https://github.com/smcllns/css-social-buttons/archive/refs/tags/v1.4.0.zip -O /tmp/zocial.zip && \
+    unzip /tmp/zocial.zip -d /tmp && \
+    rm /tmp/zocial.zip
+
+# Download PatternFly minified CSS and additions
+RUN mkdir -p /tmp/patternfly/css && \
+    wget https://unpkg.com/@patternfly/patternfly/patternfly.min.css -O /tmp/patternfly/css/patternfly.min.css && \
+    wget https://unpkg.com/@patternfly/patternfly/patternfly-additions.min.css -O /tmp/patternfly/css/patternfly-additions.min.css
+
+# Create non-root user
+RUN addgroup -g 1001 keycloakthemes && \
+    adduser -S -u 1001 -G keycloakthemes keycloakthemes && \
+    chown -R keycloakthemes:keycloakthemes /worldpay-themes
+
+USER keycloakthemes
+
+# Copy all required static files into each theme’s login/resources folder
+RUN for theme in /worldpay-themes/theme/login/resources/*; do \
+      mkdir -p "$theme/patternfly/css" "$theme/zocial" "$theme/css"; \
+      cp /tmp/patternfly/css/patternfly.min.css "$theme/patternfly/css/"; \
+      cp /tmp/patternfly/css/patternfly-additions.min.css "$theme/patternfly/css/"; \
+      cp /tmp/css-social-buttons-1.4.0/css/zocial.css "$theme/zocial/"; \
+      cp "$theme/css/login2.css" "$theme/css/"; \
+      cp "$theme/css/styles.css" "$theme/css/"; \
+    done
+
+WORKDIR /worldpay-themes
+
+CMD ["sleep", "infinity"]
+
+
+
+
+------------------------
+
 FROM node:18-alpine3.20
 
 ENV NODE_ENV=production
