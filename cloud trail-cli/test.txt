@@ -1,3 +1,58 @@
+FROM node:18-alpine3.20
+
+ENV NODE_ENV=production
+
+# Install unzip, wget
+RUN apk add --no-cache unzip wget
+
+# Set working directory
+WORKDIR /tmp
+
+# Optional: if using any NodeJS libraries
+# Create clean package with only safe versions
+COPY <<EOF ./package.json
+{
+  "name": "keycloak-theme-deps",
+  "version": "1.0.0",
+  "dependencies": {
+    "patternfly": "^4.0.0", // adjust as needed
+    "cross-spawn": "^7.0.5",
+    "debug": "^4.3.4"
+  },
+  "resolutions": {
+    "cross-spawn": "^7.0.5"
+  }
+}
+EOF
+
+# (Optional) if you still need to install packages
+RUN npm install --omit=dev && rm -rf ~/.npm
+
+# Download shared CSS files
+RUN wget https://github.com/smcllns/css-social-buttons/archive/refs/tags/v1.4.0.zip -O /tmp/zocial.zip && \
+    unzip /tmp/zocial.zip -d /tmp && rm /tmp/zocial.zip
+
+# Copy your theme files
+COPY containers/keycloak-themes/keycloak-theme/theme /worldpay-themes
+
+# Create non-root user and fix permissions
+RUN addgroup -g 1001 keycloakthemes && \
+    adduser -S -u 1001 -G keycloakthemes keycloakthemes && \
+    chown -R keycloakthemes:keycloakthemes /worldpay-themes
+
+# Switch user
+USER keycloakthemes
+WORKDIR /worldpay-themes
+
+# Add static zocial CSS into each theme
+COPY --chown=keycloakthemes:keycloakthemes ./tmp/css-social-buttons-1.4.0/css/ /worldpay-themes/theme/login/resources/zocial/
+
+CMD [ "node" ]
+
+
+
+
+-------------
 FROM alpine:3.20
 
 ENV VAULT_VERSION=1.15.2 \
