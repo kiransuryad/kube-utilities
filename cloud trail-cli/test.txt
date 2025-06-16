@@ -1,3 +1,19 @@
+FROM quay.io/keycloak/keycloak:26.2
+
+USER root
+
+# Remove old JDBC driver
+RUN rm -f /opt/keycloak/providers/postgresql-*.jar
+
+# Add newer driver
+ADD https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.6/postgresql-42.7.6.jar /opt/keycloak/providers/
+
+USER 1000
+
+
+
+
+--------------------------
 FROM alpine:3.20
 
 # Install only required tools
