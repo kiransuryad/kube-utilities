@@ -1,3 +1,6 @@
+we implemented a fresh Keycloak deployment for the Ethos team within the CIO-managed AWS account, moving from an extremely outdated version to the latest Keycloak 26.2. We successfully migrated all critical realm data from the legacy system into the new, production-grade setup running on private AWS EKS with TLS, custom themes, and realm-based isolation. The solution was redesigned from the ground up to align with the FIS CIO team's standards and security requirements. Alongside this, we onboarded and integrated modern DevSecOps tooling, including Jenkins (CaaS), HashiCorp Vault, Artifactory, and Harness for streamlined release pipelines—adopting the latest FIS best practices to ensure scalability, compliance, and operational efficiency.
+
+------
 #######################
 # ACM Certificate Lookups
 #######################
