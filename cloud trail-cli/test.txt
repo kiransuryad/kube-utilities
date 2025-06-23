@@ -1,3 +1,48 @@
+resource "aws_lb_listener_rule" "keycloak_default_rule" {
+  listener_arn = aws_lb_listener.dev_keycloak_ext_alb_listener.arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.dev_keycloak_ext_alb_target_http.arn
+  }
+
+  condition {
+    host_header {
+      values = ["keycloak.dev.fiscloudservices.com"]
+    }
+  }
+}
+
+
+
+resource "aws_lb_listener_rule" "grafana_host_rule" {
+  listener_arn = aws_lb_listener.dev_keycloak_ext_alb_listener.arn
+  priority     = 5
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.dev_keycloak_ext_alb_target_http.arn
+  }
+
+  condition {
+    host_header {
+      values = ["grafana.dev.fiscloudservices.com"]
+    }
+  }
+}
+
+
+resource "aws_lb_listener_certificate" "grafana_cert" {
+  listener_arn    = aws_lb_listener.dev_keycloak_ext_alb_listener.arn
+  certificate_arn = var.grafana_cert_arn
+}
+
+
+
+
+
+----------------------
 FROM quay.io/keycloak/keycloak:26.2
 
 USER root
