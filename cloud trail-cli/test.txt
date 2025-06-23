@@ -1,3 +1,96 @@
+#######################
+# ACM Certificate Lookups
+#######################
+
+data "aws_acm_certificate" "keycloak_cert" {
+  domain      = "keycloak.dev.fiscloudservices.com"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
+data "aws_acm_certificate" "grafana_cert" {
+  domain      = "grafana.dev.fiscloudservices.com"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
+#######################
+# HTTPS Listener
+#######################
+
+resource "aws_lb_listener" "dev_keycloak_ext_alb_listener" {
+  load_balancer_arn = aws_lb.dev_keycloak_ext_alb.id
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+
+  certificate {
+    certificate_arn = data.aws_acm_certificate.keycloak_cert.arn
+  }
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.dev_keycloak_ext_alb_target_http.id
+  }
+}
+
+#######################
+# Add SNI Certificate for Grafana
+#######################
+
+resource "aws_lb_listener_certificate" "grafana_cert" {
+  listener_arn    = aws_lb_listener.dev_keycloak_ext_alb_listener.arn
+  certificate_arn = data.aws_acm_certificate.grafana_cert.arn
+}
+
+#######################
+# Host-Based Routing Rules
+#######################
+
+# Route Grafana domain to same backend
+resource "aws_lb_listener_rule" "grafana_host_rule" {
+  listener_arn = aws_lb_listener.dev_keycloak_ext_alb_listener.arn
+  priority     = 5
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.dev_keycloak_ext_alb_target_http.arn
+  }
+
+  condition {
+    host_header {
+      values = ["grafana.dev.fiscloudservices.com"]
+    }
+  }
+}
+
+# Route Keycloak domain to same backend
+resource "aws_lb_listener_rule" "keycloak_host_rule" {
+  listener_arn = aws_lb_listener.dev_keycloak_ext_alb_listener.arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.dev_keycloak_ext_alb_target_http.arn
+  }
+
+  condition {
+    host_header {
+      values = ["keycloak.dev.fiscloudservices.com"]
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------------------
+---------------------------------------------------------------------
 resource "aws_lb_listener_rule" "keycloak_default_rule" {
   listener_arn = aws_lb_listener.dev_keycloak_ext_alb_listener.arn
   priority     = 10
