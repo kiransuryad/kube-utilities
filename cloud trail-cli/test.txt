@@ -1,3 +1,20 @@
+grafana:
+  useStatefulSet: true
+  deploymentStrategy: Recreate
+  replicas: 1
+
+  persistence:
+    enabled: true
+    type: statefulset
+    storageClassName: gp2
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+
+
+
+
+----------
 kubectl -n ingress-nginx get pods -l app.kubernetes.io/name=ingress-nginx -o name | \
 xargs -I{} kubectl -n ingress-nginx logs -f {} | grep --line-buffered grafana
 
