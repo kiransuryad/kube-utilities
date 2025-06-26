@@ -1,3 +1,51 @@
+loki:
+  enabled: true
+  isDefault: true
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+    storageClassName: gp3-encrypted
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+promtail:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+  extraScrapeConfigs: []
+  tolerations: []
+  podLabels:
+    app: promtail
+
+grafana:
+  enabled: false
+
+fluentd:
+  enabled: false
+
+filebeat:
+  enabled: false
+
+logstash:
+  enabled: false
+
+
+
+---------------
 echo "Patching velero service account with imagePullSecrets..."
 kubectl patch serviceaccount velero \
   -n velero \
