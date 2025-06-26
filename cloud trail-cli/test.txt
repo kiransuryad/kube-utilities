@@ -1,3 +1,23 @@
+promtail:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+  config:
+    clients:
+      - url: http://loki.kube-prometheus-stack.svc.cluster.local:3100/loki/api/v1/push
+  tolerations: []
+  podLabels:
+    app: promtail
+
+
+----
 loki:
   enabled: true
   isDefault: true
