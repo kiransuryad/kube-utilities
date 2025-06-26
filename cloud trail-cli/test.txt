@@ -1,3 +1,81 @@
+namespace: velero
+
+image:
+  repository: myregistry.example.com/velero/velero
+  tag: v1.13.2
+  pullPolicy: IfNotPresent
+
+initContainers:
+  - name: velero-plugin-for-aws
+    image: myregistry.example.com/velero/velero-plugin-for-aws:v1.8.0
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+serviceAccount:
+  server:
+    create: false  # Using pre-created SA
+    name: velero
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/<VELERO_IRSA_ROLE>
+
+credentials:
+  useSecret: false
+
+deployRestic: true
+backupsEnabled: true
+snapshotsEnabled: true
+upgradeCRDs: true
+
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: velero-backups-prod  # your dedicated S3 bucket
+      default: true
+      accessMode: ReadWrite
+      config:
+        region: us-east-1
+        s3ForcePathStyle: "true"
+
+  volumeSnapshotLocation:
+    - name: default
+      provider: aws
+      config:
+        region: us-east-1
+
+  defaultBackupTTL: 168h  # 7 days
+  uploaderType: restic
+
+schedules:
+  daily-all-namespaces:
+    disabled: false
+    schedule: "0 2 * * *"  # every day at 2am UTC
+    useOwnerReferencesInBackup: false
+    template:
+      ttl: "168h"
+      snapshotVolumes: true
+      includedNamespaces:
+        - '*'
+
+metrics:
+  enabled: true
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8085"
+    prometheus.io/path: "/metrics"
+
+nodeAgent:
+  podSecurityContext:
+    runAsUser: 0
+
+
+
+
+
+
+-----------------------
 replicaCount: 2
 
 image:
