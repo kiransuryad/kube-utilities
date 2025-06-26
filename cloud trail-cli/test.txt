@@ -1,3 +1,69 @@
+replicaCount: 2
+
+image:
+  repository: your-registry.local/oauth2-proxy
+  tag: latest
+  pullPolicy: Always
+
+extraArgs:
+  provider: "oidc"
+  oidc-issuer-url: "https://login.microsoftonline.com/e3ff91d8-34c8-4b15-a0b4-18910a6ac575/v2.0"
+  client-id: "0b2b4378-29ec-4b19-bb1f-5a3a83cbe344"
+  client-secret: "1fc93259-28ad-48ef-b7e8-fb6f2746268c"
+  redirect-url: "https://dev-ethos-idp.fiscloudservices.com/oauth2/callback"
+  cookie-secret: "<BASE64_32_BYTE_SECRET>"  # Replace this with secure output from openssl or base64
+  email-domain: "*"
+  whitelist-domain: ".fiscloudservices.com"
+  set-authorization-header: "true"
+  pass-access-token: "true"
+  pass-user-headers: "true"
+  pass-authorization-header: "true"
+  cookie-secure: "true"
+  cookie-domain: ".fiscloudservices.com"
+  scope: "openid email profile"
+  skip-provider-button: "true"
+
+config:
+  existingSecret: ""
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  hosts:
+    - dev-ethos-idp.fiscloudservices.com
+  path: /oauth2(/|$)(.*)
+  pathType: ImplementationSpecific
+  tls:
+    - hosts:
+        - dev-ethos-idp.fiscloudservices.com
+      secretName: cio-cert-tls
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+serviceAccount:
+  create: true
+
+--
+Run this to replace the <BASE64_32_BYTE_SECRET> placeholder:
+
+head -c 32 /dev/urandom | base64
+
+
+----------------------
 alertmanager:
   enabled: true
   alertmanagerSpec:
