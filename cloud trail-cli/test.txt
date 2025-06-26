@@ -1,3 +1,12 @@
+echo "Patching velero service account with imagePullSecrets..."
+kubectl patch serviceaccount velero \
+  -n velero \
+  --type='merge' \
+  -p '{"imagePullSecrets": [{"name": "jfrog-docker-secret"}]}'
+
+
+
+-------------
 kubectl run test-pull \
   --image=edas-docker-snapshot-local.docker.fis.dev/test/velero:v1.16.0 \
   --image-pull-policy=Always \
