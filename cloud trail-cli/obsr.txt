@@ -1,3 +1,18 @@
+images:
+  - quay.io/prometheus/prometheus:v3.2.1
+  - docker.io/busybox:latest
+  - registry.k8s.io/kubectl:latest
+  - quay.io/prometheus/alertmanager:v0.28.1
+  - quay.io/prometheus-operator/admission-webhook:latest
+  - registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2
+  - quay.io/prometheus-operator/prometheus-operator:latest
+  - quay.io/prometheus-operator/prometheus-config-reloader:latest
+  - quay.io/thanos/thanos:v0.37.2
+
+
+
+
+-------------------
 properties([
   parameters([
     string(name: 'IMAGE_LIST_FILE', description: 'Path to YAML file with list of images to process', defaultValue: 'images.yaml')
