@@ -1,0 +1,332 @@
+#######################################
+# Loki S3 Bucket
+#######################################
+
+resource "aws_s3_bucket" "loki_bucket" {
+  bucket = "observability-loki-${var.environment}"
+  force_destroy = true
+  tags = local.common_tags
+}
+
+resource "aws_s3_bucket_versioning" "loki_versioning" {
+  bucket = aws_s3_bucket.loki_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "loki_encryption" {
+  bucket = aws_s3_bucket.loki_bucket.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "loki_block" {
+  bucket = aws_s3_bucket.loki_bucket.id
+  block_public_acls   = true
+  block_public_policy = true
+  ignore_public_acls  = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "loki_lifecycle" {
+  bucket = aws_s3_bucket.loki_bucket.id
+  rule {
+    id     = "expire-logs-365d"
+    status = "Enabled"
+    expiration { days = 365 }
+  }
+}
+
+#######################################
+# Thanos S3 Bucket
+#######################################
+
+resource "aws_s3_bucket" "thanos_bucket" {
+  bucket = "observability-thanos-${var.environment}"
+  force_destroy = true
+  tags = local.common_tags
+}
+
+resource "aws_s3_bucket_versioning" "thanos_versioning" {
+  bucket = aws_s3_bucket.thanos_bucket.id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "thanos_encryption" {
+  bucket = aws_s3_bucket.thanos_bucket.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "thanos_block" {
+  bucket = aws_s3_bucket.thanos_bucket.id
+  block_public_acls   = true
+  block_public_policy = true
+  ignore_public_acls  = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "thanos_lifecycle" {
+  bucket = aws_s3_bucket.thanos_bucket.id
+  rule {
+    id     = "expire-metrics-730d"
+    status = "Enabled"
+    expiration { days = 730 }
+  }
+}
+
+#######################################
+# SNS Topic & Multiple Email Subscriptions
+#######################################
+
+resource "aws_sns_topic" "alerts" {
+  name = "observability-alerts-${var.environment}"
+  tags = local.common_tags
+}
+
+resource "aws_sns_topic_subscription" "alerts_emails" {
+  for_each = toset(var.alert_emails)
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = each.value
+}
+
+#######################################
+# IAM Policy for S3 & SNS
+#######################################
+
+data "aws_iam_policy_document" "observability_policy" {
+  statement {
+    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+    resources = [
+      aws_s3_bucket.loki_bucket.arn, "${aws_s3_bucket.loki_bucket.arn}/*",
+      aws_s3_bucket.thanos_bucket.arn, "${aws_s3_bucket.thanos_bucket.arn}/*"
+    ]
+  }
+  statement {
+    actions = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
+  }
+}
+
+resource "aws_iam_policy" "observability_policy" {
+  name        = "observability-${var.environment}"
+  description = "Access to Loki/Thanos buckets and SNS alerts"
+  policy      = data.aws_iam_policy_document.observability_policy.json
+}
+
+#######################################
+# OIDC Provider & IRSA Roles
+#######################################
+
+data "aws_eks_cluster" "cluster" {
+  name = var.eks_cluster_name
+}
+
+data "aws_iam_openid_connect_provider" "oidc" {
+  url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
+
+locals {
+  oidc_provider_arn = data.aws_iam_openid_connect_provider.oidc.arn
+  oidc_provider_url = replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")
+}
+
+resource "aws_iam_role" "loki_irsa" {
+  name = "loki-irsa-${var.environment}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = { Federated = local.oidc_provider_arn },
+      Action = "sts:AssumeRoleWithWebIdentity",
+      Condition = {
+        StringEquals = {
+          "${local.oidc_provider_url}:sub" = "system:serviceaccount:${var.namespace}:loki"
+        }
+      }
+    }]
+  })
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "loki_attach" {
+  role       = aws_iam_role.loki_irsa.name
+  policy_arn = aws_iam_policy.observability_policy.arn
+}
+
+resource "aws_iam_role" "thanos_irsa" {
+  name = "thanos-irsa-${var.environment}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = { Federated = local.oidc_provider_arn },
+      Action = "sts:AssumeRoleWithWebIdentity",
+      Condition = {
+        StringEquals = {
+          "${local.oidc_provider_url}:sub" = "system:serviceaccount:${var.namespace}:thanos"
+        }
+      }
+    }]
+  })
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "thanos_attach" {
+  role       = aws_iam_role.thanos_irsa.name
+  policy_arn = aws_iam_policy.observability_policy.arn
+}
+
+resource "aws_iam_role" "prometheus_irsa" {
+  name = "prometheus-irsa-${var.environment}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = { Federated = local.oidc_provider_arn },
+      Action = "sts:AssumeRoleWithWebIdentity",
+      Condition = {
+        StringEquals = {
+          "${local.oidc_provider_url}:sub" = "system:serviceaccount:${var.namespace}:prometheus"
+        }
+      }
+    }]
+  })
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "prometheus_attach" {
+  role       = aws_iam_role.prometheus_irsa.name
+  policy_arn = aws_iam_policy.observability_policy.arn
+}
+
+
+------
+
+variables.tf
+--
+
+variable "environment" {
+  description = "Environment, e.g., dev, prod"
+  type        = string
+}
+
+variable "alert_emails" {
+  description = "List of email addresses for SNS alerts."
+  type        = list(string)
+}
+
+variable "eks_cluster_name" {
+  description = "EKS cluster name."
+  type        = string
+}
+
+variable "namespace" {
+  description = "K8s namespace for observability components."
+  type        = string
+}
+
+variable "tags" {
+  description = "Extra tags to apply."
+  type        = map(string)
+  default     = {}
+}
+
+
+
+local.tf
+--
+
+locals {
+  common_tags = merge({
+    Environment = var.environment,
+    Project     = "Observability"
+  }, var.tags)
+}
+
+---
+
+
+outputs.tf
+--
+
+output "loki_bucket_name" {
+  description = "Loki bucket name."
+  value       = aws_s3_bucket.loki_bucket.bucket
+}
+
+output "thanos_bucket_name" {
+  description = "Thanos bucket name."
+  value       = aws_s3_bucket.thanos_bucket.bucket
+}
+
+output "sns_topic_arn" {
+  description = "SNS topic ARN."
+  value       = aws_sns_topic.alerts.arn
+}
+
+output "observability_policy_arn" {
+  description = "Observability IAM policy ARN."
+  value       = aws_iam_policy.observability_policy.arn
+}
+
+output "loki_irsa_role_arn" {
+  description = "ARN for Loki IRSA role."
+  value       = aws_iam_role.loki_irsa.arn
+}
+
+output "thanos_irsa_role_arn" {
+  description = "ARN for Thanos IRSA role."
+  value       = aws_iam_role.thanos_irsa.arn
+}
+
+output "prometheus_irsa_role_arn" {
+  description = "ARN for Prometheus IRSA role."
+  value       = aws_iam_role.prometheus_irsa.arn
+}
+
+
+----
+
+provider.tf
+--
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 4.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.region
+}
+
+
+
+-------
+
+main-- main.tf
+--
+
+module "observability" {
+  source           = "./observability"
+  environment      = "prod"
+  alert_emails     = ["alerts@example.com", "oncall@example.com"]
+  eks_cluster_name = "my-eks-cluster"
+  namespace        = "monitoring"
+  tags = {
+    Owner = "DevOps"
+  }
+}
+
