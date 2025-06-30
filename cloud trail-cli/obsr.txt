@@ -1,3 +1,55 @@
+resource "aws_kms_key" "sns_key" {
+  description = "KMS key for encrypting observability SNS topic"
+  enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id = "sns-kms-key-policy"
+    Statement = [
+      {
+        Sid = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = { AWS = "*" }
+        Action = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = merge(
+    {
+      Name = "sns-kms-${var.environment}"
+    },
+    local.fis_tags
+  )
+}
+
+resource "aws_kms_alias" "sns_key_alias" {
+  name          = "alias/observability-sns-${var.environment}"
+  target_key_id = aws_kms_key.sns_key.id
+}
+
+
+resource "aws_sns_topic" "alerts" {
+  name              = "observability-alerts-${var.environment}"
+  kms_master_key_id = aws_kms_key.sns_key.arn
+  tags = merge(
+    {
+      Name = "observability-alerts-${var.environment}"
+    },
+    local.fis_tags
+  )
+}
+
+
+output "sns_kms_key_arn" {
+  description = "ARN of the SNS encryption KMS key."
+  value       = aws_kms_key.sns_key.arn
+}
+
+
+
+-----------
 #######################################
 # Loki S3 Bucket
 #######################################
