@@ -1,3 +1,60 @@
+for (def img in images) {
+  def scanPassed = false  // default to false
+  
+  stage("Pull ${img}") {
+    container('buildah') {
+      sh "buildah pull ${img}"
+    }
+  }
+
+  stage("Code Analysis - CxOne ${img}") {
+    container('buildah') {
+      try {
+        sh """
+          echo "🔎 Scanning image ${img} with CheckmarxOne CLI..."
+          checkmarx one scan container \\
+            --image ${img} \\
+            --project-name ThirdParty-${imageName} \\
+            --output-path ./scan-results-${imageName}-${imageTag} \\
+            --threshold high=1,medium=5,low=10 \\
+            --base-uri https://ast.fis.cxone.cloud \\
+            --tenant fis \\
+            --agent Jenkins \\
+            --apikey ${CHECKMARX_ONE_API_KEY}
+        """
+        scanPassed = true
+      } catch (err) {
+        echo "❌ Scan failed for image ${img}, skipping push. Error: ${err}"
+        scanPassed = false
+      }
+    }
+  }
+
+  if (scanPassed) {
+    stage("Tag & Push ${img} to Artifactory") {
+      withCredentials([usernamePassword(credentialsId: 'svacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+        container('buildah') {
+          sh "buildah tag ${img} ${fullArtifactoryPath}"
+          echo "🚀 Pushing image ${fullArtifactoryPath}"
+          sh """
+            echo ${ART_PASS} | buildah login -u ${ART_USER} --password-stdin ${ARTIFACTORY_REGISTRY}
+            buildah push ${fullArtifactoryPath}
+          """
+        }
+      }
+    }
+  } else {
+    echo "⚠️ Skipped pushing ${img} due to failed scan."
+  }
+}
+
+
+
+
+
+
+--------------------------------------------------
+--------------------------------------------------
 images:
   - quay.io/prometheus/prometheus:v3.2.1
   - docker.io/busybox:latest
