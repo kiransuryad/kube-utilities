@@ -1,3 +1,12 @@
+Hi Amit,
+
+Yes, we provisioned the squid proxy specifically for the Kafka team. This proxy is being used by Kafka to:
+
+Connect to the internet for updating their EC2 machines.
+Enable communication with other machines in different AWS accounts.
+
+
+---------
 Loki
 --
 loki:
