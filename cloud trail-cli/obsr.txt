@@ -1,3 +1,91 @@
+properties([
+  parameters([
+    string(name: 'IMAGE_LIST_FILE', description: 'Path to YAML file with list of images to process', defaultValue: 'images.yaml')
+  ])
+])
+
+podTemplate(
+  label: 'third-party-image-scan-${UUID.randomUUID().toString()}',
+  containers: [
+    containerTemplate(
+      name: 'buildah',
+      image: 'caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1',
+      command: 'cat',
+      ttyEnabled: true,
+      imagePullPolicy: 'IfNotPresent',
+      resourceRequestCpu: '100m',
+      resourceRequestMemory: '128Mi'
+    )
+  ],
+  imagePullSecrets: [
+    'edas-docker-release-local-ro',
+    'edas-docker-snapshot-svaccct-hydra-cicd'
+  ],
+  serviceAccount: 'jenkins'
+) {
+  node(POD_LABEL) {
+    stage('Checkout Image List') {
+      checkout scm
+    }
+
+    script {
+      // Read YAML image list like your existing pipeline reads values.yaml
+      def imagesYaml = readYaml file: "${params.IMAGE_LIST_FILE}"
+      def images = imagesYaml.images
+
+      for (def img in images) {
+        img = img.trim()
+        def imgParts = img.split(':')
+        def imageName = imgParts[0].split('/').last()
+        def imageTag = imgParts.length > 1 ? imgParts[1] : 'latest'
+        def artifactoryImage = "${imageName}:${imageTag}"
+        def fullArtifactoryPath = "${ARTIFACTORY_REGISTRY}/${artifactoryImage}"
+
+        stage("Pull ${img}") {
+          container('buildah') {
+            sh "buildah pull ${img}"
+          }
+        }
+
+        stage("Code Analysis - CxOne ${img}") {
+          checkmarxASTScanner(
+            additionalOptions: '--threshold sca-high=1;sca-medium=1;sca-low=1',
+            checkmarxInstallation: 'checkmarx-one-cli-latest',
+            credentialsId: 'cxone_scan_creds',
+            projectName: "CxOne_ThirdParty_${imageName}",
+            serverUrl: 'https://ast.fis.cxcone.cloud',
+            tenantName: 'fis',
+            useOnDemandInstallations: true,
+            useOnPremServerCredentials: true
+          )
+        }
+
+        stage("Tag & Push ${img} to Artifactory") {
+          withCredentials([usernamePassword(credentialsId: 'svacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+            container('buildah') {
+              echo "🔹 Tagging image ${img} → ${fullArtifactoryPath}"
+              sh "buildah tag ${img} ${fullArtifactoryPath}"
+
+              echo "🚀 Pushing image ${fullArtifactoryPath}"
+              sh """
+                echo ${ART_PASS} | buildah login -u ${ART_USER} --password-stdin ${ARTIFACTORY_REGISTRY}
+                buildah push ${fullArtifactoryPath}
+              """
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+--------------------------------------------------------
 resource "aws_kms_key" "sns_key" {
   description = "KMS key for encrypting observability SNS topic"
   enable_key_rotation = true
