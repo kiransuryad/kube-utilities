@@ -1,3 +1,33 @@
+prometheus:
+  prometheusSpec:
+    serviceMonitorNamespaceSelector: {}    # empty means all namespaces, or set matchNames if restricting
+    serviceMonitorSelector: {}             # default, will pick up all ServiceMonitors
+    # (optional) If you have network segmentation, set podMonitorNamespaceSelector similarly
+    # (optional) To restrict, use:
+    # serviceMonitorNamespaceSelector:
+    #   matchNames:
+    #     - "keycloak-eda"
+  # Expose Prometheus UI via ingress
+  ingress:
+    enabled: true
+    hosts:
+      - prometheus.example.com   # change to your DNS
+    paths:
+      - /
+    # Add cert, annotations, etc. as needed
+
+grafana:
+  ingress:
+    enabled: true
+    hosts:
+      - grafana.example.com
+    paths:
+      - /
+    # Add cert, annotations, etc. as needed
+
+
+
+-----------------
 for (def img in images) {
   def scanPassed = false  // default to false
   
