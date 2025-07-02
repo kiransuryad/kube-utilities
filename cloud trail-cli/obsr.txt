@@ -1,3 +1,16 @@
+extraEnv:
+  - name: KC_FEATURES
+    value: "user-event-metrics"
+  - name: KC_USER_EVENT_METRICS_ENABLED
+    value: "true"
+  - name: KC_EVENT_METRICS_USER_EVENTS
+    value: "login,logout,register,reset_password,update_profile,update_email,refresh_token,remove_credential,delete_account"
+  - name: KC_EVENT_METRICS_USER_TAGS
+    value: "realm,clientId"
+
+
+
+--------------
 prometheus:
   prometheusSpec:
     serviceMonitorNamespaceSelector: {}    # empty means all namespaces, or set matchNames if restricting
