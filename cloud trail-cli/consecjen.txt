@@ -1,0 +1,70 @@
+@Library('common-lib3-stable') _
+
+properties([
+    parameters([
+        string(name: 'INTERNAL_VERSION', description: 'Internal server version (e.g., 1.0.0)', defaultValue: '1.0.0'),
+        string(name: 'INTERNAL_IMAGE_NAME', description: 'Internal image name (matches container folder name)'),
+    ])
+])
+
+String label = "build-${UUID.randomUUID().toString()}"
+String imageRegistry = 'edas-docker-snapshot-local.docker.fis.dev'
+String img = "${imageRegistry}/${params.INTERNAL_IMAGE_NAME}:${params.INTERNAL_VERSION}"
+
+podTemplate(
+    label: label,
+    serviceAccount: 'jenkins',
+    containers: [
+        containerTemplate(
+            name: 'buildah',
+            image: 'edas-docker-release-local.docker.fis.dev/mirror/buildah/stable/v1.23.1',
+            ttyEnabled: true,
+            command: 'cat',
+            imagePullPolicy: 'IfNotPresent',
+            resources: [limits: [github_com/fuse: 1]]
+        )
+    ],
+    imagePullSecrets: ['edas-docker-release-local-ro'],
+    runAsUser: 1000
+) {
+    node(label) {
+        stage('Checkout Source') {
+            checkout scm
+        }
+
+        stage('Build Image') {
+            container('buildah') {
+                sh """
+                    echo "Building image: ${img} from containers/${params.INTERNAL_IMAGE_NAME}/Dockerfile"
+                    buildah bud --layers -f containers/${params.INTERNAL_IMAGE_NAME}/Dockerfile -t ${img} containers/${params.INTERNAL_IMAGE_NAME}
+                """
+            }
+        }
+
+        stage('Code Analysis - CxOne') {
+            sh "mkdir -p ${WORKSPACE}/scan_image"
+            checkmarxASTScanner(
+                branchName: '.unknown',
+                checkmarxInstallation: 'checkmarx-one-cli-latest',
+                credentialsId: 'cxone_scan_creds',
+                projectName: "${params.INTERNAL_IMAGE_NAME}",
+                serverUrl: 'https://fis.cxone.cloud',
+                tenantName: 'fis',
+                additionalOptions: "-s ${WORKSPACE}/scan_image --scan-types container-security --container-images ${img} --report-format summaryJSON --threshold containers-critical=1;containers-high=1;containers-medium=1;containers-low=0 --project-groups CxOne_CQ_${params.INTERNAL_IMAGE_NAME}",
+                useOwnAdditionalOptions: true,
+                useOwnServerCredentials: true
+            )
+        }
+
+        stage('Push to JFrog Artifactory') {
+            container('buildah') {
+                withCredentials([usernamePassword(credentialsId: 'svccacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+                    sh """
+                        buildah login -u $ART_USER -p $ART_PASS ${imageRegistry}
+                        buildah push ${img} docker://${img}
+                    """
+                }
+            }
+        }
+    }
+}
