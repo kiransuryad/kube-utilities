@@ -1,3 +1,46 @@
+stage('Push to JFrog Artifactory') {
+    container('buildah') {
+        withCredentials([usernamePassword(...)]) {
+            sh """
+                buildah login -u $ART_USER -p $ART_PASS ${imageRegistry}
+                buildah push ${img} docker://${img}
+            """
+        }
+    }
+}
+
+stage('Authenticate for CxOne') {
+    container('buildah') {
+        withCredentials([usernamePassword(credentialsId: 'svccacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+            sh """
+                echo "Ensuring CheckmarxOne can pull private image..."
+                buildah login -u $ART_USER -p $ART_PASS ${imageRegistry}
+            """
+        }
+    }
+}
+
+stage('Code Analysis - CxOne') {
+    checkmarxASTScanner(
+        branchName: '.unknown',
+        checkmarxInstallation: 'checkmarx-one-cli-latest',
+        credentialsId: 'cxone_scan_creds',
+        projectName: "${params.INTERNAL_IMAGE_NAME}",
+        serverUrl: 'https://fis.cxone.cloud',
+        tenantName: 'fis',
+        additionalOptions: "--scan-types container-security --container-images ${img} --report-format summaryJSON --threshold containers-critical=1;containers-high=1;containers-medium=1;containers-low=0 --project-groups CxOne_CQ_${params.INTERNAL_IMAGE_NAME}",
+        useOwnAdditionalOptions: true,
+        useOwnServerCredentials: true
+    )
+}
+
+
+
+
+
+
+
+---------------
 stage('Build Image') {
     container('buildah') {
         sh """
