@@ -1,3 +1,18 @@
+stage('Podman Login') {
+  container('podman') {
+    withCredentials([usernamePassword(credentialsId: 'svcacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+      sh '''
+        echo "Podman version:"
+        podman --version
+        echo "Logging into Artifactory with podman..."
+        podman login -u "$ART_USER" -p "$ART_PASS" edas-docker-snapshot-local.docker.fis.dev
+      '''
+    }
+  }
+}
+
+
+------
 stage('Push to JFrog Artifactory') {
     container('buildah') {
         withCredentials([usernamePassword(...)]) {
