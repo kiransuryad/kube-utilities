@@ -8,6 +8,101 @@ properties([
 ])
 
 String label = "${UUID.randomUUID().toString()}"
+String SOURCECODE_REPO = "https://bitbucket.fis.dev/scm/edas/hydra-devops-automation.git"
+
+String podTemplateString = """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: buildah
+      image: caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      resources:
+        limits:
+          github.com/fuse: 1
+    - name: podman
+      image: caas-docker-release-local.docker.fis.dev/mirror/podman:vs.5.3.2
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      resources:
+        requests:
+          ephemeral-storage: "2Gi"
+  imagePullSecrets:
+    - name: edas-docker-snapshot-svcacct-hydra-cicd
+"""
+
+podTemplate(
+    label: label,
+    yaml: podTemplateString,
+    serviceAccount: 'jenkins',
+    runAsUser: 1000
+) {
+    node(label) {
+
+        stage('Checkout Source') {
+            git(
+                branch: 'develop',
+                credentialsId: 'svcacct-hydra-cicd',
+                url: SOURCECODE_REPO,
+                targetDirectory: '.'
+            )
+        }
+
+        stage('Read Images Mirror Config') {
+            // This is our dynamic image list!
+            imagesConfig = readYaml file: 'jenkins/images-to-mirror.yaml'
+            if (!imagesConfig.images || imagesConfig.images.size() == 0) {
+                error("No images found in images-to-mirror.yaml!")
+            }
+            echo "Images to mirror: " + imagesConfig.images.collect { "${it.source} -> ${it.target}" }.join(', ')
+        }
+
+        stage('Mirror External Images to JFrog') {
+            container('podman') {
+                withCredentials([usernamePassword(credentialsId: 'svcacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+                    sh """
+                        podman login -u "$ART_USER" -p "$ART_PASS" edas-docker-snapshot-local.docker.fis.dev
+                    """
+                    imagesConfig.images.each { imgObj ->
+                        echo "Mirroring ${imgObj.source} -> ${imgObj.target}"
+                        // Pull from external, tag as JFrog, push to JFrog
+                        sh """
+                            set -e
+                            podman pull ${imgObj.source}
+                            podman tag ${imgObj.source} ${imgObj.target}
+                            podman push ${imgObj.target}
+                        """
+                    }
+                }
+            }
+        }
+
+        // All other original stages (build image, scanning, etc.) are omitted as per your instructions.
+    }
+}
+
+
+
+
+
+
+
+
+-----------------------
+@Library('common-lib03-stable@') _
+
+properties([
+    parameters([
+        string(name: 'INTERNAL_VERSION', description: 'Internal server version (e.g., 1.0.0)', defaultValue: '1.0.0'),
+        string(name: 'INTERNAL_IMAGE_NAME', description: 'Internal image name (matches container folder name)'),
+    ])
+])
+
+String label = "${UUID.randomUUID().toString()}"
 String imageRegistry = 'edas-docker-snapshot-local.docker.fis.dev'
 String img = "${imageRegistry}/test/${params.INTERNAL_IMAGE_NAME}:${params.INTERNAL_VERSION}"
 String SOURCECODE_REPO = "https://bitbucket.fis.dev/scm/edas/hydra-devops-automation.git"
