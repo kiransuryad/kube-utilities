@@ -1,3 +1,155 @@
+@Library('common-lib03-stable@') _
+
+properties([
+    parameters([
+        string(name: 'INTERNAL_VERSION', description: 'Internal server version (e.g., 1.0.0)', defaultValue: '1.0.0'),
+        string(name: 'INTERNAL_IMAGE_NAME', description: 'Internal image name (matches container folder name)'),
+    ])
+])
+
+String label = "${UUID.randomUUID().toString()}"
+String imageRegistry = 'edas-docker-snapshot-local.docker.fis.dev'
+String img = "${imageRegistry}/test/${params.INTERNAL_IMAGE_NAME}:${params.INTERNAL_VERSION}"
+String SOURCECODE_REPO = "https://bitbucket.fis.dev/scm/edas/hydra-devops-automation.git"
+
+String podTemplateString = """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: buildah
+      image: caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      resources:
+        limits:
+          github.com/fuse: 1
+    - name: podman
+      image: caas-docker-release-local.docker.fis.dev/mirror/podman:vs.5.3.2
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      resources:
+        requests:
+          ephemeral-storage: "2Gi"
+  imagePullSecrets:
+    - name: edas-docker-snapshot-svcacct-hydra-cicd
+"""
+
+podTemplate(
+    label: label,
+    yaml: podTemplateString,
+    serviceAccount: 'jenkins',
+    runAsUser: 1000
+) {
+    node(label) {
+
+        stage('Checkout Source') {
+            git(
+                branch: 'develop',
+                credentialsId: 'svcacct-hydra-cicd',
+                url: SOURCECODE_REPO,
+                targetDirectory: '.'
+            )
+        }
+
+        // --- DYNAMIC IMAGE LIST FROM CONFIG ---
+        def imageArgs = ""
+        stage('Read Images Config') {
+            def imagesConfig = readYaml file: 'jenkins/images-to-scan.yaml'
+            imageArgs = imagesConfig.images.join(',')
+            echo "Images to scan: ${imageArgs}"
+            if (!imageArgs?.trim()) {
+                error("No images found in images-to-scan.yaml!")
+            }
+        }
+
+        stage('Build Image') {
+            container('buildah') {
+                sh """
+                    echo "Building image: ${img} from containers/${params.INTERNAL_IMAGE_NAME}/Dockerfile"
+                    buildah bud --build-arg INTERNAL_VERSION=${params.INTERNAL_VERSION} --layers -f containers/${params.INTERNAL_IMAGE_NAME}/Dockerfile -t ${img} containers/${params.INTERNAL_IMAGE_NAME}
+                """
+            }
+        }
+
+        stage('Push to JFrog Artifactory') {
+            container('buildah') {
+                withCredentials([usernamePassword(credentialsId: 'svcacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+                    sh """
+                        buildah login -u $ART_USER -p $ART_PASS ${imageRegistry}
+                        buildah push ${img} docker://${img}
+                    """
+                }
+            }
+        }
+
+        stage('Authenticate for CxOne') {
+            container('buildah') {
+                withCredentials([usernamePassword(credentialsId: 'svcacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+                    sh """
+                        echo "Ensuring CheckmarxOne can pull private image..."
+                        buildah login -u $ART_USER -p $ART_PASS ${imageRegistry}
+                    """
+                }
+            }
+        }
+
+        stage('Code Analysis - CxOne') {
+            sh "mkdir -p \$WORKSPACE/scan_image"
+            checkmarxASTScanner(
+                branchName: '.unknown',
+                checkmarxInstallation: 'checkmarx-one-cli-latest',
+                credentialsId: 'cxone_scan_creds',
+                projectName: 'Keycloak-A10003579',
+                serverUrl: 'https://fis.cxone.cloud',
+                tenantName: 'fis',
+                additionalOptions: "--scan-types container-security --container-images ${imageArgs} --report-format summaryJSON --threshold containers-critical=1;containers-high=1;containers-medium=1;containers-low=1",
+                useOnDemandScan: true,
+                useWithAdditionalOptions: true,
+                useOnServerCredentials: true
+            )
+        }
+
+        stage('CxOne - Container Scan') {
+            container('podman') {
+                withEnv(["POD_RUNTIME_DIR=\$WORKSPACE", "HOME=\$WORKSPACE"]) {
+                    withCredentials([usernamePassword(credentialsId: 'svcacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+                        sh '''
+                            echo "Podman version:"
+                            podman --version
+                            echo "Logging into Artifactory with podman..."
+                            podman login --authfile $WORKSPACE/.config/containers/auth.json edas-docker-snapshot-local.docker.fis.dev -u "$ART_USER" -p "$ART_PASS"
+                        '''
+                    }
+                }
+                emaLogger.logMsg("Creating directories for container scan...")
+                sh "mkdir -p \$WORKSPACE/scan_image"
+                checkmarxASTScanner(
+                    branchName: 'master',
+                    checkmarxInstallation: 'checkmarx-one-cli-latest',
+                    credentialsId: 'cxone_scan_creds',
+                    projectName: 'Keycloak-A10003579',
+                    serverUrl: 'https://fis.cxone.cloud',
+                    tenantName: 'fis',
+                    additionalOptions: "--scan-types container-security --container-images ${imageArgs} --report-format summaryJSON --tags ContainerScan --project-tags Keycloak-Cont-Scan --threshold containers-critical=1;containers-high=1;containers-medium=1;containers-low=1",
+                    useOnDemandScan: true,
+                    useWithAdditionalOptions: true,
+                    useOnServerCredentials: true
+                )
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+--------------------------
 stage('Podman Login') {
   container('podman') {
     withCredentials([usernamePassword(credentialsId: 'svcacct-hydra-cicd', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
