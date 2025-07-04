@@ -1,3 +1,48 @@
+# --- Stage 1: Scan metrics-spi JAR with ClamAV ---
+ARG CLAMAV_VERSION=1.2.1           # Set default, override at build time
+ARG METRICS_SPI_VERSION=4.3.2      # Set default, override at build time
+
+FROM clamav/clamav:${CLAMAV_VERSION} AS scanner
+
+ARG METRICS_SPI_VERSION
+
+RUN apt-get update && apt-get install -y curl
+RUN mkdir /jars
+WORKDIR /jars
+
+# Download the SPI JAR
+RUN curl -L -o keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar \
+    https://github.com/aerogear/keycloak-metrics-spi/releases/download/${METRICS_SPI_VERSION}/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar
+
+# Update virus DB and scan
+RUN freshclam && clamscan -r --bell -i .
+
+# --- Stage 2: Build Keycloak with scanned SPI JAR ---
+ARG KC_VERSION=26.2.5               # Set default, override at build time
+FROM quay.io/keycloak/keycloak:${KC_VERSION}
+
+ARG METRICS_SPI_VERSION
+
+USER 0
+RUN mkdir -p /opt/keycloak/providers
+
+# Only copy the scanned JAR if it passed the scan
+COPY --from=scanner /jars/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar /opt/keycloak/providers/
+
+RUN chown 1000:1000 /opt/keycloak/providers/keycloak-metrics-spi-${METRICS_SPI_VERSION}.jar
+
+USER 1000
+
+# Entrypoint/CMD are inherited from base image
+
+# Optional: expose versions as labels for provenance
+LABEL org.opencontainers.image.source="https://github.com/aerogear/keycloak-metrics-spi"
+LABEL org.keycloak.version="${KC_VERSION}"
+LABEL org.clamav.version="${CLAMAV_VERSION}"
+LABEL org.metrics-spi.version="${METRICS_SPI_VERSION}"
+
+
+------------------
 properties([
     parameters([
         string(name: 'INTERNAL_VERSION', description: 'internal server version (e.g., 1.0.0) for Velero', defaultValue: 'v1.16.0'),
