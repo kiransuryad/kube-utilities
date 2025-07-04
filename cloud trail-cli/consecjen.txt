@@ -1,3 +1,49 @@
+properties([
+    parameters([
+        string(name: 'INTERNAL_VERSION', description: 'internal server version (e.g., 1.0.0) for Velero', defaultValue: 'v1.16.0'),
+        string(name: 'CLAMAV_VERSION', description: 'ClamAV image version', defaultValue: '1.2.1'),
+        string(name: 'METRICS_SPI_VERSION', description: 'Keycloak Metrics SPI JAR version', defaultValue: '4.3.2'),
+        string(name: 'KC_VERSION', description: 'Keycloak version', defaultValue: '26.2.5'),
+    ])
+])
+
+// ...all your setup code...
+
+stage('Build') {
+    container('buildah') {
+        sh """
+            buildah bud \
+              --build-arg CLAMAV_VERSION=${params.CLAMAV_VERSION} \
+              --build-arg METRICS_SPI_VERSION=${params.METRICS_SPI_VERSION} \
+              --build-arg KC_VERSION=${params.KC_VERSION} \
+              --build-arg INTERNAL_VERSION=${params.INTERNAL_VERSION} \
+              --layers \
+              -f containers/keycloak/Dockerfile \
+              -t ${containerImageMap.imageRegistry}/${containerImageMap.imageName}:${containerImageMap.imageTag} .
+        """
+    }
+}
+
+// SCA scan for the Dockerfile itself
+stage('SCA Dockerfile Analysis - CxOne') {
+    checkmarxASTScanner(
+        branchName: 'develop',
+        checkmarxInstallation: 'checkmarx-one-cli-latest',
+        credentialsId: 'cxone_scan_creds',
+        projectName: 'Keycloak-Dockerfile-SCA',
+        serverUrl: 'https://fis.cxone.cloud',
+        tenantName: 'fis',
+        additionalOptions: "--scan-types sca --sca-package-manager docker --source-path containers/keycloak/Dockerfile --report-format summaryJSON",
+        useOnDemandScan: true,
+        useWithAdditionalOptions: true,
+        useOnServerCredentials: true
+    )
+}
+
+
+
+
+---------------------------------
 @Library('common-lib03-stable@') _
 
 String label = "build-${UUID.randomUUID().toString()}"
