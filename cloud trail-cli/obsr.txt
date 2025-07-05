@@ -1,3 +1,88 @@
+loki:
+  storage:
+    type: s3
+    s3:
+      bucketnames: "observability-loki-dev-eda-keycloak-cluster"
+      endpoint: "s3.us-east-1.amazonaws.com"
+      region: "us-east-1"
+      s3forcepathstyle: true
+      insecure: false
+
+  commonConfig:
+    replication_factor: 3
+
+  schemaConfig:
+    configs:
+      - from: 2024-01-01
+        store: boltdb-shipper
+        object_store: s3
+        schema: v12
+        index:
+          prefix: index_
+          period: 24h
+
+  compactor:
+    shared_store: s3
+    compaction_interval: 10m
+    retention_enabled: true
+
+  limits_config:
+    retention_period: 365d
+    max_streams_per_user: 0
+    max_entries_limit_per_query: 5000
+    max_query_length: 168h
+
+serviceAccount:
+  create: true
+  name: loki
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::537124937025:role/loki-irsa-dev"
+
+replicaCount: 3
+
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClassName: "gp3"    # Adjust to your EBS storage class if different
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "2Gi"
+  limits:
+    cpu: "2"
+    memory: "8Gi"
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 3100
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /ready
+    port: 3100
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+rbac:
+  create: true
+
+
+
+
+
+
+
+
+--------------------------------------------------------------
 replicaCount: 3   # Horizontal scaling for high availability
 
 # S3 Backend Configuration (Object Storage)
