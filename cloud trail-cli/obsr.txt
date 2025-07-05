@@ -1,4 +1,86 @@
 loki:
+  config: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+    common:
+      replication_factor: 3
+    storage_config:
+      aws:
+        s3: s3://observability-loki-dev-eda-keycloak-cluster
+        region: us-east-1
+        endpoint: s3.us-east-1.amazonaws.com
+        s3forcepathstyle: true
+        insecure: false
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: boltdb-shipper
+          object_store: aws
+          schema: v12
+          index:
+            prefix: index_
+            period: 24h
+    compactor:
+      working_directory: /var/loki/compactor
+      shared_store: aws
+      compaction_interval: 10m
+      retention_enabled: true
+    limits_config:
+      retention_period: 365d
+      max_streams_per_user: 0
+      max_entries_limit_per_query: 5000
+      max_query_length: 168h
+
+  serviceAccount:
+    create: true
+    name: loki
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::537124937025:role/loki-irsa-dev"
+
+  replicaCount: 3
+
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClassName: "gp3-encrypted"
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 3100
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: 3100
+    initialDelaySeconds: 15
+    periodSeconds: 10
+
+  rbac:
+    create: true
+
+
+
+
+
+-------------
+loki:
   enabled: true
 
   # The ONLY correct S3 storage config for Helm 6.x+ is under loki.config.storage_config
