@@ -1,3 +1,139 @@
+replicaCount: 3   # Horizontal scaling for high availability
+
+# S3 Backend Configuration (Object Storage)
+loki:
+  commonConfig:
+    replication_factor: 3  # Must match replicaCount for multi-zone durability
+    ring:
+      kvstore:
+        store: memberlist
+
+  storage:
+    type: 's3'
+    s3:
+      bucketnames: "observability-loki-${ENVIRONMENT}"   # Fill in via env or hardcode if needed
+      endpoint: "s3.${AWS_REGION}.amazonaws.com"
+      region: "${AWS_REGION}"   # Set via values or secret
+      s3forcepathstyle: true
+      insecure: false
+      access_key_id: ""        # Empty to use IAM Role (IRSA)
+      secret_access_key: ""    # Empty to use IAM Role (IRSA)
+    # (No static creds—uses IRSA)
+
+  schemaConfig:
+    configs:
+      - from: 2020-10-15
+        store: boltdb-shipper
+        object_store: s3
+        schema: v12
+        index:
+          prefix: index_
+          period: 24h
+
+  compactor:
+    shared_store: s3
+    compaction_interval: 10m
+    retention_enabled: true
+
+  limits_config:
+    retention_period: 365d    # Matches your S3 lifecycle
+    max_streams_per_user: 0
+    max_entries_limit_per_query: 5000
+    max_query_length: 168h   # 1 week for a single query
+
+  table_manager:
+    retention_deletes_enabled: true
+    retention_period: 365d
+
+# ServiceAccount and IRSA configuration
+serviceAccount:
+  create: true
+  name: loki
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/loki-irsa-${ENVIRONMENT}"
+
+# Security
+securityContext:
+  runAsUser: 10001
+  fsGroup: 10001
+podSecurityContext:
+  runAsUser: 10001
+  fsGroup: 10001
+
+# Resource Requests & Limits
+resources:
+  requests:
+    cpu: "500m"
+    memory: "2Gi"
+  limits:
+    cpu: "2"
+    memory: "8Gi"
+
+# Network
+service:
+  type: ClusterIP
+  port: 3100
+
+# Ingress (if external access is needed)
+ingress:
+  enabled: false  # Or true if you expose externally
+  # ...configure rules/TLS as needed
+
+# Persistence for BoltDB Shipper cache (recommended)
+persistence:
+  enabled: true
+  accessModes:
+    - ReadWriteOnce
+  size: 50Gi
+  storageClassName: "gp3"    # Or your preferred EBS SC
+
+# Readiness & Liveness Probes
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 3100
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /ready
+    port: 3100
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+# Monitoring: Enable /metrics for ServiceMonitor
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      release: "kube-prometheus-stack"   # Match your prometheus deployment's selector
+    interval: 30s
+
+# Extra environment variables for flexibility
+extraEnv:
+  - name: AWS_REGION
+    value: "${AWS_REGION}"
+
+# Tracing, if needed
+tracing:
+  enabled: false
+
+# Alerts (customize as needed)
+alerting:
+  enabled: false
+
+# RBAC
+rbac:
+  create: true
+
+
+
+
+
+
+---------------------------------------------
 extraEnv:
   - name: KC_FEATURES
     value: "user-event-metrics"
