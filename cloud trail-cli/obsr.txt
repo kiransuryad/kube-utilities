@@ -1,4 +1,102 @@
 loki:
+  auth_enabled: false
+
+  server:
+    http_listen_port: 3100
+    grpc_listen_port: 9095
+    http_server_read_timeout: 600s
+    http_server_write_timeout: 600s
+
+  commonConfig:
+    path_prefix: /var/loki
+    replication_factor: 3
+
+  # S3 storage configuration for AWS IRSA
+  storage:
+    type: s3
+    s3:
+      bucketnames: "observability-loki-dev-eda-keycloak-cluster"
+      region: "us-east-1"
+      endpoint: "s3.us-east-1.amazonaws.com"
+      s3ForcePathStyle: true
+      insecure: false
+
+  # Required! This is what the Helm chart expects for schema
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: boltdb-shipper
+        object_store: s3
+        schema: v12
+        index:
+          prefix: index_
+          period: 24h
+
+  # Enable/disable serviceAccount for IRSA (make sure this name matches your IRSA role binding)
+  serviceAccount:
+    create: true
+    name: loki
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::537124937025:role/loki-irsa-dev"
+
+  replicaCount: 3
+
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClassName: "gp3-encrypted"
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 30
+    timeoutSeconds: 1
+
+  podSecurityContext:
+    fsGroup: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    runAsUser: 10001
+
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+    allowPrivilegeEscalation: false
+
+  rbac:
+    create: true
+
+  # Optional: Enable Loki UI if desired
+  ui:
+    enabled: true
+
+# Prometheus ServiceMonitor (for kube-prometheus-stack integration)
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+
+
+
+--------------------
+loki:
   config: |
     auth_enabled: false
     server:
