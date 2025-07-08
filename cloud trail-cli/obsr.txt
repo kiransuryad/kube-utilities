@@ -10,6 +10,78 @@ config:
     pipelineStages:
       - docker: {}
 
+  scrapeConfigs:
+    - job_name: keycloak
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        # Keep logs only from namespace keycloak-eda
+        - source_labels: [__meta_kubernetes_namespace]
+          regex: keycloak-eda
+          action: keep
+
+        # Keep pods labeled with app.kubernetes.io/name=keycloak
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          regex: keycloak
+          action: keep
+
+        # Keep only logs from the keycloak container
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          regex: keycloak
+          action: keep
+
+        # Relabel standard metadata labels to promtail labels
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          target_label: app
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          target_label: container
+
+        # Set __path__ to pod log files path for promtail
+        - action: replace
+          replacement: /var/log/pods/*/*/*.log
+          target_label: __path__
+
+extraServerConfigs: |
+  health_check_target: false
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: promtail
+
+readinessProbe:
+  failureThreshold: 5
+  httpGet:
+    path: "{{ printf '%s/ready' .Values.httpPathPrefix }}"
+    port: 3101
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 1
+
+
+
+
+
+-----------------------
+loki:
+  serviceName: release-d5739a-loki-gateway
+  servicePort: 80
+
+config:
+  clients:
+    - url: http://release-d5739a-loki-gateway.kube-prometheus-stack.svc.cluster.local/loki/api/v1/push
+
+  snippets:
+    pipelineStages:
+      - docker: {}
+
     scrapeConfigs:
       - job_name: keycloak
         kubernetes_sd_configs:
