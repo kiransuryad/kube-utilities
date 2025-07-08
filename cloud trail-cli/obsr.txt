@@ -1,3 +1,42 @@
+scrapeConfigs:
+  - job_name: keycloak
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      # Keep only pods in keycloak namespace
+      - source_labels: [__meta_kubernetes_namespace]
+        regex: keycloak-eda
+        action: keep
+
+      # Keep only pods with label app=keycloak (adjust if label differs)
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        regex: keycloak
+        action: keep
+
+      # Keep only container logs from the keycloak container
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        regex: keycloak
+        action: keep
+
+      # Map Kubernetes labels to promtail labels
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        target_label: app
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        target_label: container
+
+      # Set __path__ to point promtail to pod logs on the node
+      - action: replace
+        replacement: /var/log/pods/*/*/*.log
+        target_label: __path__
+
+
+
+
+--------------
 loki:
   serviceName: release-d5739a-loki-gateway
   servicePort: 80
