@@ -1,4 +1,158 @@
+module "thirdparty_healthcheck" {
+  source            = "./module/route53-healthchecks"
+  fqdn              = "thirdparty.example.com"
+  port              = 443
+  protocol          = "HTTPS"
+  resource_path     = "/"
+  alert_emails      = ["admin@example.com", "devops@example.com"]
+  enable_sse        = true    # Set false if you do not want encryption
+  alarm_name        = "ThirdPartyApp-HealthCheck-Alarm"
+  alarm_description = "Alert if third-party app is down (Route53 health check failed)."
+  tags              = { Env = "prod" }
+}
 
+--
+
+variable "fqdn" {
+  type        = string
+  description = "FQDN of the external endpoint to check"
+}
+
+variable "port" {
+  type        = number
+  description = "Port to check (80, 443, or custom)"
+  default     = 443
+}
+
+variable "protocol" {
+  type        = string
+  description = "Protocol: HTTP, HTTPS, or TCP"
+  default     = "HTTPS"
+}
+
+variable "resource_path" {
+  type        = string
+  description = "Resource path for HTTP/S checks (e.g., /health)"
+  default     = "/"
+}
+
+variable "alert_emails" {
+  type        = list(string)
+  description = "List of emails to notify"
+}
+
+variable "enable_sse" {
+  type        = bool
+  description = "If true, enable SNS encryption with a customer KMS key"
+  default     = false
+}
+
+variable "alarm_name" {
+  type        = string
+  description = "CloudWatch Alarm Name"
+}
+
+variable "alarm_description" {
+  type        = string
+  description = "Alarm description"
+  default     = "Route53 Health Check failure"
+}
+
+variable "tags" {
+  type        = map(string)
+  default     = {}
+  description = "Resource tags"
+}
+
+
+---
+
+locals {
+  sns_topic_name = "thirdparty-url-health-alerts"
+}
+
+
+---
+
+# KMS Key (only if SSE enabled)
+resource "aws_kms_key" "sns" {
+  count                   = var.enable_sse ? 1 : 0
+  description             = "KMS key for SNS topic encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  tags                    = var.tags
+}
+
+# Route53 Health Check
+resource "aws_route53_health_check" "this" {
+  fqdn              = var.fqdn
+  port              = var.port
+  type              = var.protocol
+  resource_path     = var.resource_path
+  request_interval  = 30
+  failure_threshold = 3
+  tags              = var.tags
+}
+
+# SNS Topic (with or without encryption)
+resource "aws_sns_topic" "alerts" {
+  name              = local.sns_topic_name
+  kms_master_key_id = var.enable_sse ? aws_kms_key.sns[0].arn : null
+  tags              = var.tags
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  count     = length(var.alert_emails)
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_emails[count.index]
+}
+
+resource "aws_cloudwatch_metric_alarm" "this" {
+  alarm_name          = var.alarm_name
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "HealthCheckStatus"
+  namespace           = "AWS/Route53"
+  period              = 60
+  statistic           = "Minimum"
+  threshold           = 1
+  alarm_description   = var.alarm_description
+  actions_enabled     = true
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  dimensions = {
+    HealthCheckId = aws_route53_health_check.this.id
+  }
+  tags = var.tags
+}
+
+
+---
+
+output "health_check_id" {
+  value       = aws_route53_health_check.this.id
+  description = "ID of the Route53 health check"
+}
+
+output "sns_topic_arn" {
+  value       = aws_sns_topic.alerts.arn
+  description = "ARN of SNS topic for alerts"
+}
+
+output "alarm_arn" {
+  value       = aws_cloudwatch_metric_alarm.this.arn
+  description = "ARN of the CloudWatch alarm"
+}
+
+
+
+
+
+
+
+
+--------------------------
+-------------------------
 ##############################################
 # Fluent Bit IRSA & CloudWatch Setup Module  #
 ##############################################
