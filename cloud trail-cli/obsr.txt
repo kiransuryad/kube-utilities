@@ -1,3 +1,146 @@
+
+##############################################
+# Fluent Bit IRSA & CloudWatch Setup Module  #
+##############################################
+
+# 1. Variables: Set from parent/root module
+
+variable "cluster_name" {
+  description = "EKS cluster name"
+  type        = string
+}
+
+variable "namespace" {
+  description = "Namespace where Fluent Bit is deployed"
+  type        = string
+}
+
+variable "service_account" {
+  description = "Service account name for Fluent Bit"
+  type        = string
+  default     = "fluent-bit"
+}
+
+variable "log_group_name" {
+  description = "Name of the CloudWatch log group"
+  type        = string
+  default     = "/eks/pmcs-eks-logging"
+}
+
+variable "log_retention_days" {
+  description = "Log group retention in days"
+  type        = number
+  default     = 30
+}
+
+variable "tags" {
+  description = "Common tags"
+  type        = map(string)
+  default     = {}
+}
+
+# 2. Data sources for EKS cluster and OIDC provider
+
+data "aws_eks_cluster" "this" {
+  name = var.cluster_name
+}
+
+data "aws_eks_cluster_auth" "this" {
+  name = var.cluster_name
+}
+
+data "aws_iam_openid_connect_provider" "this" {
+  url = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
+}
+
+# 3. CloudWatch Log Group
+
+resource "aws_cloudwatch_log_group" "fluent_bit" {
+  name              = var.log_group_name
+  retention_in_days = var.log_retention_days
+  tags              = merge(var.tags, { "Name" = var.log_group_name })
+}
+
+# 4. IAM Policy for Fluent Bit
+
+data "aws_iam_policy_document" "fluent_bit_cw_logs" {
+  statement {
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams"
+    ]
+    resources = [
+      aws_cloudwatch_log_group.fluent_bit.arn,
+      "${aws_cloudwatch_log_group.fluent_bit.arn}:*"
+    ]
+  }
+}
+
+# 5. IRSA Role for Fluent Bit
+
+resource "aws_iam_role" "fluent_bit_irsa" {
+  name = "eks-fluent-bit-irsa-${var.namespace}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = data.aws_iam_openid_connect_provider.this.arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(data.aws_iam_openid_connect_provider.this.url, "https://", "")}:sub" = "system:serviceaccount:${var.namespace}:${var.service_account}"
+        }
+      }
+    }]
+  })
+  tags = merge(var.tags, { "Name" = "eks-fluent-bit-irsa-${var.namespace}" })
+}
+
+# 6. Attach Policy to IRSA Role
+
+resource "aws_iam_role_policy" "fluent_bit_attach" {
+  name   = "eks-fluent-bit-irsa-policy-${var.namespace}"
+  role   = aws_iam_role.fluent_bit_irsa.id
+  policy = data.aws_iam_policy_document.fluent_bit_cw_logs.json
+}
+
+# 7. Outputs for Helm chart integration
+
+output "fluent_bit_irsa_role_arn" {
+  description = "IAM role ARN for Fluent Bit IRSA"
+  value       = aws_iam_role.fluent_bit_irsa.arn
+}
+
+output "cloudwatch_log_group_name" {
+  description = "CloudWatch log group name for Fluent Bit"
+  value       = aws_cloudwatch_log_group.fluent_bit.name
+}
+
+----
+
+module "fluent_bit_irsa" {
+  source          = "./modules/fluent-bit-irsa" # Path to your module
+  cluster_name    = "your-eks-cluster"
+  namespace       = "kube-prometheus-stack"
+  service_account = "fluent-bit"
+  log_group_name  = "/eks/pmcs-eks-logging"
+  log_retention_days = 30
+
+  tags = {
+    Project = "your-project"
+    Owner   = "your-team"
+  }
+}
+
+
+
+
+--------------------
 scrapeConfigs:
   - job_name: keycloak
     kubernetes_sd_configs:
