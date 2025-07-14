@@ -1,3 +1,108 @@
+# Use your private image and secret
+image:
+  repository: <YOUR_PRIVATE_REGISTRY>/fluent-bit
+  tag: <YOUR_TAG>
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: <YOUR_IMAGE_PULL_SECRET_NAME>
+
+# Namespace override
+global:
+  namespaceOverride: kube-prometheus-stack
+
+serviceAccount:
+  create: true
+  name: fluent-bit
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/<YOUR-FLUENT-BIT-ROLE>
+
+# Enable the default tail input to collect kubernetes pod logs
+input:
+  enabled: true
+  tag: kube.*
+  path: /var/log/containers/*.log   # Chart only allows a glob here, so we filter by grep below
+  db: /var/log/flb_kube.db
+  multilineParser: docker, cri
+  memBufLimit: 50MB
+  skipLongLines: On
+  refreshInterval: 5
+
+# Optionally add extraInputs/filters if needed
+# extraInputs: ""
+# additionalInputs: ""
+
+# Kubernetes filter for enrichment
+filter:
+  kubernetes:
+    enabled: true
+    match: kube.*
+
+  # Filter to only logs from keycloak-eda namespace
+  grep_namespace:
+    enabled: true
+    match: kube.*
+    regex: $kubernetes['namespace_name'] ^keycloak-eda$
+
+  # Filter to only pods whose name starts with keycloak-
+  grep_pod:
+    enabled: true
+    match: kube.*
+    regex: $kubernetes['pod_name'] ^keycloak-.*
+
+  # If you want additional filter logic, use extraFilters or additionalFilters
+  # extraFilters: ""
+  # additionalFilters: ""
+
+# Use the high-performance C plugin for CloudWatch Logs (recommended by AWS)
+cloudWatchLogs:
+  enabled: true
+  match: "*"
+  region: eu-west-1
+  logGroupName: /fsi_logs_eks_keycloak
+  logStreamPrefix: keycloak-
+  autoCreateGroup: true
+  logRetentionDays: 30
+
+# Optionally: disable other outputs
+cloudWatch:
+  enabled: false
+
+firehose:
+  enabled: false
+
+kinesis:
+  enabled: false
+
+kinesis_streams:
+  enabled: false
+
+elasticsearch:
+  enabled: false
+
+opensearch:
+  enabled: false
+
+s3:
+  enabled: false
+
+# Resources/tolerations as needed for your cluster
+resources:
+  requests:
+    cpu: 50m
+    memory: 100Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+tolerations:
+  - operator: Exists
+
+
+
+
+
+---------
 serviceAccount:
   create: true
   name: fluent-bit
