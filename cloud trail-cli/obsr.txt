@@ -1,3 +1,69 @@
+serviceAccount:
+  create: true
+  name: fluent-bit
+  annotations:
+    # IRSA: replace with your fluent-bit IAM role ARN
+    eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/<YOUR-FLUENT-BIT-ROLE>
+
+cloudWatch:
+  enabled: true
+  region: eu-west-1   # Change as needed
+  logGroupName: /fsi_logs_eks_keycloak
+  logStreamPrefix: keycloak-
+  autoCreateGroup: true
+
+input:
+  tail:
+    enabled: true
+    path: /var/log/containers/*_keycloak-eda_*.log
+    parser: docker
+    tag: kube.*
+    refresh_interval: 5
+    rotate_wait: 30
+    mem_buf_limit: 50MB
+    skip_long_lines: On
+
+filterKubernetes:
+  enabled: true
+  match: kube.*
+  # You may add further filtering if you want, e.g., by app label
+
+filters:
+  - name: grep
+    match: kube.*
+    regex: $kubernetes['namespace_name'] ^keycloak-eda$
+  - name: grep
+    match: kube.*
+    regex: $kubernetes['pod_name'] ^keycloak-.*
+
+outputs:
+  cloudwatch:
+    enabled: true
+    region: eu-west-1
+    logGroupName: /fsi_logs_eks_keycloak
+    logStreamPrefix: keycloak-
+    autoCreateGroup: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 100Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+tolerations:
+  - operator: Exists
+
+namespaceOverride: kube-prometheus-stack
+
+# RBAC and securityContext as default
+
+
+
+
+
+-------------------------------------
 module "thirdparty_healthcheck" {
   source            = "./module/route53-healthchecks"
   fqdn              = "thirdparty.example.com"
