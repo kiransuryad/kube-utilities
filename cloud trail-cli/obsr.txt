@@ -1,3 +1,26 @@
+message: |
+  {{- if eq .CommonLabels.alertname "KeycloakDown" -}}
+  [Critical] Keycloak is DOWN in {{ .Labels.namespace }}. No instance detected for 5m. Instance: {{ .Labels.pod }}
+  {{- else if eq .CommonLabels.alertname "KeycloakHigh5xxRate" -}}
+  [Warning] High 5xx error rate for Keycloak in {{ .Labels.namespace }}: > {{ .Value }} errors/min. Instance: {{ .Labels.pod }}
+  {{- else if eq .CommonLabels.alertname "KeycloakHighResponseLatency" -}}
+  [Warning] High response latency for Keycloak in {{ .Labels.namespace }}: 99th percentile > {{ .Value }}s. Instance: {{ .Labels.pod }}
+  {{- else if eq .CommonLabels.alertname "KeycloakHighLoginFailures" -}}
+  [Warning] Excessive login failures for Keycloak in {{ .Labels.namespace }}: > {{ .Value }}/min. Instance: {{ .Labels.pod }}
+  {{- else if eq .CommonLabels.alertname "KeycloakJvmHighMemory" -}}
+  [Warning] JVM heap usage > 80% for Keycloak in {{ .Labels.namespace }}. Instance: {{ .Labels.pod }}
+  {{- else if eq .CommonLabels.alertname "KeycloakPodRestartingFrequently" -}}
+  [Warning] Keycloak pod restarted > 3 times in 10m in {{ .Labels.namespace }}. Pod: {{ .Labels.pod }}
+  {{- else if eq .CommonLabels.alertname "KeycloakJavaNonHeapThresholdExceeded" -}}
+  [Warning] JVM nonheap usage > 90% for Keycloak in {{ .Labels.namespace }}. Instance: {{ .Labels.pod }}
+  {{- else -}}
+  [Prometheus] Alert: {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})
+  Summary: {{ with .Annotations.summary }}{{ . }}{{ else }}No summary provided{{ end }}
+  Description: {{ with .Annotations.description }}{{ . }}{{ else }}No description provided{{ end }}
+  {{- end -}}
+
+
+-------------------
 # ------------------------------
 # Variables (define these as needed)
 # ------------------------------
