@@ -1,3 +1,7 @@
+helm template kube-prometheus-stack prometheus-community/kube-prometheus-stack -f dev-cio-eks-custom-values.yaml --namespace kube-prometheus-stack > out.yaml
+
+
+-----
 prometheus:
   prometheusSpec:
     additionalPrometheusRulesMap:
