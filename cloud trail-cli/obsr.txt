@@ -10,6 +10,148 @@ spec:
   groups:
     - name: keycloak.rules
       rules:
+
+        {{- if .Values.keycloakAlerts.keycloakDown.enabled }}
+        - alert: KeycloakDown
+          expr: absent(up{job="keycloak", namespace="keycloak-eda"} == 1)
+          for: 5m
+          labels:
+            severity: "{{ .Values.keycloakAlerts.keycloakDown.severity }}"
+          annotations:
+            summary: "Keycloak service is down"
+            description: "No running Keycloak instance detected in namespace keycloak-eda for more than 5 minutes."
+        {{- end }}
+
+        {{- if .Values.keycloakAlerts.high5xxRate.enabled }}
+        - alert: KeycloakHigh5xxRate
+          expr: sum(rate(http_server_requests_seconds_count{job="keycloak", namespace="keycloak-eda", status=~"5.."}[5m])) > {{ .Values.keycloakAlerts.high5xxRate.threshold | default 5 }}
+          for: 2m
+          labels:
+            severity: "{{ .Values.keycloakAlerts.high5xxRate.severity }}"
+          annotations:
+            summary: "High 5xx error rate"
+            description: "Keycloak in keycloak-eda is returning 5xx errors at a high rate."
+        {{- end }}
+
+        {{- if .Values.keycloakAlerts.highResponseLatency.enabled }}
+        - alert: KeycloakHighResponseLatency
+          expr: histogram_quantile({{ .Values.keycloakAlerts.highResponseLatency.quantile | default 0.99 }}, sum(rate(http_server_requests_seconds_bucket{job="keycloak", namespace="keycloak-eda"}[5m])) by (le)) > {{ .Values.keycloakAlerts.highResponseLatency.latencySeconds | default 2 }}
+          for: 5m
+          labels:
+            severity: "{{ .Values.keycloakAlerts.highResponseLatency.severity }}"
+          annotations:
+            summary: "Keycloak high response latency"
+            description: "Keycloak {{ .Values.keycloakAlerts.highResponseLatency.quantile | default 0.99 | mul 100 | int }}th percentile response latency > {{ .Values.keycloakAlerts.highResponseLatency.latencySeconds | default 2 }}s for 5m in keycloak-eda."
+        {{- end }}
+
+        {{- if .Values.keycloakAlerts.highLoginFailures.enabled }}
+        - alert: KeycloakHighLoginFailures
+          expr: sum(rate(keycloak_logins_failed_total{namespace="keycloak-eda"}[5m])) > {{ .Values.keycloakAlerts.highLoginFailures.threshold | default 10 }}
+          for: 2m
+          labels:
+            severity: "{{ .Values.keycloakAlerts.highLoginFailures.severity }}"
+          annotations:
+            summary: "High login failure rate"
+            description: "Keycloak login failures > {{ .Values.keycloakAlerts.highLoginFailures.threshold | default 10 }}/min in keycloak-eda."
+        {{- end }}
+
+        {{- if .Values.keycloakAlerts.jvmHeapHighMemory.enabled }}
+        - alert: KeycloakJvmHighMemory
+          expr: |
+            (
+              (jvm_memory_used_bytes{namespace="keycloak-eda", area="heap"} / ignoring(id) jvm_memory_max_bytes{namespace="keycloak-eda", area="heap"})
+            ) > {{ .Values.keycloakAlerts.jvmHeapHighMemory.percent | default 0.8 }}
+          for: 10m
+          labels:
+            severity: "{{ .Values.keycloakAlerts.jvmHeapHighMemory.severity }}"
+          annotations:
+            summary: "Keycloak JVM high memory usage"
+            description: "JVM heap usage > {{ .Values.keycloakAlerts.jvmHeapHighMemory.percent | default 0.8 | mul 100 | int }}% for 10m in keycloak-eda."
+        {{- end }}
+
+        {{- if .Values.keycloakAlerts.podRestartingFrequently.enabled }}
+        - alert: KeycloakPodRestartingFrequently
+          expr: increase(kube_pod_container_status_restarts_total{namespace="keycloak-eda", pod=~"keycloak.*"}[{{ .Values.keycloakAlerts.podRestartingFrequently.window | default "10m" }}]) > {{ .Values.keycloakAlerts.podRestartingFrequently.threshold | default 3 }}
+          for: 5m
+          labels:
+            severity: "{{ .Values.keycloakAlerts.podRestartingFrequently.severity }}"
+          annotations:
+            summary: "Keycloak pod restart loop"
+            description: "Keycloak pod in keycloak-eda restarted more than {{ .Values.keycloakAlerts.podRestartingFrequently.threshold | default 3 }} times in {{ .Values.keycloakAlerts.podRestartingFrequently.window | default "10m" }}."
+        {{- end }}
+
+        {{- if .Values.keycloakAlerts.javaNonHeapThresholdExceeded.enabled }}
+        - alert: KeycloakJavaNonHeapThresholdExceeded
+          expr: |
+            100 * jvm_memory_bytes_used{area="nonheap",namespace="keycloak-eda"}
+            / jvm_memory_bytes_max{area="nonheap",namespace="keycloak-eda"} > {{ .Values.keycloakAlerts.javaNonHeapThresholdExceeded.percent | default 0.9 }}
+          for: 1m
+          labels:
+            severity: "{{ .Values.keycloakAlerts.javaNonHeapThresholdExceeded.severity }}"
+          annotations:
+            summary: Keycloak Java NonHeap Threshold Exceeded
+            description: "JVM nonheap usage > {{ .Values.keycloakAlerts.javaNonHeapThresholdExceeded.percent | default 0.9 | mul 100 | int }}% in keycloak-eda."
+        {{- end }}
+
+{{- end }}
+
+
+
+------
+prometheusRules:
+  create: true
+  namespace: kube-prometheus-stack
+
+keycloakAlerts:
+  keycloakDown:
+    enabled: true
+    severity: critical
+  high5xxRate:
+    enabled: true
+    severity: warning
+    threshold: 5
+  highResponseLatency:
+    enabled: true
+    severity: warning
+    quantile: 0.99
+    latencySeconds: 2
+  highLoginFailures:
+    enabled: true
+    severity: warning
+    threshold: 10
+  jvmHeapHighMemory:
+    enabled: true
+    severity: warning
+    percent: 0.8
+  podRestartingFrequently:
+    enabled: true
+    severity: warning
+    threshold: 3
+    window: 10m
+  javaNonHeapThresholdExceeded:
+    enabled: true
+    severity: warning
+    percent: 0.9
+
+
+
+
+
+
+
+-------------------
+{{- if .Values.prometheusRules.create | default true }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keycloak-prometheus-alerts
+  namespace: {{ .Values.prometheusRules.namespace | default "kube-prometheus-stack" }}
+  labels:
+    {{- include "kube-prometheus-stack.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: keycloak.rules
+      rules:
         # 1. Keycloak Instance Down
         {{- if .Values.keycloakAlerts.keycloakDown.enabled | default true }}
         - alert: KeycloakDown
