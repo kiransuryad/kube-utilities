@@ -1,3 +1,51 @@
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+
+    receivers:
+      - name: 'sns-email'
+        sns_configs:
+          - sigv4:
+              region: eu-west-1
+            topic_arn: arn:aws:sns:eu-west-1:123456789012:prometheus-alerts
+            subject: '{{`[Prometheus Alert] {{ .CommonLabels.alertname }}: {{ .CommonLabels.severity }}`}}'
+            message: |
+              {{`{{- if eq .CommonLabels.alertname "KeycloakDown" -}}
+[Critical] Keycloak is DOWN in {{ .Labels.namespace }}. No instance detected for 5m. Instance: {{ .Labels.pod }}
+{{- else if eq .CommonLabels.alertname "KeycloakHigh5xxRate" -}}
+[Warning] High 5xx error rate for Keycloak in {{ .Labels.namespace }}: > {{ .Value }} errors/min. Instance: {{ .Labels.pod }}
+{{- else if eq .CommonLabels.alertname "KeycloakHighResponseLatency" -}}
+[Warning] High response latency for Keycloak in {{ .Labels.namespace }}: 99th percentile > {{ .Value }}s. Instance: {{ .Labels.pod }}
+{{- else if eq .CommonLabels.alertname "KeycloakHighLoginFailures" -}}
+[Warning] Excessive login failures for Keycloak in {{ .Labels.namespace }}: > {{ .Value }}/min. Instance: {{ .Labels.pod }}
+{{- else if eq .CommonLabels.alertname "KeycloakJvmHighMemory" -}}
+[Warning] JVM heap usage > 80% for Keycloak in {{ .Labels.namespace }}. Instance: {{ .Labels.pod }}
+{{- else if eq .CommonLabels.alertname "KeycloakPodRestartingFrequently" -}}
+[Warning] Keycloak pod restarted > 3 times in 10m in {{ .Labels.namespace }}. Pod: {{ .Labels.pod }}
+{{- else if eq .CommonLabels.alertname "KeycloakJavaNonHeapThresholdExceeded" -}}
+[Warning] JVM nonheap usage > 90% for Keycloak in {{ .Labels.namespace }}. Instance: {{ .Labels.pod }}
+{{- else -}}
+[Prometheus] Alert: {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})\nSummary: {{ .Annotations.summary }}\nDescription: {{ .Annotations.description }}
+{{- end -}}`}}
+    route:
+      receiver: 'sns-email'
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+      routes:
+        - match:
+            severity: 'critical'
+          receiver: 'sns-email'
+        - match:
+            severity: 'warning'
+          receiver: 'sns-email'
+
+
+
+-------------
 apiVersion: v1
 kind: Secret
 alertmanager:
