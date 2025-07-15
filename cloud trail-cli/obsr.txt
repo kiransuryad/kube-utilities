@@ -1,3 +1,105 @@
+# ------------------------------
+# Variables (define these as needed)
+# ------------------------------
+variable "cluster_name" {
+  type        = string
+  description = "EKS Cluster name"
+}
+variable "alertmanager_namespace" {
+  type        = string
+  default     = "kube-prometheus-stack"
+}
+variable "alertmanager_serviceaccount" {
+  type        = string
+  default     = "alertmanager"
+}
+variable "sns_topic_arn" {
+  type        = string
+  description = "SNS Topic ARN to publish alerts"
+}
+
+# ------------------------------
+# Get EKS cluster OIDC provider
+# ------------------------------
+data "aws_eks_cluster" "this" {
+  name = var.cluster_name
+}
+
+data "aws_iam_openid_connect_provider" "this" {
+  url = replace(data.aws_eks_cluster.this.identity[0].oidc[0].issuer, "https://", "")
+}
+
+# ------------------------------
+# IAM Role for IRSA
+# ------------------------------
+resource "aws_iam_role" "alertmanager_irsa" {
+  name = "eks-irsa-alertmanager"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Federated = data.aws_iam_openid_connect_provider.this.arn
+      },
+      Action = "sts:AssumeRoleWithWebIdentity",
+      Condition = {
+        StringEquals = {
+          # NOTE: The SA must match the one created by the Helm chart!
+          "${replace(data.aws_eks_cluster.this.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:${var.alertmanager_namespace}:${var.alertmanager_serviceaccount}"
+        }
+      }
+    }]
+  })
+}
+
+# ------------------------------
+# IAM Policy to allow SNS:Publish
+# ------------------------------
+resource "aws_iam_policy" "alertmanager_sns_publish" {
+  name        = "alertmanager-sns-publish"
+  description = "Allow Alertmanager to publish to SNS topic"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "sns:Publish"
+      ],
+      Resource = var.sns_topic_arn
+    }]
+  })
+}
+
+# ------------------------------
+# Attach Policy to Role
+# ------------------------------
+resource "aws_iam_role_policy_attachment" "attach_alertmanager_policy" {
+  role       = aws_iam_role.alertmanager_irsa.name
+  policy_arn = aws_iam_policy.alertmanager_sns_publish.arn
+}
+
+# ------------------------------
+# Outputs for use in Helm values.yaml
+# ------------------------------
+output "alertmanager_irsa_role_arn" {
+  value = aws_iam_role.alertmanager_irsa.arn
+  description = "IAM Role ARN for Alertmanager IRSA"
+}
+
+
+---
+
+alertmanager:
+  serviceAccount:
+    create: true
+    name: alertmanager  # <--- must match Terraform var.alertmanager_serviceaccount
+    annotations:
+      eks.amazonaws.com/role-arn: <output_from_terraform_alertmanager_irsa_role_arn>
+
+
+
+--------------
 alertmanager:
   enabled: true
   config:
