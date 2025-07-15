@@ -1,3 +1,124 @@
+{{- if .Values.prometheusRules.create | default true }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keycloak-prometheus-alerts
+  namespace: {{ .Values.prometheusRules.namespace | default "kube-prometheus-stack" }}
+  labels:
+    {{- include "kube-prometheus-stack.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: keycloak.rules
+      rules:
+        # 1. Keycloak Instance Down
+        {{- if .Values.keycloakAlerts.keycloakDown.enabled | default true }}
+        - alert: KeycloakDown
+          expr: absent(up{job="keycloak", namespace="keycloak-eda"} == 1)
+          for: 5m
+          labels:
+            severity: {{ .Values.keycloakAlerts.keycloakDown.severity | default "critical" }}
+          annotations:
+            summary: "Keycloak service is down"
+            description: "No running Keycloak instance detected in namespace keycloak-eda for more than 5 minutes."
+        {{- end }}
+
+        # 2. High 5xx Error Rate
+        {{- if .Values.keycloakAlerts.high5xxRate.enabled | default true }}
+        - alert: KeycloakHigh5xxRate
+          expr: sum(rate(http_server_requests_seconds_count{job="keycloak", namespace="keycloak-eda", status=~"5.."}[5m])) > 5
+          for: 2m
+          labels:
+            severity: {{ .Values.keycloakAlerts.high5xxRate.severity | default "warning" }}
+          annotations:
+            summary: "High 5xx error rate"
+            description: "Keycloak in keycloak-eda is returning 5xx errors at a high rate."
+        {{- end }}
+
+        # 3. High Response Latency
+        {{- if .Values.keycloakAlerts.highResponseLatency.enabled | default true }}
+        - alert: KeycloakHighResponseLatency
+          expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="keycloak", namespace="keycloak-eda"}[5m])) by (le)) > 2
+          for: 5m
+          labels:
+            severity: {{ .Values.keycloakAlerts.highResponseLatency.severity | default "warning" }}
+          annotations:
+            summary: "Keycloak high response latency"
+            description: "Keycloak 99th percentile response latency > 2s for 5m in keycloak-eda."
+        {{- end }}
+
+        # 4. High Auth Failure Rate
+        {{- if .Values.keycloakAlerts.highLoginFailures.enabled | default true }}
+        - alert: KeycloakHighLoginFailures
+          expr: sum(rate(keycloak_logins_failed_total{namespace="keycloak-eda"}[5m])) > 10
+          for: 2m
+          labels:
+            severity: {{ .Values.keycloakAlerts.highLoginFailures.severity | default "warning" }}
+          annotations:
+            summary: "High login failure rate"
+            description: "Keycloak login failures > 10/min in keycloak-eda."
+        {{- end }}
+
+        # 5. High JVM Heap Memory Usage
+        {{- if .Values.keycloakAlerts.jvmHeapHighMemory.enabled | default true }}
+        - alert: KeycloakJvmHighMemory
+          expr: |
+            (
+              (jvm_memory_used_bytes{namespace="keycloak-eda", area="heap"} / ignoring(id) jvm_memory_max_bytes{namespace="keycloak-eda", area="heap"})
+            ) > 0.8
+          for: 10m
+          labels:
+            severity: {{ .Values.keycloakAlerts.jvmHeapHighMemory.severity | default "warning" }}
+          annotations:
+            summary: "Keycloak JVM high memory usage"
+            description: "JVM heap usage > 80% for 10m in keycloak-eda."
+        {{- end }}
+
+        # 6. Pod Restart Loops
+        {{- if .Values.keycloakAlerts.podRestartingFrequently.enabled | default true }}
+        - alert: KeycloakPodRestartingFrequently
+          expr: increase(kube_pod_container_status_restarts_total{namespace="keycloak-eda", pod=~"keycloak.*"}[10m]) > 3
+          for: 5m
+          labels:
+            severity: {{ .Values.keycloakAlerts.podRestartingFrequently.severity | default "warning" }}
+          annotations:
+            summary: "Keycloak pod restart loop"
+            description: "Keycloak pod in keycloak-eda restarted more than 3 times in 10m."
+        {{- end }}
+
+{{- end }}
+
+
+-----
+
+prometheusRules:
+  create: true
+  namespace: kube-prometheus-stack
+
+keycloakAlerts:
+  keycloakDown:
+    enabled: true
+    severity: critical
+  high5xxRate:
+    enabled: true
+    severity: warning
+  highResponseLatency:
+    enabled: true
+    severity: warning
+  highLoginFailures:
+    enabled: true
+    severity: warning
+  jvmHeapHighMemory:
+    enabled: true
+    severity: warning
+  podRestartingFrequently:
+    enabled: true
+    severity: warning
+
+
+
+
+
+--------------------
 helm template kube-prometheus-stack prometheus-community/kube-prometheus-stack -f dev-cio-eks-custom-values.yaml --namespace kube-prometheus-stack > out.yaml
 
 
