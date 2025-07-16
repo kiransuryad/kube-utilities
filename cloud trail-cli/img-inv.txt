@@ -1,0 +1,8 @@
+kubectl get pods --all-namespaces -o jsonpath="{range .items[*]}{.spec.initContainers[*].image}{'\n'}{.spec.containers[*].image}{'\n'}{end}" \
+| sort | uniq > images.pods.txt
+
+kubectl get deployments,statefulsets,daemonsets,cronjobs,jobs --all-namespaces -o jsonpath="{range .items[*]}{.spec.template.spec.initContainers[*].image}{'\n'}{.spec.template.spec.containers[*].image}{'\n'}{end}" \
+| sort | uniq > images.workloads.txt
+
+
+cat images.pods.txt images.workloads.txt | sort | uniq > all-images.txt
