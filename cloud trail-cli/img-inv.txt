@@ -1,3 +1,30 @@
+#!/bin/bash
+# Fetch images from Deployments, StatefulSets, DaemonSets, CronJobs, Jobs
+for kind in deployments statefulsets daemonsets cronjobs jobs; do
+  kubectl get $kind --all-namespaces -o json | \
+  jq -r '.items[] | 
+    . as $item | 
+    .spec.template.spec.initContainers[]? as $ic | 
+      [$item.kind, $item.metadata.namespace, $item.metadata.name, "initContainer", $ic.image] | @csv
+    , 
+    .spec.template.spec.containers[]? as $c | 
+      [$item.kind, $item.metadata.namespace, $item.metadata.name, "container", $c.image] | @csv
+  '
+done > images.workloads-unified.csv
+
+# Fetch images from individual Pods (not managed by workloads)
+kubectl get pods --all-namespaces -o json | \
+jq -r '.items[] |
+  . as $item |
+  .spec.initContainers[]? as $ic |
+    ["Pod", $item.metadata.namespace, $item.metadata.name, "initContainer", $ic.image] | @csv
+  ,
+  .spec.containers[]? as $c |
+    ["Pod", $item.metadata.namespace, $item.metadata.name, "container", $c.image] | @csv
+' >> images.workloads-unified.csv
+
+
+-----------------------
 kubectl get pods --all-namespaces -o jsonpath="{range .items[*]}{.spec.initContainers[*].image}{'\n'}{.spec.containers[*].image}{'\n'}{end}" \
 | sort | uniq > images.pods.txt
 
