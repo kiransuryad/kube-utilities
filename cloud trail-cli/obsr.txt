@@ -1,3 +1,20 @@
+env:
+    GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+    GF_AUTH_GENERIC_OAUTH_NAME: "Azure AD"
+    GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "your-azure-client-id"
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "your-azure-secret"
+    GF_AUTH_GENERIC_OAUTH_SCOPES: "openid email profile"
+    GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/authorize"
+    GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/token"
+    GF_AUTH_GENERIC_OAUTH_API_URL: "https://graph.microsoft.com/oidc/userinfo"
+    GF_AUTH_SIGNOUT_REDIRECT_URL: "https://login.microsoftonline.com/common/oauth2/v2.0/logout"
+    GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+    GF_USERS_ALLOW_SIGN_UP: "false"
+    GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    GF_SERVER_ROOT_URL: "https://dev-ethos-idp.monitor.fiscloudservices.com/grafana/"
+    GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+
+---------------------
 message: |
   {{- if eq .CommonLabels.alertname "KeycloakDown" -}}
   [Critical] Keycloak is DOWN in {{ .Labels.namespace }}. No instance detected for 5m. Instance: {{ .Labels.pod }}
