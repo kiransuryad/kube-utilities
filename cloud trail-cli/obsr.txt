@@ -1,3 +1,58 @@
+alertmanager:
+  enabled: true
+
+  serviceAccount:
+    create: true
+    name: dev-alertmanager
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::537124937025:role/alertmanager-irsa-dev
+
+  config:
+    global:
+      resolve_timeout: 5m
+
+    receivers:
+      - name: 'dead-notification'
+        sns_configs:
+          - sigv4:
+              region: us-east-1
+            topic_arn: arn:aws:sns:us-east-1:537124937025:observability-alerts-dev
+            subject: "[Prometheus Alert]"
+            message: |
+              [Default Route Warning] Alert not matched by any custom route.
+              Alertname: {{ .CommonLabels.alertname }}
+              Severity: {{ .CommonLabels.severity }}
+              Summary: {{ .Annotations.summary }}
+              Description: {{ .Annotations.description }}
+
+      - name: 'sns-email-notification'
+        sns_configs:
+          - sigv4:
+              region: us-east-1
+            topic_arn: arn:aws:sns:us-east-1:537124937025:observability-alerts-dev
+            subject: "[Prometheus Alert]"
+            message: |
+              [Keycloak Alert] JVM heap/nonheap usage > 90%
+              Alertname: {{ .CommonLabels.alertname }}
+              Severity: {{ .CommonLabels.severity }}
+              Summary: {{ .Annotations.summary }}
+              Description: {{ .Annotations.description }}
+
+    route:
+      receiver: 'dead-notification'   # <== Default receiver for unmatched alerts
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 3h
+      routes:
+        - match:
+            service: keycloak          # <== Match alerts where `service: keycloak`
+          receiver: 'sns-email-notification'
+
+
+
+
+----------------
 env:
     GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
     GF_AUTH_GENERIC_OAUTH_NAME: "Azure AD"
