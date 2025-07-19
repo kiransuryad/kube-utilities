@@ -1,3 +1,23 @@
+message: |
+  🔥 [Keycloak JVM Alert] High memory usage detected!
+
+  Alert: {{ .CommonLabels.alertname }}
+  Service: {{ .CommonLabels.service }}
+  Namespace: {{ .CommonLabels.namespace }}
+  Severity: {{ .CommonLabels.severity }}
+
+  Affected pods:
+  {{ range .Alerts }}
+  - {{ .Labels.pod }}: {{ .Annotations.description }}
+  {{ end }}
+
+
+group_by: ['alertname', 'namespace', 'service']
+
+
+
+
+-----------------------
 alertmanager:
   enabled: true
 
