@@ -1,4 +1,109 @@
+# Image config: update if using your private registry
+image:
+  repository: <your-private-repo>/prometheus-blackbox-exporter
+  tag: v0.25.0 # or your mirrored tag
+  pullPolicy: IfNotPresent
 
+replicaCount: 1
+
+# ServiceAccount (create or reuse, typically not IRSA unless you need it)
+serviceAccount:
+  create: true
+  name: blackbox-exporter
+
+# Service config for cluster-internal scraping
+service:
+  type: ClusterIP
+  port: 9115
+  portName: http
+
+# Pod security
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+# Resource requests/limits (adjust if you run many concurrent probes)
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Configure Blackbox modules (edit/add as needed)
+config:
+  modules:
+    http_2xx:
+      prober: http
+      timeout: 5s
+      http:
+        method: GET
+        valid_http_versions: ["HTTP/1.1", "HTTP/2"]
+        fail_if_ssl: false
+        fail_if_not_ssl: false
+    http_post_2xx:
+      prober: http
+      timeout: 10s
+      http:
+        method: POST
+        fail_if_ssl: false
+        fail_if_not_ssl: false
+    tcp_connect:
+      prober: tcp
+      timeout: 5s
+    icmp:
+      prober: icmp
+      timeout: 5s
+
+# Enable ServiceMonitor for Prometheus Operator
+serviceMonitor:
+  enabled: true
+  interval: 1m
+  scrapeTimeout: 30s
+  additionalLabels:
+    release: kube-prometheus-stack
+  relabelings: []
+  metricRelabelings: []
+
+# If using NetworkPolicy, allow Prometheus to scrape blackbox-exporter
+networkPolicy:
+  enabled: false # Set true and configure if you use NetworkPolicy
+
+# Pod labels for easy identification
+podLabels:
+  app: blackbox-exporter
+
+# Node affinity/tolerations: add as needed
+# affinity: {}
+# tolerations: []
+
+# Liveness/readiness
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  timeoutSeconds: 5
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  timeoutSeconds: 3
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------
 # Use your private registry/image
 image:
   repository: <your-private-repo>/prometheus-yet-another-cloudwatch-exporter
