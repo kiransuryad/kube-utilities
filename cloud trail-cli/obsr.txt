@@ -1,3 +1,92 @@
+
+# Use your private registry/image
+image:
+  repository: <your-private-repo>/prometheus-yet-another-cloudwatch-exporter
+  tag: v0.62.0 # Or your mirrored tag
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+serviceAccount:
+  create: false
+  name: yace  # Must match the SA created via Terraform
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<account_id>:role/yace-irsa-<environment>
+
+podLabels:
+  app: yace
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+config:
+  discovery:
+    jobs:
+      - type: RDS
+        regions:
+          - <your-aws-region>   # Example: eu-west-1
+        metrics:
+          - name: CPUUtilization
+            statistics: [Average]
+            period: 300
+            length: 600
+          - name: FreeStorageSpace
+            statistics: [Minimum]
+            period: 300
+            length: 600
+          - name: DatabaseConnections
+            statistics: [Average]
+            period: 300
+            length: 600
+        # Optional: searchTags to limit by tags (e.g., only prod)
+        # searchTags:
+        #   - Key: Environment
+        #     Value: production
+        dimensionNameRequirements:
+          - DBInstanceIdentifier
+
+# Expose as ClusterIP, suitable for Prometheus scraping
+service:
+  type: ClusterIP
+  port: 5000
+  portName: http
+
+# Enable ServiceMonitor for Prometheus Operator
+serviceMonitor:
+  enabled: true
+  interval: 1m
+  additionalLabels:
+    release: kube-prometheus-stack
+  scrapeTimeout: 30s
+
+# Optional: If you use PrometheusRules for custom alerts, you can add them here.
+# prometheusRule:
+#   enabled: true
+#   additionalLabels: {}
+#   rules:
+#     - alert: RDSCPUHigh
+#       expr: aws_rds_cpuutilization_average > 80
+#       for: 5m
+#       labels:
+#         severity: warning
+#       annotations:
+#         summary: "RDS instance CPU utilization is high"
+#         description: "CPU Utilization for instance {{ $labels.dbinstanceidentifier }} is above 80%."
+
+# Security best practice (can be tightened further)
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+
+
+--------------------
 locals {
   # List your required RDS DB instance and cluster ARNs here
   rds_instance_arns = [
