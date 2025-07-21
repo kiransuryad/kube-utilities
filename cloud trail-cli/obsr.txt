@@ -1,3 +1,34 @@
+- name: sns-email-notification-kc-web
+  sns_configs:
+    - sigv4:
+        region: us-east-1
+      topic_arn: arn:aws:sns:us-east-1:537124937025:observability-alerts-dev
+      subject: "[Prometheus Alert] {{ .CommonLabels.alertname }}: {{ .CommonLabels.severity }}"
+      message: |-
+        [Prometheus Alert] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}
+        Alert: {{ .CommonLabels.alertname }}
+        Service: {{ .CommonLabels.service }}
+        Instance: {{ .CommonLabels.instance }}
+        Namespace: {{ .CommonLabels.namespace }}
+        Severity: {{ .CommonLabels.severity }}
+        Summary: {{ .CommonAnnotations.summary }}
+        Description: {{ .CommonAnnotations.description }}
+        Generator URL: {{ .GeneratorURL }}
+
+        All Labels:
+        {{ range $k, $v := .CommonLabels }}  {{$k}}: {{$v}}
+        {{ end }}
+
+        All Annotations:
+        {{ range $k, $v := .CommonAnnotations }}  {{$k}}: {{$v}}
+        {{ end }}
+
+        Starts At: {{ .StartsAt }}
+
+
+
+
+-----------------
 {{- if .Values.prometheusRules.create | default false }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
