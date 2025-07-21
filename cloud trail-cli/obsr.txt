@@ -1,3 +1,49 @@
+{{- if .Values.prometheusRules.create | default false }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Values.prometheusRules.websiteDownAlertName | default "website-down-alerts" }}
+  namespace: {{ .Values.prometheusRules.namespace }}
+  labels:
+    {{- include "kube-prometheus-stack.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRules.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: website-down.rules
+      rules:
+        {{- range .Values.prometheusRules.websiteDownRules }}
+        - alert: WebsiteDown
+          expr: probe_success{instance="{{ .url }}"} == 0
+          for: {{ .for | default "2m" }}
+          labels:
+            severity: {{ .severity | default "critical" }}
+          annotations:
+            summary: "Site Down: {{ .url }}"
+            description: "The site {{ .url }} is unreachable for {{ .for | default "2m" }}"
+        {{- end }}
+{{- end }}
+
+---
+
+prometheusRules:
+  create: true
+  namespace: kube-prometheus-stack
+  websiteDownAlertName: blackbox-url-alerts
+  websiteDownRules:
+    - url: "https://edp-ethos.fiscloudservices.com"
+      for: "2m"
+      severity: "critical"
+    - url: "https://edp-ethos.fisglobal.com"
+      for: "2m"
+      severity: "critical"
+    # Add more URLs easily
+
+
+
+
+----------------------------------------
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
