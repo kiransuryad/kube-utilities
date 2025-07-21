@@ -1,3 +1,45 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.customServiceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Values.customServiceAccount.annotations }}
+  annotations:
+    {{- toYaml .Values.customServiceAccount.annotations | nindent 4 }}
+  {{- end }}
+imagePullSecrets:
+  {{- range .Values.customServiceAccount.imagePullSecrets }}
+  - name: {{ . }}
+  {{- end }}
+
+
+--
+
+customServiceAccount:
+  enabled: true
+  name: blackbox-exporter-custom
+  annotations: {}
+  imagePullSecrets:
+    - myprivateregistry-secret
+
+--
+
+serviceAccount:
+  create: false
+  name: blackbox-exporter-custom # This should match your customServiceAccount.name
+
+customServiceAccount:
+  enabled: true
+  name: blackbox-exporter-custom
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/your-blackbox-irsa
+  imagePullSecrets:
+    - myprivateregistry-secret
+
+
+
+
+--------------------
 # Main image (from your private repo)
 image:
   repository: <your-private-repo>/prometheus-blackbox-exporter
