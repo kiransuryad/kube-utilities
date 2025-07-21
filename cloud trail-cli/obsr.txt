@@ -1,3 +1,56 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: blackbox-url-alerts
+  namespace: kube-prometheus-stack
+spec:
+  groups:
+    - name: blackbox-url.rules
+      rules:
+        - alert: WebsiteDown
+          expr: probe_success{instance="https://edp-ethos.fiscloudservices.com"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Site Down: edp-ethos.fiscloudservices.com"
+            description: "The site edp-ethos.fiscloudservices.com is unreachable for 2m"
+        - alert: WebsiteDown
+          expr: probe_success{instance="https://edp-ethos.fisglobal.com"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Site Down: edp-ethos.fisglobal.com"
+            description: "The site edp-ethos.fisglobal.com is unreachable for 2m"
+
+---
+
+
+
+prometheus:
+  prometheusSpec:
+    additionalScrapeConfigs:
+      - job_name: "blackbox-custom-urls"
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - https://edp-ethos.fiscloudservices.com
+              - https://edp-ethos.fisglobal.com
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter.kube-prometheus-stack.svc.cluster.local:9115
+
+
+
+
+---------------------
 apiVersion: v1
 kind: ServiceAccount
 metadata:
