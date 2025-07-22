@@ -1,3 +1,45 @@
+1. Total HTTP Requests Per Second (all)
+sum(rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx"}[1m]))
+Filters only your ingress-nginx namespace controllers.
+2. HTTP Requests Per Second by Exported Namespace (backend/app)
+sum by (exported_namespace) (
+  rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx"}[1m])
+)
+Shows per-app/service traffic.
+3. HTTP Requests Per Second by Host
+sum by (host) (
+  rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx"}[1m])
+)
+Useful for multi-domain ingress.
+4. HTTP 4xx Errors Per Second
+sum(rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx",status=~"4.."}[5m]))
+5. HTTP 5xx Errors Per Second
+sum(rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx",status=~"5.."}[5m]))
+6. p99 Latency (per Ingress)
+histogram_quantile(0.99,
+  sum by (le, ingress) (
+    rate(nginx_ingress_controller_request_duration_seconds_bucket{controller_namespace="ingress-nginx"}[5m])
+  )
+)
+7. Top Requested Paths
+topk(10,
+  sum by (path) (
+    rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx"}[5m])
+  )
+)
+8. Requests per Exported Service
+sum by (exported_service) (
+  rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx"}[5m])
+)
+9. Active Connections
+You may also want:
+
+sum(nginx_connections_active{namespace="ingress-nginx"})
+Or just drop the namespace filter if your cluster has only one NGINX ingress.
+
+
+
+-------------------------------
 {{- if .Values.prometheusRules.ingressNginxServiceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
