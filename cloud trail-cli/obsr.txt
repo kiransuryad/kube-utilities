@@ -1,3 +1,42 @@
+config:
+  discovery:
+    jobs:
+      - type: RDS
+        regions:
+          - eu-west-1   # Replace with your AWS region
+        metrics:
+          - name: FreeableMemory
+            statistics: [Average]
+            period: 300
+            length: 600
+          - name: WriteThroughput
+            statistics: [Average]
+            period: 300
+            length: 600
+          - name: NetworkReceiveThroughput
+            statistics: [Average]
+            period: 300
+            length: 600
+          - name: NetworkTransmitThroughput
+            statistics: [Average]
+            period: 300
+            length: 600
+          - name: CPUCreditUsage
+            statistics: [Average]
+            period: 300
+            length: 600
+          - name: WriteLatency
+            statistics: [Average]
+            period: 300
+            length: 600
+          - name: DatabaseConnections
+            statistics: [Maximum]
+            period: 300
+            length: 600
+
+
+
+---------------------
 {{- if .Values.veleroServiceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
