@@ -1,3 +1,50 @@
+{{- if .Values.prometheusRules.ingressNginxServiceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.prometheusRules.ingressNginxServiceMonitor.name | default "ingress-nginx-metrics" }}
+  namespace: {{ .Values.prometheusRules.namespace | default "kube-prometheus-stack" }}
+  labels:
+    {{- include "kube-prometheus-stack.labels" . | nindent 4 }}
+    {{- if .Values.prometheusRules.ingressNginxServiceMonitor.additionalLabels }}
+    {{- toYaml .Values.prometheusRules.ingressNginxServiceMonitor.additionalLabels | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- toYaml .Values.prometheusRules.ingressNginxServiceMonitor.matchLabels | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.prometheusRules.ingressNginxServiceMonitor.targetNamespace | default "ingress-nginx" }}
+  endpoints:
+    - port: {{ .Values.prometheusRules.ingressNginxServiceMonitor.port | default "metrics" | quote }}
+      path: {{ .Values.prometheusRules.ingressNginxServiceMonitor.path | default "/metrics" | quote }}
+      interval: {{ .Values.prometheusRules.ingressNginxServiceMonitor.interval | default "30s" | quote }}
+      scheme: {{ .Values.prometheusRules.ingressNginxServiceMonitor.scheme | default "http" | quote }}
+{{- end }}
+
+
+-----
+
+prometheusRules:
+  # ... other rules
+  ingressNginxServiceMonitor:
+    enabled: true
+    name: ingress-nginx-metrics
+    targetNamespace: ingress-nginx
+    additionalLabels:
+      release: kube-prometheus-stack
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+    port: metrics
+    path: /metrics
+    interval: 30s
+    scheme: http
+
+
+
+------------------
 metrics:
   enabled: true
   service:
