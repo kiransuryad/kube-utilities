@@ -1,3 +1,61 @@
+{{- if .Values.veleroServiceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "kube-prometheus-stack.fullname" . }}-velero
+  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  labels:
+    app.kubernetes.io/name: velero
+    {{- include "kube-prometheus-stack.labels" . | nindent 4 }}
+    {{- with .Values.veleroServiceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: velero
+      {{- with .Values.veleroServiceMonitor.selector }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.veleroServiceMonitor.targetNamespace | default "velero" }}
+  endpoints:
+    - port: {{ .Values.veleroServiceMonitor.port | default "http" | quote }}
+      interval: {{ .Values.veleroServiceMonitor.interval | default "1m" | quote }}
+      path: {{ .Values.veleroServiceMonitor.path | default "/metrics" | quote }}
+      {{- if .Values.veleroServiceMonitor.metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml .Values.veleroServiceMonitor.metricRelabelings | nindent 8 }}
+      {{- end }}
+      {{- if .Values.veleroServiceMonitor.relabelings }}
+      relabelings:
+        {{- toYaml .Values.veleroServiceMonitor.relabelings | nindent 8 }}
+      {{- end }}
+{{- end }}
+
+
+----
+
+veleroServiceMonitor:
+  enabled: true
+  additionalLabels:
+    release: kube-prometheus-stack
+  selector: {}
+  targetNamespace: velero              # <- Namespace where Velero is deployed
+  port: http                           # <- Port name as per Velero Service
+  interval: 1m
+  path: /metrics
+  metricRelabelings: []
+  relabelings: []
+
+
+
+
+
+
+
+----------------------------------
 - name: sns-email-notification-kc-web
   sns_configs:
     - sigv4:
