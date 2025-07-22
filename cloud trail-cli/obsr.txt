@@ -1,3 +1,26 @@
+metrics:
+  enabled: true
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "10254"
+    # This ensures the metrics endpoint is accessible via the Service
+
+serviceMonitor:
+  enabled: true
+  namespace: kube-prometheus-stack    # Namespace where kube-prometheus-stack (Prometheus) is running
+  additionalLabels:
+    release: kube-prometheus-stack    # Matches your Prometheus deployment (important!)
+  interval: 30s
+  scrapeTimeout: 10s
+  selector: {}
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+
+
+---------------
 config:
   discovery:
     jobs:
