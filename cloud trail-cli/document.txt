@@ -1,3 +1,41 @@
+Deploy
+
+Our deployment process follows a controlled, repeatable CI/CD workflow using Jenkins for artifact mirroring, Bitbucket for configuration management, and Harness for environment-specific deployments.
+
+🔁 Deployment Flow
+Artifact Mirroring (Jenkins)
+Public container images and Helm charts are mirrored into our private JFrog Artifactory.
+This ensures we maintain control over versions, availability, and vulnerability scans.
+Helm charts are mirrored into structured paths under mirror/<chart-name>/<version>/<chart-name>/.
+Configuration Customization (Bitbucket)
+Each service has its overlay repository in Bitbucket (hydra-helm-overlays).
+Helm values are customized per environment (dev, test, nonprod, prod).
+Code reviews and approvals happen here before promotion.
+Environment Deployment (Harness Pipelines)
+Each environment has a dedicated Harness pipeline that:
+Pulls the mirrored chart and image from JFrog.
+Injects secrets via Vault Agent where required.
+Applies the Helm chart to the target namespace in the EKS cluster.
+Verifies success via health checks and hooks.
+Promotion between environments is manual or approval-gated.
+🎯 Key Characteristics
+Feature	Description
+Source Repositories	Bitbucket (Helm overlays and values)
+Artifact Store	JFrog Artifactory (charts and images)
+CI Pipeline	Jenkins (mirroring and preprocessing)
+CD Pipeline	Harness (controlled Helm deployments)
+Secrets Management	Vault Agent Injector in pods
+Promotion Workflow	Manual or approval-based per environment
+Auditability	All changes tracked in Bitbucket and Harness
+
+
+
+
+
+
+
+
+--------------------------------------------
 Component	Details
 Ingress-NGINX	Namespace: ingress-nginx
 Deployment: Helm chart
