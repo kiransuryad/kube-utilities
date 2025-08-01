@@ -1,0 +1,349 @@
+Runbook Status
+
+CURRENT - REVIEWED 01/08/2025
+
+🔖 Runbook Name
+
+keycloak
+
+keycloak-ethos
+
+📘 Runbook Description
+
+Keycloak is an open-source identity and access management solution. Each instance is deployed inside a private EKS cluster, connecting to an external Aurora PostgreSQL RDS backend. The deployment follows a GitOps-based approach using Terraform, Helm, and Harness pipelines. Secrets are securely managed with Vault Agent Injector, and observability is enabled through kube-prometheus-stack and Loki.
+
+TLS is enabled using cert-manager with a self-signed internal CA. Each deployment is encapsulated within its namespace, and additional tooling such as pgAdmin, netshoot, and metrics-server support diagnostics and scaling.
+
+👤 Owner
+
+eda-management@fisglobal.com
+
+📂 Contents
+
+System Architecture
+
+Namespaces Overview
+
+Service Components
+
+Ingress-NGINX
+
+Certificate Manager
+
+Vault Agent Injector
+
+Observability Stack
+
+Harness Delegate
+
+Keycloak Deployment
+
+Velero Backup
+
+Kube-Debug Tools
+
+Metrics Server
+
+Deployment Order
+
+Access, Backup & Scaling
+
+Enhancements & Future Improvements
+
+🧱 System Architecture
+
+All services are deployed into a private EKS cluster
+
+Services are isolated using Kubernetes namespaces
+
+ALB → NGINX (NodePort) → Services
+
+Internal TLS provided by cert-manager self-signed CA
+
+Secrets injected via Vault Agent
+
+Harness pipelines for Helm chart promotion
+
+Prometheus/Grafana/Loki for observability
+
+📛 Namespaces Overview
+
+Namespace
+
+Purpose
+
+ingress-nginx
+
+Ingress controller stack
+
+cert-manager
+
+TLS issuance via internal CA
+
+vault
+
+(external, only injector inside K8s)
+
+keycloak-eda
+
+Primary workload
+
+harness-delegate-ng
+
+CI/CD runner from Harness
+
+kube-prometheus-stack
+
+Monitoring, alerting, dashboards
+
+metrics-server
+
+HPA and resource metrics
+
+kube-debug-tools
+
+Netshoot, pgAdmin, Vault CLI
+
+velero
+
+Backup and restore for workloads
+
+🔧 Service Components
+
+1. Ingress-NGINX
+
+Namespace: ingress-nginx
+
+Deployed via Helm using NodePort + Proxy Protocol
+
+Connected to internal NLB created via Terraform
+
+Supports path-based routing
+
+TLS handled by cert-manager ClusterIssuer
+
+2. Certificate Manager
+
+Namespace: cert-manager
+
+Helm deployment using Jetstack chart
+
+Creates internal self-signed ClusterIssuer
+
+Handles TLS for ingress-enabled services
+
+3. Vault Agent Injector
+
+Namespace: keycloak-eda (injector installed cluster-wide)
+
+Vault CLI runs in Harness pipeline to configure roles/policies
+
+Secrets injected into pod environment/volumes
+
+Avoids K8s secrets, supports TTL and rotation
+
+4. Observability Stack
+
+Namespace: kube-prometheus-stack
+
+Helm chart: kube-prometheus-stack
+
+Includes:
+
+Prometheus (metrics)
+
+Grafana (dashboards)
+
+Alertmanager (alerts → AWS SNS)
+
+Node Exporter, Kube State Metrics
+
+Loki + Promtail deployed for centralized logs
+
+Dashboards and alerts tailored for Keycloak, Vault, etc.
+
+5. Harness Delegate
+
+Namespace: harness-delegate-ng
+
+Deployed manually via YAML
+
+Vault CLI installed in Harness shell steps
+
+Supports Helm deployments via JFrog-based chart promotion
+
+6. Keycloak Deployment
+
+Namespace: keycloak-eda
+
+Helm chart: codecentric/keycloak
+
+Admin creds, DB URL injected via Vault
+
+TLS enabled ingress with /auth path
+
+Connects to Aurora PostgreSQL (Terraform provisioned)
+
+7. Velero Backup
+
+Namespace: velero
+
+Daily backups of persistent volume claims
+
+Backup to S3 bucket with proper IAM roles
+
+Restore tested for pgAdmin and tools pods
+
+8. Kube-Debug Tools
+
+Namespace: kube-debug-tools
+
+Tools:
+
+netshoot (debug pod)
+
+vault-cli (token inspection)
+
+pgAdmin (Postgres DB browsing)
+
+httpbin (ingress header testing)
+
+9. Metrics Server
+
+Namespace: metrics-server
+
+Enables resource metrics for HPA
+
+Required by Grafana dashboards for live resource usage
+
+📦 Deployment Order
+
+Step
+
+Component
+
+Notes
+
+1
+
+Harness Delegate
+
+Manual YAML + Harness config
+
+2
+
+ingress-nginx
+
+NodePort with NLB
+
+3
+
+cert-manager
+
+CRDs + Webhooks
+
+4
+
+cert-manager Internal CA
+
+Self-signed ClusterIssuer
+
+5
+
+vault-agent-injector
+
+Vault role/policy setup via CLI
+
+6
+
+kube-prometheus-stack
+
+Grafana, Prometheus, Alertmanager
+
+7
+
+loki-stack
+
+Logging + Promtail agents
+
+8
+
+metrics-server
+
+Cluster metrics + HPA
+
+9
+
+kube-debug-tools
+
+netshoot, pgAdmin, vault-cli, httpbin
+
+10
+
+Keycloak Deployment
+
+Helm + Vault secrets + ingress
+
+11
+
+Velero
+
+Backup configuration
+
+12
+
+Final Validation
+
+Ingress, TLS, Vault, Logs, Dashboards
+
+🔐 Access, Backup & Scaling
+
+Keycloak UI exposed via path /auth with TLS
+
+Admin credentials stored in Vault under secret/data/prod/keycloak/admin
+
+pgAdmin available via internal ingress with Vault credentials
+
+Velero handles daily volume backups to S3
+
+HPA supported via metrics-server and resource annotations
+
+🚀 Enhancements & Future Improvements
+
+Feature
+
+Description
+
+IRSA
+
+Use for Route53/S3 integration per pod
+
+Karpenter
+
+Advanced node autoscaling
+
+ArgoCD
+
+GitOps for infra and app charts
+
+OPA/Gatekeeper
+
+Policy-based workload enforcement
+
+PDBs
+
+Pod disruption resilience
+
+Chaos Testing
+
+Validates availability under failures
+
+Kubecost
+
+Cost visibility per service/namespace
+
+✅ Summary
+
+This setup provides a production-ready, observable, secure, and scalable deployment of Keycloak in EKS using Vault, cert-manager, and Harness. All components are namespace-isolated and designed for ease of maintenance and future extensibility.
+
+Updates should be made in respective Helm values.yaml, Vault policy files, and Harness pipeline definitions.
