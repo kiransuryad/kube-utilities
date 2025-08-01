@@ -1,3 +1,63 @@
+Component	Details
+Ingress-NGINX	Namespace: ingress-nginx
+Deployment: Helm chart
+Type: NodePort with Proxy Protocol
+Connected To: Internal NLB (Terraform provisioned)
+Ingress Logic: Path-based routing
+TLS: Handled by cert-manager using self-signed ClusterIssuer
+Purpose: Entry point to Keycloak and other internal apps
+Certificate Manager	Namespace: cert-manager
+Chart: Jetstack Helm chart
+Issuer Type: Self-signed internal ClusterIssuer
+Responsibilities: Handles internal TLS cert creation and rotation
+CRDs: Installed and managed via Helm
+Vault Agent Injector	Namespace: Runs in keycloak-eda but cluster-scoped
+Management: Configured via Vault CLI in Harness pipeline
+Secret Injection: Injects into pod environment and files
+Advantages: TTL support, avoids K8s Secret tampering, supports dynamic secrets
+Vault Pathing: Uses secret/data/prod/... convention
+Observability Stack	Namespace: kube-prometheus-stack
+Chart: kube-prometheus-stack Helm chart
+Components:
+• Prometheus (scraping metrics)
+• Grafana (visualization dashboards)
+• Alertmanager (routing alerts to AWS SNS)
+• Node Exporter & Kube State Metrics
+• Loki (logging backend)
+• Promtail (log shipper)
+Custom Dashboards: Keycloak, Vault, Infrastructure metrics
+Harness Delegate	Namespace: harness-delegate-ng
+Deployment: Manual (YAML-based)
+Extra Tools: Vault CLI baked or installed at runtime
+Role: Executes Helm charts using pipelines, promotes Helm packages from JFrog
+Notes: Bootstrapped first for all deployments
+Keycloak Deployment	Namespace: keycloak-eda
+Chart: codecentric/keycloak (customized)
+Secrets: Admin credentials and DB URI via Vault Agent
+TLS: Enabled via cert-manager
+Ingress Path: /auth
+DB Backend: Aurora PostgreSQL (Terraform provisioned)
+Modes: StatefulSet with HAProxy if needed
+Velero Backup	Namespace: velero
+Frequency: Daily
+Backup Target: S3 bucket
+IAM Role: Attached with restricted access for backups
+Restore: Tested on pgAdmin and other debug tools
+Scope: PVC snapshots, Kubernetes objects
+Kube-Debug Tools	Namespace: kube-debug-tools
+Included Tools:
+• nicolaka/netshoot for networking tests (curl, telnet, dig)
+• vault-cli to test token authentication and TTL
+• pgAdmin UI for RDS inspection
+• httpbin to test ingress headers and rewrites
+Purpose: Always-on pod(s) for support and diagnostics
+Metrics Server	Namespace: metrics-server
+Purpose: Enables Horizontal Pod Autoscaling (HPA)
+Feeds: Grafana dashboards with live CPU/memory usage
+Mode: Lightweight and cluster-wide
+Note: Required for HPA to function correctly in the cluster
+
+-----------------------
 Runbook Status
 
 CURRENT - REVIEWED 01/08/2025
