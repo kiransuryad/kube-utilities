@@ -1,3 +1,84 @@
+Keycloak Version Upgrade Procedure (EKS)
+This document describes the detailed process to upgrade the Keycloak version deployed in our private EKS environment. The upgrade flow includes mirroring the new version into our internal registry, updating Helm chart values, and deploying the changes through Harness pipelines.
+🎯 Objective
+Upgrade Keycloak to a newer version while:
+Ensuring version compatibility.
+Maintaining deployment consistency across environments.
+Using our existing CI/CD tools and practices.
+Verifying success post-deployment.
+🧭 End-to-End Upgrade Steps
+Step 1: Identify the New Keycloak Version
+Go to the official Keycloak container registry:
+👉 https://quay.io/repository/keycloak/keycloak
+Choose the new version you plan to upgrade to (e.g., 26.1.2 or 24.0.4).
+Make a note of this version; it will be used throughout the process.
+Step 2: Mirror the Image into Internal Registry
+We do not pull directly from quay.io in production. Instead, we mirror public images into our internal JFrog Artifactory Docker registry using Jenkins.
+Trigger the Jenkins image mirroring pipeline:
+🔗 <insert Jenkins pipeline URL for Keycloak image mirroring>
+Provide pipeline parameters:
+IMAGE_NAME = keycloak
+VERSION = <your-version-here>  # e.g., 26.1.2
+TARGET_REPO = internal-docker-repo
+Click “Build Now” and monitor logs to ensure success.
+Step 3: Verify the Image in JFrog
+Once Jenkins pipeline completes:
+Visit the internal Docker repository in Artifactory:
+🔗 <insert Artifactory URL>
+Confirm that keycloak:<version> exists and was correctly pushed.
+Step 4: Review Version Compatibility
+Before deploying a new Keycloak version:
+Review Keycloak Release Notes:
+Check for breaking changes
+Database schema updates
+Required Java version
+Migration instructions
+Confirm that no changes are required in your Helm values (e.g., JVM settings, custom themes, providers).
+Step 5: Update Helm Chart Configuration
+Open the Keycloak overlay repo in Bitbucket:
+🔗 <insert Bitbucket repo URL for Helm chart>
+Navigate to the appropriate environment values file (e.g., values-prod.yaml, values-dev.yaml).
+Update the image block as shown:
+image:
+  repository: <your-internal-registry>/keycloak
+  tag: 26.1.2  # replace with your version
+Commit the changes with a clear message:
+feat(keycloak): upgrade to version 26.1.2 for production
+Step 6: Push Updated Helm Chart to JFrog
+Once the overlay values are updated, we must package and publish a new chart version to Artifactory.
+Trigger the Jenkins Helm promotion pipeline:
+🔗 <insert Jenkins pipeline URL for Helm chart promotion>
+Provide these inputs:
+CHART_NAME = keycloak
+VERSION = 1.3.0        # new chart version
+ENVIRONMENT = prod     # or dev/test as appropriate
+On success, a new chart version (e.g., keycloak-1.3.0.tgz) will appear in:
+🔗 <insert JFrog Helm repo URL>
+Step 7: Deploy Using Harness Pipeline
+Open the Harness pipeline for the respective environment:
+🔗 <insert Harness pipeline URL>
+Select or provide the new Helm chart version (e.g., 1.3.0) as input.
+Run the pipeline. Harness will:
+Deploy the updated chart
+Inject secrets using Vault Agent
+Perform health checks and rollouts
+Step 8: Post-Deployment Validation
+After successful deployment:
+Check pod status in EKS:
+kubectl get pods -n keycloak-eda
+kubectl rollout status sts/keycloak
+Open the Keycloak UI via ingress (/auth) and validate:
+Login page loads
+Admin access works
+Expected version is visible under Server Info
+Review logs:
+In Grafana → Loki logs for Keycloak
+Ensure no crash loops or startup errors
+(Optional) Run a regression test if automated tests are available.
+
+
+
+--------------------------
 1. Total HTTP Requests Per Second (all)
 sum(rate(nginx_ingress_controller_requests{controller_namespace="ingress-nginx"}[1m]))
 Filters only your ingress-nginx namespace controllers.
