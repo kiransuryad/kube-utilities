@@ -1,3 +1,20 @@
+How the flow works (step by step):
+User tries to log in – When someone wants to access a business application (e.g., Tableau), they are first asked to sign in.
+Email identity check – They must use their official @fisglobal.com email address. Anyone with a WP email address is automatically blocked at this stage.
+Azure AD as the entry gate – All sign-ins are handled by Azure Active Directory (Prod.cloud), which checks if the user is a valid FIS employee.
+Keycloak as the security guard in the middle – After Azure AD confirms the identity, the request goes through Keycloak, which acts as a secure Identity Provider (IdP).
+Keycloak uses SAML integration with Azure AD.
+It makes sure the right person is logging in and then decides what level of access they should have.
+Application access (e.g., Tableau) – Finally, the user is granted access to applications like Tableau, with the exact permissions (viewer, analyst, admin, etc.) that Keycloak assigns.
+Example Use Case
+A user enters their @fisglobal.com email to log in.
+Azure AD (Prod.cloud) validates the email and confirms it belongs to an active FIS employee.
+Keycloak receives this confirmation, applies the right access rules, and then lets the user into Tableau with the proper role.
+If the user has a @worldpay.com email, the login attempt will fail immediately because Azure AD only recognizes @fisglobal.com accounts.
+
+
+
+---------------
 #!/bin/bash
 
 set -euo pipefail
