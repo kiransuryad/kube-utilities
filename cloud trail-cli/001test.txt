@@ -1,3 +1,25 @@
+
+Subject: Urgent Information Request – Portal Migration Planning
+Hi [Team/Name],
+As you know, the portal migration to the new AWS account is a high-priority activity, and we want to move quickly from understanding to execution. To enable us to frame the migration plan without delay, we need your inputs on the following points:
+Key Information Required
+Portal Purpose & Users – What is the portal used for, and who are the main users (internal, external, partners)?
+Current Deployment – How is the portal deployed today (high-level view of infra/services)?
+Major Components – What are the main building blocks (frontend, backend, database, integrations)?
+EKS Attempt – What was the approach behind the earlier EKS deployment, and where did it stop?
+Target State – What’s the expected outcome in the new AWS account (like-for-like migration or modernization)?
+Scope of Migration – Is the expectation to migrate the entire Ethos portal with all its integrations, or only selected components (e.g., one EKS cluster in AWS Account A)?
+Additional Context for Planning
+Architecture Ownership – Who currently owns design and architecture decisions for the portal?
+Leadership / Stakeholders – Which product or business leaders must we align with during this migration?
+Support Model – Who handles ongoing operations and support for the portal today?
+We’d appreciate it if you could provide these details at the earliest. This will allow us to immediately structure the migration approach, highlight dependencies, and move into detailed design and execution.
+We can also arrange a short call to clarify points after your response, so we don’t lose time in back-and-forth.
+Thanks,
+Kiran
+
+
+----------------
 How the flow works (step by step):
 User tries to log in – When someone wants to access a business application (e.g., Tableau), they are first asked to sign in.
 Email identity check – They must use their official @fisglobal.com email address. Anyone with a WP email address is automatically blocked at this stage.
