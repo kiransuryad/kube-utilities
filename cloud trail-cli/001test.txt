@@ -1,4 +1,16 @@
+Keycloak Support
+Providing ongoing support for the newly deployed Keycloak platform inside CIO-managed AWS accounts.
+Ensuring stability, security, and integration with enterprise IdPs and client applications.
+Decommissioning Legacy AWS Accounts
+Driving cleanup and decommissioning of unused AWS resources post-Worldpay split.
+Validating dependencies and ensuring cost optimization and compliance.
+Ethos Portal Migration
+Contributing to the Ethos Portal migration initiative, aligning workloads with new account structures and cloud standards.
+Coordinating across teams to enable smooth transition of apps, data, and integrations.
 
+
+
+---------------------
 Subject: Urgent Information Request – Portal Migration Planning
 Hi [Team/Name],
 As you know, the portal migration to the new AWS account is a high-priority activity, and we want to move quickly from understanding to execution. To enable us to frame the migration plan without delay, we need your inputs on the following points:
