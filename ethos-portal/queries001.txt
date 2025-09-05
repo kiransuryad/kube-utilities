@@ -1,0 +1,38 @@
+Portal Migration – Next Clarifications & Access Requirements
+1. Environments & Data
+Please confirm our understanding: today only UAT & PROD environments exist, and a Dev environment will be provisioned after PROD deployment – is that correct?
+What is the current approved data migration plan for PostgreSQL, DynamoDB, and S3 buckets?
+Are there any compliance/security requirements we must align with (e.g., GDPR, PCI, Dome9, Rapid7)?
+2. Networking & Security
+How will the portal be exposed in the new account? We understand today it is behind Akamai & CloudFront – should this remain unchanged?
+Are the VPC, subnets, and security groups in the new account provisioned via Terraform, or created manually?
+More generally – how were the EKS, VPC, and infra components deployed today (Terraform Enterprise, CloudFormation, or other)?
+Are there any cross-account IAM roles, guardrails, or policies that must be replicated?
+We see jumpboxes in the console – are these the same as bastion hosts intended for access?
+3. CI/CD & Tooling
+Please confirm the expected model:
+Infra components (API Gateway, VPC, EKS, etc.) → deployed via Terraform Enterprise.
+Services & components inside EKS → deployed via Harness.
+Do let us know if this needs to be adjusted.
+Is there an existing Bitbucket repo for the portal code? If yes, can you please share the codebase access as well.
+Are CI/CD pipelines already defined? From previous communication, we understand pipelines exist but are not yet set up – once access is provided, we can validate and proceed.
+Confirm Artifactory access for images/dependencies.
+Confirm CyberArk / Vault access for secret management. Since AWS Secrets Manager is not permitted, will we use CyberArk or HashiCorp Vault? Has the secrets integration design already been done, or is support needed in designing this?
+Confirm Harness URL & credentials (if Harness will be used for app deployments).
+4. Observability & Operations
+What are the monitoring & logging requirements in the new account?
+Can you share the existing portal observability URLs/dashboards (CloudWatch, Prometheus, Grafana, ELK, etc.)?
+Who owns incident response & support post-migration?
+Are there runbooks or SOPs that should be carried forward?
+5. Cutover & Governance
+Will migration be phased (service by service) or big-bang (all at once)?
+What is the agreed downtime tolerance?
+Who are the sign-off stakeholders for:
+Application / Architecture
+Infrastructure
+Operations / Support
+6. Additional Requests
+Can we get access to the current Ethos portal to familiarize ourselves with what we are migrating?
+Does any prod.local data need to be migrated to prod.cloud AD?
+What is the current process for security scans on images – is Checkmarx onboarded already?
+What are the different services inside the Ethos portal today? Where can we find more detailed documentation on them?
