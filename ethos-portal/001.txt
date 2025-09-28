@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ===== config =====
+OUT="as-is/exports"
+REGION="${AWS_REGION:-$(aws configure get region || echo eu-west-1)}"
+mkdir -p "$OUT"
+
+echo "Exporting Ethos Portal as-is to $OUT (region: $REGION)"
+
+# ----- Identity & scope -----
+aws sts get-caller-identity > "$OUT/whoami.json"
+aws ec2 describe-vpcs --region "$REGION" > "$OUT/vpcs.json"
+aws ec2 describe-subnets --region "$REGION" > "$OUT/subnets.json"
+aws ec2 describe-vpc-endpoints --region "$REGION" > "$OUT/vpce.json"
+aws ec2 describe-security-groups --region "$REGION" > "$OUT/sgs.json"
+aws ec2 describe-route-tables --region "$REGION" > "$OUT/routes.json"
+
+# ----- Edge + DNS + CDN -----
+aws route53 list-hosted-zones > "$OUT/r53_zones.json"
+# loop zones to fetch records
+jq -r '.HostedZones[].Id' "$OUT/r53_zones.json" | sed 's#/hostedzone/##' | while read -r HZID; do
+  aws route53 list-resource-record-sets --hosted-zone-id "$HZID" > "$OUT/r53_records_${HZID}.json"
+done
+
+aws cloudfront list-distributions > "$OUT/cf_distributions.json"
+# fetch full config per distribution (origins/behaviors/TLS)
+jq -r '.DistributionList.Items[].Id' "$OUT/cf_distributions.json" 2>/dev/null | while read -r DID; do
+  aws cloudfront get-distribution --id "$DID" > "$OUT/cf_${DID}.json"
+done
+
+# ----- API layer (v2 + v1) -----
+aws apigatewayv2 get-apis --region "$REGION" > "$OUT/apigw_v2_apis.json"
+# Optional: domain names (custom domains)
+aws apigatewayv2 get-domain-names --region "$REGION" > "$OUT/apigw_v2_domains.json"
+# loop v2 apis for stages/integrations/routes/authorizers
+jq -r '.Items[].ApiId' "$OUT/apigw_v2_apis.json" 2>/dev/null | while read -r API; do
+  aws apigatewayv2 get-stages --api-id "$API" --region "$REGION" > "$OUT/apigw_v2_${API}_stages.json"
+  aws apigatewayv2 get-integrations --api-id "$API" --region "$REGION" > "$OUT/apigw_v2_${API}_integrations.json"
+  aws apigatewayv2 get-routes --api-id "$API" --region "$REGION" > "$OUT/apigw_v2_${API}_routes.json"
+  aws apigatewayv2 get-authorizers --api-id "$API" --region "$REGION" > "$OUT/apigw_v2_${API}_authorizers.json"
+done
+
+aws apigateway get-rest-apis --region "$REGION" > "$OUT/apigw_v1_apis.json"
+aws apigateway get-domain-names --region "$REGION" > "$OUT/apigw_v1_domains.json"
+# lightweight per-REST API (full per-method integrations are very heavy; skip for one-time doc)
+jq -r '.items[].id' "$OUT/apigw_v1_apis.json" 2>/dev/null | while read -r RID; do
+  aws apigateway get-stages --rest-api-id "$RID" --region "$REGION" > "$OUT/apigw_v1_${RID}_stages.json"
+  aws apigateway get-resources --rest-api-id "$RID" --region "$REGION" > "$OUT/apigw_v1_${RID}_resources.json"
+done
+
+# ----- Load balancer (focus on NLBs) -----
+aws elbv2 describe-load-balancers --region "$REGION" > "$OUT/elbv2_lbs.json"
+# Filter NLBs for convenience (still keep the full file above)
+aws elbv2 describe-load-balancers --region "$REGION" \
+  --query 'LoadBalancers[?Type==`network`]' > "$OUT/elbv2_nlbs.json"
+
+# loop NLB ARNs for listeners, attributes, and target groups
+jq -r '.[].LoadBalancerArn' "$OUT/elbv2_nlbs.json" 2>/dev/null | while read -r LARN; do
+  LID=$(basename "$LARN")
+  aws elbv2 describe-listeners --load-balancer-arn "$LARN" --region "$REGION" > "$OUT/elbv2_${LID}_listeners.json"
+  aws elbv2 describe-load-balancer-attributes --load-balancer-arn "$LARN" --region "$REGION" > "$OUT/elbv2_${LID}_attrs.json"
+  # target groups for this LB
+  aws elbv2 describe-target-groups --load-balancer-arn "$LARN" --region "$REGION" > "$OUT/elbv2_${LID}_tgs.json"
+  jq -r '.TargetGroups[].TargetGroupArn' "$OUT/elbv2_${LID}_tgs.json" 2>/dev/null | while read -r TGARN; do
+    TID=$(basename "$TGARN")
+    aws elbv2 describe-target-health --target-group-arn "$TGARN" --region "$REGION" > "$OUT/elbv2_tg_${TID}_health.json"
+    aws elbv2 describe-target-group-attributes --target-group-arn "$TGARN" --region "$REGION" > "$OUT/elbv2_tg_${TID}_attrs.json"
+  done
+done
+
+# ----- EKS control plane & k8s ingress/services -----
+aws eks list-clusters --region "$REGION" > "$OUT/eks_clusters.json"
+jq -r '.clusters[]' "$OUT/eks_clusters.json" 2>/dev/null | while read -r CL; do
+  aws eks describe-cluster --name "$CL" --region "$REGION" > "$OUT/eks_${CL}.json"
+  # kubeconfig + cluster scrape (requires your IAM/kubectl can auth to EKS)
+  aws eks update-kubeconfig --name "$CL" --region "$REGION" >/dev/null
+  kubectl get ingressclass -A -o yaml > "$OUT/eks_${CL}_ingressclass.yaml" || true
+  kubectl get ingress -A -o yaml       > "$OUT/eks_${CL}_ingress.yaml" || true
+  kubectl get svc -A -o yaml           > "$OUT/eks_${CL}_services.yaml" || true
+  kubectl get deploy -A -o yaml        > "$OUT/eks_${CL}_deploys.yaml" || true
+done
+
+# ----- Lambda & S3 (PCI-relevant) -----
+aws lambda list-functions --region "$REGION" > "$OUT/lambda_functions.json"
+
+aws s3api list-buckets > "$OUT/s3_buckets.json"
+jq -r '.Buckets[].Name' "$OUT/s3_buckets.json" | while read -r B; do
+  aws s3api get-bucket-encryption --bucket "$B" > "$OUT/s3_${B}_enc.json" 2>/dev/null || true
+  aws s3api get-public-access-block --bucket "$B" > "$OUT/s3_${B}_pab.json" 2>/dev/null || true
+  aws s3api get-bucket-versioning --bucket "$B" > "$OUT/s3_${B}_ver.json" 2>/dev/null || true
+  aws s3api get-bucket-policy-status --bucket "$B" > "$OUT/s3_${B}_policy_status.json" 2>/dev/null || true
+  aws s3api get-bucket-ownership-controls --bucket "$B" > "$OUT/s3_${B}_ownership.json" 2>/dev/null || true
+done
+
+echo "Done. JSON exports in $OUT"
