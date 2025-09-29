@@ -1,4 +1,65 @@
+GRAPH_ATTR = dict(rankdir="LR", splines="ortho", nodesep="1.1", ranksep="1.2", pad="0.2", concentrate="false")
+NODE_ATTR  = dict(fontname="Helvetica", fontsize="12", margin="0.06,0.04")
+EDGE_ATTR  = dict(arrowsize="0.9", penwidth="1.2", labelfontsize="10", tailclip="true", headclip="true")
 
+with Diagram("Ethos Portal – Context & Containers",
+             filename=str(OUTDIR/"01_context_container"),
+             show=False, outformat="svg",         # SVG = crisp + editable
+             graph_attr=GRAPH_ATTR, node_attr=NODE_ATTR, edge_attr=EDGE_ATTR):
+
+    # …
+    cf_i >> Edge(label="dynamic", minlen="2") >> gw_i \
+        >> Edge(label="443/TLS", minlen="2") >> nlb_i \
+        >> Edge(label="ingress", minlen="2") >> ingress
+
+    # Add an invisible “knee” if a line crosses an icon:
+    from diagrams.custom import Custom
+    SPACER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/>"
+    elbow = Custom("", SPACER)   # 1x1 transparent node
+
+    backend >> Edge(minlen="2") >> elbow >> Edge(minlen="2") >> rds_i
+
+
+----
+
+def emit_mermaid_context(path):
+    cf = cf_summary(); gw = apigw_v2_summary(); lb = nlb_summary(); eks = eks_summary()
+    rds = rds_pick(); ddb = ddb_pick()
+    keycloak = detect_keycloak_name()
+    s3label = "S3 (static/state)"
+    m = f"""
+flowchart LR
+  U[User] --> R53[Route 53] --> CF[CloudFront\\n{(cf or {}).get('id','')}]
+  CF -->|static| S3[{s3label}]
+  CF -->|dynamic| GW[API Gateway\\n{(gw or {}).get('id','')}]
+  GW -->|443/TLS| NLB[NLB\\n{(lb or {}).get('name','')}]
+  subgraph EKS[{(eks or {}).get('name','')}]
+    ING[Ingress] --> BE[Backend Service]
+    BE -- OIDC/SAML --> KC[{keycloak}]
+  end
+  NLB -->|ingress| ING
+  BE -->|authorized (FIS)| RDS[{('Aurora' if (rds and rds['type']=='aurora') else 'RDS') + '\\n' + (rds['id'] if rds else '')}]
+  BE -.->|external/unauth| DDB[{ddb or 'DynamoDB'}]
+  BE -->|read/write| S3
+"""
+    (OUTDIR / path).write_text("```mermaid\n" + m.strip() + "\n```")
+
+# call it:
+emit_mermaid_context("01_context_container.mmd")
+
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------------------------
 #!/usr/bin/env python3
 """
 Ethos Portal – diagram generator (SVG) from AWS CLI JSON exports.
