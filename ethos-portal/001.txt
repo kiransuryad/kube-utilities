@@ -1,3 +1,103 @@
+#!/usr/bin/env python3
+# Proposed architecture for Ethos Portal (Akamai front + external Vault)
+# Requires: pip install diagrams graphviz
+
+from diagrams import Diagram, Cluster, Edge
+from diagrams.aws.network import APIGateway, ELB
+from diagrams.aws.compute import EKS, Lambda
+from diagrams.aws.storage import S3
+from diagrams.aws.database import RDS as RDSIcon, Aurora, Dynamodb
+from diagrams.onprem.security import Vault as VaultIcon
+from diagrams.generic.blank import Blank   # generic box we can label "Akamai"
+from diagrams.onprem.client import Users
+
+# ---- knobs ----
+TITLE = "Ethos Portal – Proposed Architecture (Akamai + Vault)"
+USE_CLOUDFRONT = False  # set True to show CF as origin shield / multi-CDN
+
+GRAPH_ATTR = dict(
+    rankdir="LR", splines="ortho", nodesep="1.1", ranksep="1.2", pad="0.2"
+)
+NODE_ATTR  = dict(fontname="Helvetica", fontsize="12", margin="0.06,0.04")
+EDGE_ATTR  = dict(arrowsize="0.9", penwidth="1.2", labelfontsize="10",
+                  tailclip="true", headclip="true")
+
+def draw():
+    with Diagram(TITLE, filename="proposed_ethos_portal", show=False, outformat="png",
+                 graph_attr=GRAPH_ATTR, node_attr=NODE_ATTR, edge_attr=EDGE_ATTR):
+
+        user = Users("End-User / Browser")
+        akamai = Blank("Akamai (DNS + CDN)")  # front door
+
+        if USE_CLOUDFRONT:
+            # Optional: CF as origin shield / AWS edge features (Lambda@Edge/OAC)
+            from diagrams.aws.network import CloudFront
+            cf = CloudFront("CloudFront (optional)")
+            user >> Edge(label="HTTPS") >> akamai >> Edge(label="origin fetch") >> cf
+            edge_source = cf
+        else:
+            user >> Edge(label="HTTPS") >> akamai
+            edge_source = akamai
+
+        # Dynamic path
+        apigw = APIGateway("API Gateway (HTTP)")
+        nlb   = ELB("NLB (TLS 443)")
+
+        # EKS app cluster
+        with Cluster("EKS Cluster (Private VPC)"):
+            ingress = EKS("Ingress")
+            backend = EKS("Backend Service")
+            keycloak = EKS("Keycloak (Auth)")
+
+        # Static/objects and async
+        s3 = S3("S3 (static/assets/state)")
+        lam = Lambda("Lambda (S3 events)")
+
+        # Data stores
+        rds = Aurora("Aurora (authorized FIS users)")  # change to RDSIcon(...) if needed
+        ddb = Dynamodb("DynamoDB (external/unauth)")
+
+        # External secrets
+        vault = VaultIcon("HashiCorp Vault\n(FIS external)")
+
+        # --- Flows ---
+        # Dynamic requests
+        edge_source >> Edge(label="dynamic HTTPS") >> apigw \
+                    >> Edge(label="TLS 443") >> nlb \
+                    >> Edge(label="ingress") >> ingress >> backend
+
+        # Static content
+        edge_source >> Edge(label="static HTTPS") >> s3
+
+        # Auth in-cluster
+        backend << Edge(label="OIDC/SAML") >> keycloak
+
+        # Data write paths
+        backend >> Edge(label="authorized (FIS)") >> rds
+        backend >> Edge(style="dashed", label="external/unauth") >> ddb
+
+        # S3 events
+        backend >> Edge(label="read/write") >> s3
+        s3 >> Edge(label="event") >> lam
+
+        # Secrets from external Vault
+        backend >> Edge(style="dotted", label="AppRole/JWT") >> vault
+        keycloak >> Edge(style="dotted", label="AppRole/JWT") >> vault
+
+if __name__ == "__main__":
+    draw()
+    print("Wrote proposed_ethos_portal.png")
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------------------------
 def emit_mermaid_context(drawio_path="01_context_container.mmd", md_path=None):
     cf  = (cf_summary() or {})
     gw  = (apigw_v2_summary() or {})
