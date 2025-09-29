@@ -1,3 +1,255 @@
+# ----- RDS / Aurora -----
+aws rds describe-db-instances --region "$REGION" > "$OUT/rds_instances.json"
+aws rds describe-db-clusters  --region "$REGION" > "$OUT/rds_clusters.json"
+# (optional) tags for identification
+jq -r '.DBInstances[].DBInstanceArn' "$OUT/rds_instances.json" 2>/dev/null | while read -r ARN; do
+  aws rds list-tags-for-resource --resource-name "$ARN" --region "$REGION" > "$OUT/rds_tags_$(echo "$ARN" | sed 's#.*:db:##').json" || true
+done
+jq -r '.DBClusters[].DBClusterArn' "$OUT/rds_clusters.json" 2>/dev/null | while read -r ARN; do
+  aws rds list-tags-for-resource --resource-name "$ARN" --region "$REGION" > "$OUT/rds_cluster_tags_$(echo "$ARN" | sed 's#.*:cluster:##').json" || true
+done
+
+# ----- DynamoDB -----
+aws dynamodb list-tables --region "$REGION" > "$OUT/ddb_tables.json"
+jq -r '.TableNames[]' "$OUT/ddb_tables.json" 2>/dev/null | while read -r T; do
+  aws dynamodb describe-table --table-name "$T" --region "$REGION" > "$OUT/ddb_${T}.json" || true
+done
+
+# ----- Secrets Manager (metadata only) -----
+aws secretsmanager list-secrets --region "$REGION" > "$OUT/secrets_list.json"
+# (optional) resource policies for posture evidence
+jq -r '.SecretList[].ARN' "$OUT/secrets_list.json" 2>/dev/null | while read -r SARN; do
+  aws secretsmanager get-resource-policy --secret-id "$SARN" --region "$REGION" > "$OUT/secret_policy_$(basename "$SARN").json" 2>/dev/null || true
+done
+
+
+---------
+
+#!/usr/bin/env python3
+import json, os, pathlib, re
+from contextlib import suppress
+
+# diagrams
+from diagrams import Diagram, Cluster, Edge
+from diagrams.aws.network import Route53, CloudFront, APIGateway, ELB, InternetGateway, PrivateSubnet, PublicSubnet
+from diagrams.aws.compute import EKS, Lambda
+from diagrams.aws.storage import S3
+from diagrams.aws.database import RDS as RDSIcon, Aurora, Dynamodb
+from diagrams.aws.security import SecretsManager
+
+# Optional endpoint icon (not present in all versions)
+try:
+    from diagrams.aws.network import VPCEndpointInterface as VPCEndpointIcon
+except Exception:
+    VPCEndpointIcon = None
+
+EXPORTS = pathlib.Path("as-is/exports")
+OUTDIR  = pathlib.Path("diagrams")
+OUTDIR.mkdir(exist_ok=True, parents=True)
+
+def load_json(name):
+    p = EXPORTS / name
+    if not p.exists(): return None
+    with open(p) as f: return json.load(f)
+
+def first(lst, default=None):
+    return lst[0] if lst else default
+
+# ---------- Parsers ----------
+def cf_summary():
+    lst = (load_json("cf_distributions.json") or {}).get("DistributionList", {}).get("Items", [])
+    if not lst: return None
+    did = lst[0]["Id"]
+    conf = (load_json(f"cf_{did}.json") or {}).get("Distribution", {}).get("DistributionConfig", {})
+    aliases = conf.get("Aliases", {}).get("Items", []) or []
+    return {"id": did, "aliases": aliases}
+
+def apigw_v2_summary():
+    items = (load_json("apigw_v2_apis.json") or {}).get("Items", [])
+    if not items: return None
+    api = items[0]; api_id = api.get("ApiId"); name = api.get("Name")
+    integ = load_json(f"apigw_v2_{api_id}_integrations.json")
+    nlb_links = []
+    if integ and "Items" in integ:
+        for it in integ["Items"]:
+            uri = (it.get("IntegrationUri") or it.get("IntegrationUriArn") or "")
+            if "elasticloadbalancing" in uri:
+                nlb_links.append(uri)
+    return {"id": api_id, "name": name, "nlb_links": nlb_links}
+
+def nlb_summary():
+    nlbs = load_json("elbv2_nlbs.json") or []
+    if not nlbs:
+        lbs = (load_json("elbv2_lbs.json") or {}).get("LoadBalancers", [])
+        nlbs = [lb for lb in lbs if lb.get("Type") == "network"]
+    if not nlbs: return None
+    lb = nlbs[0]
+    return {"name": lb.get("LoadBalancerName"), "dns": lb.get("DNSName")}
+
+def eks_summary():
+    names = (load_json("eks_clusters.json") or {}).get("clusters", [])
+    if not names: return None
+    return {"name": names[0]}
+
+def detect_keycloak_name():
+    # Look for 'keycloak' in k8s exports; fall back to generic
+    for fname in EXPORTS.glob("eks_*_deploys.yaml"):
+        try:
+            txt = open(fname).read().lower()
+            m = re.search(r'name:\s*keycloak[^\n]*', txt)
+            if m: return "Keycloak (EKS)"
+        except Exception:
+            pass
+    return "Keycloak"
+
+def rds_pick():
+    # Prefer clusters (Aurora) else instances; pick one matching 'ethos' if possible
+    clusters = (load_json("rds_clusters.json") or {}).get("DBClusters", [])
+    insts    = (load_json("rds_instances.json") or {}).get("DBInstances", [])
+    pick = first([c for c in clusters if re.search(r'ethos|portal|keycloak', c.get("DBClusterIdentifier",""), re.I)], default=first(clusters))
+    if pick:
+        return {"type": "aurora", "id": pick.get("DBClusterIdentifier")}
+    picki = first([i for i in insts if re.search(r'ethos|portal|keycloak', i.get("DBInstanceIdentifier",""), re.I)], default=first(insts))
+    if picki:
+        return {"type": "rds", "id": picki.get("DBInstanceIdentifier")}
+    return None
+
+def ddb_pick():
+    names = (load_json("ddb_tables.json") or {}).get("TableNames", [])
+    pick = first([n for n in names if re.search(r'ethos|portal', n, re.I)], default=first(names))
+    return pick
+
+def secrets_summary():
+    secrets = (load_json("secrets_list.json") or {}).get("SecretList", [])
+    # Only show 1-2 to keep diagram clean
+    picks = [s for s in secrets if re.search(r'ethos|portal|eks|keycloak', (s.get("Name") or ""), re.I)]
+    picks = picks or secrets[:1]
+    return [s.get("Name") for s in picks[:2]]
+
+# ---------- Diagrams ----------
+GRAPH_STYLE = dict(
+    rankdir="LR", splines="ortho", nodesep="1", ranksep="1.1", fontname="Helvetica", fontsize="12"
+)
+
+def draw_context_container():
+    cf = cf_summary(); gw = apigw_v2_summary(); lb = nlb_summary(); eks = eks_summary()
+    s3label = "S3 (static/state)"
+    lambdas = (load_json("lambda_functions.json") or {}).get("Functions", [])
+    lam = first([x["FunctionName"] for x in lambdas], "Lambda")
+
+    rds = rds_pick()
+    ddb = ddb_pick()
+    secrets = secrets_summary()
+    keycloak_name = detect_keycloak_name()
+
+    with Diagram("Ethos Portal – Context & Containers", filename=str(OUTDIR/"01_context_container"),
+                 show=False, outformat="png", graph_attr=GRAPH_STYLE):
+        # Edge & CDN
+        user = Route53("User")
+        r53  = Route53("Route 53")
+        cf_i = CloudFront(f"CloudFront\n{(cf or {}).get('id','')}")
+        gw_i = APIGateway(f"API Gateway\n{(gw or {}).get('id','')}")
+        nlb_i = ELB(f"NLB\n{(lb or {}).get('name','')}")
+        s3_i = S3(s3label)
+        lam_i = Lambda(lam)
+
+        # EKS cluster & app containers
+        with Cluster(f"EKS {(eks or {}).get('name','')}"):
+            ingress = EKS("Ingress")
+            backend = EKS("Backend Service")
+            keycloak = EKS(keycloak_name)
+
+        # Data stores & secrets
+        if rds and rds["type"] == "aurora":
+            rds_i = Aurora(f"Aurora\n{rds['id']}")
+        elif rds:
+            rds_i = RDSIcon(f"RDS\n{rds['id']}")
+        else:
+            rds_i = RDSIcon("RDS")
+
+        ddb_i = Dynamodb(ddb or "DynamoDB")
+        secnodes = [SecretsManager(n) for n in (secrets or ["Secrets Manager"])]
+
+        # Flow
+        user >> r53 >> cf_i
+        cf_i >> Edge(label="static") >> s3_i
+        cf_i >> Edge(label="dynamic") >> gw_i >> Edge(label="443/TLS") >> nlb_i >> Edge(label="ingress") >> ingress >> backend
+
+        # Auth & storage decisions
+        backend << Edge(label="OIDC/SAML") >> keycloak
+        backend >> Edge(label="authorized (FIS)") >> rds_i
+        backend >> Edge(style="dashed", label="external/unauth") >> ddb_i
+
+        # Events & secrets use
+        backend >> Edge(label="read/write") >> s3_i
+        s3_i >> Edge(label="event") >> lam_i
+        for s in secnodes:
+            backend >> Edge(style="dotted", label="IRSA") >> s
+
+def draw_request_path():
+    cf = cf_summary(); gw = apigw_v2_summary(); lb = nlb_summary(); eks = eks_summary()
+    with Diagram("Ethos Portal – API Request Path", filename=str(OUTDIR/"02_request_path"),
+                 show=False, outformat="png", graph_attr=GRAPH_STYLE):
+        user = Route53("Browser")
+        r53  = Route53("Route 53")
+        cf_i = CloudFront(f"CloudFront\n{(cf or {}).get('id','')}")
+        gw_i = APIGateway(f"API GW\n{(gw or {}).get('id','')}")
+        lb_i = ELB(f"NLB\n{(lb or {}).get('name','')}")
+        with Cluster(f"EKS {(eks or {}).get('name','')}"):
+            ingress = EKS("Ingress")
+            svc     = EKS("Backend")
+            keycloak = EKS("Keycloak")
+
+        user >> Edge(label="HTTPS") >> r53 >> Edge(label="Alias") >> cf_i
+        cf_i  >> Edge(label="HTTPS") >> gw_i >> Edge(label="TLS 443") >> lb_i >> Edge(label="TCP 443") >> ingress >> svc
+        svc   << Edge(label="OIDC") >> keycloak
+
+def draw_topology():
+    with Diagram("Ethos Portal – VPC Topology (schematic)", filename=str(OUTDIR/"03_topology"),
+                 show=False, outformat="png", graph_attr=GRAPH_STYLE):
+        igw = InternetGateway("IGW")
+        with Cluster("VPC (Ethos Portal)"):
+            with Cluster("AZ-a"):
+                pub_a = PublicSubnet("public-a")
+                pri_a = PrivateSubnet("private-a")
+                nlb_a = ELB("NLB ENI-a")
+
+            with Cluster("AZ-b"):
+                pub_b = PublicSubnet("public-b")
+                pri_b = PrivateSubnet("private-b")
+                nlb_b = ELB("NLB ENI-b")
+
+            s3e = VPCEndpointIcon("S3 Endpoint") if VPCEndpointIcon else ELB("S3 Endpoint")
+
+        igw >> pub_a
+        igw >> pub_b
+        nlb_a - pri_a; nlb_b - pri_b
+        s3e - pri_a;   s3e - pri_b
+
+if __name__ == "__main__":
+    draw_context_container()
+    draw_request_path()
+    draw_topology()
+    print(f"Wrote diagrams to {OUTDIR.resolve()}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------
 # macOS (Homebrew) / Linux
 brew install graphviz || sudo apt-get install -y graphviz
 python3 -m venv venv && source venv/bin/activate
