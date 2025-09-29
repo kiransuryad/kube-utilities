@@ -1,3 +1,383 @@
+
+#!/usr/bin/env python3
+"""
+Ethos Portal – diagram generator (SVG) from AWS CLI JSON exports.
+
+Outputs (to ./diagrams):
+  - 01_context_container.svg                 (clean context & containers)
+  - 01b_context_container_network.svg        (context + AWS/VPC/Subnets/AZ frame)
+  - 02_request_path.svg                      (API request path)
+  - 03_topology.svg                          (compact VPC topology)
+
+Author: you + ChatGPT
+"""
+
+import json
+import pathlib
+import re
+from contextlib import suppress
+
+# diagrams (mingrammer)
+from diagrams import Diagram, Cluster, Edge
+from diagrams.aws.network import (
+    Route53, CloudFront, APIGateway, ELB,
+    InternetGateway, PrivateSubnet, PublicSubnet
+)
+from diagrams.aws.compute import EKS, Lambda
+from diagrams.aws.storage import S3
+from diagrams.aws.database import RDS as RDSIcon, Aurora, Dynamodb
+from diagrams.aws.security import SecretsManager
+
+# Optional VPC Endpoint icon (not in all versions of diagrams)
+try:
+    from diagrams.aws.network import VPCEndpointInterface as VPCEndpointIcon
+except Exception:
+    VPCEndpointIcon = None
+
+# ----------------------------- config & helpers -----------------------------
+
+EXPORTS = pathlib.Path("as-is/exports")
+OUTDIR = pathlib.Path("diagrams")
+OUTDIR.mkdir(exist_ok=True, parents=True)
+
+# Graphviz polish
+GRAPH_ATTR = dict(rankdir="LR", splines="ortho", nodesep="1.0", ranksep="1.2", pad="0.2")
+NODE_ATTR = dict(fontname="Helvetica", fontsize="12", margin="0.05,0.03")
+EDGE_ATTR = dict(arrowsize="0.8", penwidth="1.2")
+
+def load_json(name):
+    p = EXPORTS / name
+    if not p.exists():
+        return None
+    with open(p) as f:
+        return json.load(f)
+
+def first(lst, default=None):
+    return lst[0] if lst else default
+
+def find_first_file(glob_pattern: str):
+    files = sorted(EXPORTS.glob(glob_pattern))
+    return files[0] if files else None
+
+# ----------------------------- light parsers -----------------------------
+
+def cf_summary():
+    lst = (load_json("cf_distributions.json") or {}).get("DistributionList", {}).get("Items", [])
+    if not lst:
+        return None
+    did = lst[0]["Id"]
+    conf = (load_json(f"cf_{did}.json") or {}).get("Distribution", {}).get("DistributionConfig", {})
+    aliases = conf.get("Aliases", {}).get("Items", []) or []
+    return {"id": did, "aliases": aliases}
+
+def apigw_v2_summary():
+    items = (load_json("apigw_v2_apis.json") or {}).get("Items", [])
+    if not items:
+        return None
+    api = items[0]
+    api_id = api.get("ApiId")
+    name = api.get("Name")
+    integ = load_json(f"apigw_v2_{api_id}_integrations.json")
+    nlb_links = []
+    if integ and "Items" in integ:
+        for it in integ["Items"]:
+            uri = (it.get("IntegrationUri") or it.get("IntegrationUriArn") or "")
+            if "elasticloadbalancing" in uri:
+                nlb_links.append(uri)
+    return {"id": api_id, "name": name, "nlb_links": nlb_links}
+
+def nlb_summary():
+    nlbs = load_json("elbv2_nlbs.json") or []
+    if not nlbs:
+        lbs = (load_json("elbv2_lbs.json") or {}).get("LoadBalancers", [])
+        nlbs = [lb for lb in lbs if lb.get("Type") == "network"]
+    if not nlbs:
+        return None
+    lb = nlbs[0]
+    # Try to find its listeners (from export files like elbv2_<LBID>_listeners.json)
+    listeners_file = find_first_file("elbv2_*_listeners.json")
+    port_label = ""
+    if listeners_file:
+        try:
+            j = json.load(open(listeners_file))
+            ports = [str(li.get("Port")) for li in j.get("Listeners", []) if li.get("Port")]
+            if ports:
+                port_label = f" :{','.join(sorted(set(ports)))}"
+        except Exception:
+            pass
+    return {
+        "name": lb.get("LoadBalancerName"),
+        "dns": lb.get("DNSName"),
+        "port_label": port_label,
+        "vpc": lb.get("VpcId"),
+    }
+
+def eks_summary():
+    names = (load_json("eks_clusters.json") or {}).get("clusters", [])
+    if not names:
+        return None
+    return {"name": names[0]}
+
+def detect_keycloak_name():
+    for fname in EXPORTS.glob("eks_*_deploys.yaml"):
+        try:
+            txt = open(fname).read().lower()
+            m = re.search(r'name:\s*keycloak[^\n]*', txt)
+            if m:
+                return "Keycloak (EKS)"
+        except Exception:
+            pass
+    return "Keycloak"
+
+def rds_pick():
+    clusters = (load_json("rds_clusters.json") or {}).get("DBClusters", [])
+    insts = (load_json("rds_instances.json") or {}).get("DBInstances", [])
+    pickc = first([c for c in clusters if re.search(r'ethos|portal|keycloak', c.get("DBClusterIdentifier",""), re.I)], default=first(clusters))
+    if pickc:
+        return {"type": "aurora", "id": pickc.get("DBClusterIdentifier")}
+    picki = first([i for i in insts if re.search(r'ethos|portal|keycloak', i.get("DBInstanceIdentifier",""), re.I)], default=first(insts))
+    if picki:
+        return {"type": "rds", "id": picki.get("DBInstanceIdentifier")}
+    return None
+
+def ddb_pick():
+    names = (load_json("ddb_tables.json") or {}).get("TableNames", [])
+    return first([n for n in names if re.search(r'ethos|portal', n, re.I)], default=first(names))
+
+def secrets_summary():
+    secrets = (load_json("secrets_list.json") or {}).get("SecretList", [])
+    picks = [s for s in secrets if re.search(r'ethos|portal|eks|keycloak', (s.get("Name") or ""), re.I)]
+    picks = picks or secrets[:1]
+    return [s.get("Name") for s in picks[:2]] if picks else []
+
+def pick_vpc():
+    vpcs = load_json("vpcs.json") or {}
+    return first(vpcs.get("Vpcs", []), default={"VpcId": "vpc-unknown"})
+
+def list_subnets(vpc_id):
+    subnets = (load_json("subnets.json") or {}).get("Subnets", [])
+    subs = [s for s in subnets if s.get("VpcId") == vpc_id]
+    pubs = [s for s in subs if s.get("MapPublicIpOnLaunch")]
+    pris = [s for s in subs if not s.get("MapPublicIpOnLaunch")]
+    def by_az(xs):
+        d = {}
+        for s in xs:
+            d.setdefault(s.get("AvailabilityZone", "AZ-?"), []).append(s)
+        return d
+    return by_az(pubs), by_az(pris)
+
+# ----------------------------- tiny layout helper -----------------------------
+
+from diagrams.custom import Custom
+SPACER_ICON = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/>"
+def spacer(label=""):
+    """A 1x1 transparent node that forces neat elbows when needed."""
+    return Custom(label, SPACER_ICON)
+
+# ----------------------------- diagram 1 (clean) -----------------------------
+
+def draw_context_container_clean():
+    cf = cf_summary(); gw = apigw_v2_summary(); lb = nlb_summary(); eks = eks_summary()
+    rds = rds_pick(); ddb = ddb_pick(); secrets = secrets_summary()
+    keycloak_name = detect_keycloak_name()
+
+    with Diagram("Ethos Portal – Context & Containers",
+                 filename=str(OUTDIR/"01_context_container"),
+                 show=False, outformat="svg",
+                 graph_attr=GRAPH_ATTR, node_attr=NODE_ATTR, edge_attr=EDGE_ATTR):
+
+        # Edge & CDN
+        user = Route53("User")
+        r53 = Route53("Route 53")
+        cf_i = CloudFront(f"CloudFront\n{(cf or {}).get('id','')}")
+        gw_i = APIGateway(f"API Gateway\n{(gw or {}).get('id','')}")
+        nlb_i = ELB(f"NLB{(lb or {}).get('port_label','')}\n{(lb or {}).get('name','')}")
+        s3_i = S3("S3 (static/state)")
+        lam_i = Lambda(first((load_json("lambda_functions.json") or {}).get("Functions", []), {"FunctionName":"Lambda"})["FunctionName"])
+
+        # EKS cluster & app containers
+        with Cluster(f"EKS {(eks or {}).get('name','')}"):
+            ingress = EKS("Ingress")
+            backend = EKS("Backend Service")
+            keycloak = EKS(keycloak_name)
+
+        # Data stores & secrets
+        if rds and rds["type"] == "aurora":
+            rds_i = Aurora(f"Aurora\n{rds['id']}")
+        elif rds:
+            rds_i = RDSIcon(f"RDS\n{rds['id']}")
+        else:
+            rds_i = RDSIcon("RDS")
+
+        ddb_i = Dynamodb(ddb or "DynamoDB")
+        secnodes = [SecretsManager(n) for n in (secrets or ["Secrets Manager"])]
+
+        # Flow
+        user >> Edge(label="HTTPS", minlen="2") >> r53 >> Edge(label="Alias", minlen="2") >> cf_i
+        cf_i  >> Edge(label="static", minlen="2") >> s3_i
+        cf_i  >> Edge(label="dynamic", minlen="2") >> gw_i \
+              >> Edge(label="443/TLS", minlen="2") >> nlb_i \
+              >> Edge(label="ingress", minlen="2") >> ingress >> backend
+
+        # Auth & storage decisions
+        elbow = spacer()  # neat elbow for RDS branch
+        backend << Edge(label="OIDC/SAML", minlen="2") >> keycloak
+        backend >> Edge(label="authorized (FIS)", minlen="2") >> elbow >> Edge(minlen="2") >> rds_i
+        backend >> Edge(style="dashed", label="external/unauth", minlen="2") >> ddb_i
+
+        # Events & secrets use
+        backend >> Edge(label="read/write", minlen="2") >> s3_i
+        s3_i >> Edge(label="event", minlen="2") >> lam_i
+        for s in secnodes:
+            backend >> Edge(style="dotted", label="IRSA", minlen="2") >> s
+
+# ----------------------------- diagram 1b (with AWS/VPC/AZ frame) -----------------------------
+
+def draw_context_container_with_network_frame():
+    cf = cf_summary(); gw = apigw_v2_summary(); lb = nlb_summary(); eks = eks_summary()
+    rds = rds_pick(); ddb = ddb_pick(); secrets = secrets_summary()
+    keycloak_name = detect_keycloak_name()
+
+    vpc_id = pick_vpc().get("VpcId", "vpc-unknown")
+    pubs_by_az, pris_by_az = list_subnets(vpc_id)
+
+    with Diagram("Ethos Portal – Context & Containers (with AWS/VPC frame)",
+                 filename=str(OUTDIR/"01b_context_container_network"),
+                 show=False, outformat="svg",
+                 graph_attr=GRAPH_ATTR, node_attr=NODE_ATTR, edge_attr=EDGE_ATTR):
+
+        user = Route53("User")
+        r53 = Route53("Route 53")
+
+        with Cluster("AWS Account"):
+            with Cluster(f"VPC {vpc_id}"):
+                # AZ clusters (two max for clarity)
+                az_names = sorted(set(list(pubs_by_az.keys()) + list(pris_by_az.keys())))[:2]
+                az_nodes = []
+                for az in az_names:
+                    with Cluster(f"{az}"):
+                        pub = PublicSubnet("public")
+                        pri = PrivateSubnet("private")
+                        az_nodes.append((pub, pri))
+
+                cf_i = CloudFront(f"CloudFront\n{(cf or {}).get('id','')}")
+                gw_i = APIGateway(f"API Gateway\n{(gw or {}).get('id','')}")
+                nlb_i = ELB(f"NLB{(lb or {}).get('port_label','')}\n{(lb or {}).get('name','')}")
+                s3_i = S3("S3 (static/state)")
+                lam_i = Lambda(first((load_json("lambda_functions.json") or {}).get("Functions", []), {"FunctionName":"Lambda"})["FunctionName"])
+
+                with Cluster(f"EKS {(eks or {}).get('name','')}"):
+                    ingress = EKS("Ingress")
+                    backend = EKS("Backend Service")
+                    keycloak = EKS(keycloak_name)
+
+                # Data stores & secrets
+                if rds and rds["type"] == "aurora":
+                    rds_i = Aurora(f"Aurora\n{rds['id']}")
+                elif rds:
+                    rds_i = RDSIcon(f"RDS\n{rds['id']}")
+                else:
+                    rds_i = RDSIcon("RDS")
+
+                ddb_i = Dynamodb(ddb or "DynamoDB")
+                secnodes = [SecretsManager(n) for n in (secrets or ["Secrets Manager"])]
+
+        # Edges across frame
+        user >> Edge(label="HTTPS", minlen="2") >> r53 >> Edge(label="Alias", minlen="2") >> cf_i
+        cf_i  >> Edge(label="static", minlen="2") >> s3_i
+        cf_i  >> Edge(label="dynamic", minlen="2") >> gw_i \
+              >> Edge(label="443/TLS", minlen="2") >> nlb_i \
+              >> Edge(label="ingress", minlen="2") >> ingress >> backend
+
+        backend << Edge(label="OIDC/SAML", minlen="2") >> keycloak
+        backend >> Edge(label="authorized (FIS)", minlen="2") >> rds_i
+        backend >> Edge(style="dashed", label="external/unauth", minlen="2") >> ddb_i
+        backend >> Edge(label="read/write", minlen="2") >> s3_i
+        s3_i >> Edge(label="event", minlen="2") >> lam_i
+        for s in secnodes:
+            backend >> Edge(style="dotted", label="IRSA", minlen="2") >> s
+
+# ----------------------------- diagram 2 (request path) -----------------------------
+
+def draw_request_path():
+    cf = cf_summary(); gw = apigw_v2_summary(); lb = nlb_summary(); eks = eks_summary()
+
+    with Diagram("Ethos Portal – API Request Path",
+                 filename=str(OUTDIR/"02_request_path"),
+                 show=False, outformat="svg",
+                 graph_attr=GRAPH_ATTR, node_attr=NODE_ATTR, edge_attr=EDGE_ATTR):
+
+        user = Route53("Browser")
+        r53 = Route53("Route 53")
+        cf_i = CloudFront(f"CloudFront\n{(cf or {}).get('id','')}")
+        gw_i = APIGateway(f"API GW\n{(gw or {}).get('id','')}")
+        lb_i = ELB(f"NLB{(lb or {}).get('port_label','')}\n{(lb or {}).get('name','')}")
+
+        with Cluster(f"EKS {(eks or {}).get('name','')}"):
+            ingress = EKS("Ingress")
+            svc = EKS("Backend")
+            keycloak = EKS("Keycloak")
+
+        user >> Edge(label="HTTPS", minlen="2") >> r53 >> Edge(label="Alias", minlen="2") >> cf_i
+        cf_i >> Edge(label="HTTPS", minlen="2") >> gw_i \
+             >> Edge(label="TLS 443", minlen="2") >> lb_i \
+             >> Edge(label="TCP 443", minlen="2") >> ingress >> svc
+        svc << Edge(label="OIDC", minlen="2") >> keycloak
+
+# ----------------------------- diagram 3 (topology schematic) -----------------------------
+
+def draw_topology_schematic():
+    vpc_id = pick_vpc().get("VpcId", "vpc-unknown")
+    pubs_by_az, pris_by_az = list_subnets(vpc_id)
+
+    with Diagram(f"Ethos Portal – VPC Topology (schematic)",
+                 filename=str(OUTDIR/"03_topology"),
+                 show=False, outformat="svg",
+                 graph_attr=GRAPH_ATTR, node_attr=NODE_ATTR, edge_attr=EDGE_ATTR):
+
+        igw = InternetGateway("IGW")
+
+        with Cluster(f"VPC {vpc_id}"):
+            # two AZs for readability
+            az_names = sorted(set(list(pubs_by_az.keys()) + list(pris_by_az.keys())))[:2]
+
+            per_az = []
+            for az in az_names:
+                with Cluster(az):
+                    pub = PublicSubnet("public")
+                    pri = PrivateSubnet("private")
+                    nlb_eni = ELB("NLB ENI")
+                    per_az.append((pub, pri, nlb_eni))
+
+            s3e = VPCEndpointIcon("S3 Endpoint") if VPCEndpointIcon else ELB("S3 Endpoint")
+
+        # Wiring
+        with suppress(Exception):
+            if per_az:
+                igw >> per_az[0][0]
+                if len(per_az) > 1:
+                    igw >> per_az[1][0]
+        for (_, pri, nlb_eni) in per_az:
+            nlb_eni - pri
+            s3e - pri
+
+# ----------------------------- entrypoint -----------------------------
+
+if __name__ == "__main__":
+    draw_context_container_clean()
+    draw_context_container_with_network_frame()
+    draw_request_path()
+    draw_topology_schematic()
+    print(f"SVGs written to {OUTDIR.resolve()}")
+
+
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------
 #!/usr/bin/env bash
 set -euo pipefail
 
