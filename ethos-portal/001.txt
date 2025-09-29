@@ -1,4 +1,58 @@
 def emit_mermaid_context(drawio_path="01_context_container.mmd", md_path=None):
+    cf  = (cf_summary() or {})
+    gw  = (apigw_v2_summary() or {})
+    lb  = (nlb_summary() or {})
+    eks = (eks_summary() or {})
+    rds = rds_pick()
+    ddb = ddb_pick()
+    keycloak = detect_keycloak_name()
+    s3label = "S3 (static/state)"
+
+    cf_label  = f"CloudFront {cf.get('id','')}".strip()
+    gw_label  = f"API Gateway {gw.get('id','')}".strip()
+    lb_label  = f"NLB {lb.get('name','')}".strip()
+    eks_label = (eks.get("name") or "EKS").strip()
+
+    if rds and rds.get("type") == "aurora":
+        rds_label = f"Aurora {rds.get('id','')}".strip()
+    elif rds:
+        rds_label = f"RDS {rds.get('id','')}".strip()
+    else:
+        rds_label = "RDS"
+
+    ddb_label = (ddb or "DynamoDB").strip()
+
+    # Use '-- text -->' (NOT the '|text|' form) for maximum draw.io compatibility.
+    lines = [
+        "flowchart LR",
+        "  U[User] --> R53[Route 53] --> CF[" + cf_label + "]",
+        "  CF -- static --> S3[" + s3label + "]",
+        "  CF -- dynamic --> GW[" + gw_label + "]",
+        "  GW -- 443/TLS --> NLB[" + lb_label + "]",
+        "  subgraph EKS[" + eks_label + "]",
+        "    ING[Ingress] --> BE[Backend Service]",
+        "    BE -- OIDC/SAML --> KC[" + keycloak + "]",
+        "  end",
+        "  NLB -- ingress --> ING",
+        "  BE -- authorized (FIS) --> RDS[" + rds_label + "]",
+        "  BE -. external/unauth .-> DDB[" + ddb_label + "]",
+        "  BE -- read/write --> S3",
+    ]
+    mermaid_raw = "\n".join(lines)
+
+    (OUTDIR / drawio_path).write_text(mermaid_raw)
+    if md_path:
+        (OUTDIR / md_path).write_text("```mermaid\n" + mermaid_raw + "\n```")
+
+
+
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
+def emit_mermaid_context(drawio_path="01_context_container.mmd", md_path=None):
     cf  = cf_summary() or {}
     gw  = apigw_v2_summary() or {}
     lb  = nlb_summary() or {}
