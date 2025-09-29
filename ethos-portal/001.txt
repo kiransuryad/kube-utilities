@@ -1,3 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# === Config ===
+OUT="${OUT:-as-is/exports}"                 # override with OUT=/path ./export_data_tier.sh
+REGION="${AWS_REGION:-${REGION:-eu-west-1}}"# override with REGION=us-east-1 ./export_data_tier.sh
+FILTER_NAME="${FILTER_NAME:-}"              # optional: grep filter for names/ids (e.g., ethos|portal|keycloak)
+
+mkdir -p "$OUT"
+echo "Exporting data-tier metadata to $OUT (region: $REGION)"
+have_jq() { command -v jq >/dev/null 2>&1; }
+
+# ---------- RDS / Aurora ----------
+aws rds describe-db-instances --region "$REGION" > "$OUT/rds_instances.json"
+aws rds describe-db-clusters  --region "$REGION" > "$OUT/rds_clusters.json"
+
+if have_jq; then
+  echo "Tagging RDS instances…"
+  jq -r '.DBInstances[].DBInstanceArn' "$OUT/rds_instances.json" 2>/dev/null \
+    | { if [ -n "$FILTER_NAME" ]; then grep -Ei "$FILTER_NAME" || true; else cat; fi; } \
+    | while read -r ARN; do
+        safe="$(echo "$ARN" | sed 's#.*:db:##')"
+        aws rds list-tags-for-resource --resource-name "$ARN" --region "$REGION" > "$OUT/rds_tags_${safe}.json" || true
+      done
+
+  echo "Tagging RDS clusters…"
+  jq -r '.DBClusters[].DBClusterArn' "$OUT/rds_clusters.json" 2>/dev/null \
+    | { if [ -n "$FILTER_NAME" ]; then grep -Ei "$FILTER_NAME" || true; else cat; fi; } \
+    | while read -r ARN; do
+        safe="$(echo "$ARN" | sed 's#.*:cluster:##')"
+        aws rds list-tags-for-resource --resource-name "$ARN" --region "$REGION" > "$OUT/rds_cluster_tags_${safe}.json" || true
+      done
+else
+  echo "jq not found; skipping per-resource tag exports." >&2
+fi
+
+# ---------- DynamoDB ----------
+aws dynamodb list-tables --region "$REGION" > "$OUT/ddb_tables.json"
+if have_jq; then
+  jq -r '.TableNames[]' "$OUT/ddb_tables.json" 2>/dev/null \
+    | { if [ -n "$FILTER_NAME" ]; then grep -Ei "$FILTER_NAME" || true; else cat; fi; } \
+    | while read -r T; do
+        aws dynamodb describe-table --table-name "$T" --region "$REGION" > "$OUT/ddb_${T}.json" || true
+      done
+else
+  echo "jq not found; export contains list only (no per-table describe)." >&2
+fi
+
+# ---------- Secrets Manager (metadata only) ----------
+aws secretsmanager list-secrets --region "$REGION" > "$OUT/secrets_list.json"
+if have_jq; then
+  jq -r '.SecretList[].ARN' "$OUT/secrets_list.json" 2>/dev/null \
+    | { if [ -n "$FILTER_NAME" ]; then grep -Ei "$FILTER_NAME" || true; else cat; fi; } \
+    | while read -r SARN; do
+        base="$(basename "$SARN")"
+        aws secretsmanager get-resource-policy --secret-id "$SARN" --region "$REGION" > "$OUT/secret_policy_${base}.json" 2>/dev/null || true
+      done
+fi
+
+echo "Done."
+
+
+
+--------
 # ----- RDS / Aurora -----
 aws rds describe-db-instances --region "$REGION" > "$OUT/rds_instances.json"
 aws rds describe-db-clusters  --region "$REGION" > "$OUT/rds_clusters.json"
