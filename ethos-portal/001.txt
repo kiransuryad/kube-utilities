@@ -1,3 +1,49 @@
+def emit_mermaid_context(path):
+    cf  = cf_summary() or {}
+    gw  = apigw_v2_summary() or {}
+    lb  = nlb_summary() or {}
+    eks = eks_summary() or {}
+    rds = rds_pick()
+    ddb = ddb_pick()
+    keycloak = detect_keycloak_name()
+    s3label = "S3 (static/state)"
+
+    # --- Build labels OUTSIDE of {} to avoid backslashes inside f-string expressions ---
+    cf_label  = f"CloudFront\\n{cf.get('id','')}"
+    gw_label  = f"API Gateway\\n{gw.get('id','')}"
+    lb_label  = f"NLB\\n{lb.get('name','')}"
+    eks_label = f"{eks.get('name','') or 'EKS'}"
+
+    rds_title = "Aurora" if (rds and rds.get("type") == "aurora") else "RDS"
+    rds_id    = rds.get("id") if rds else ""
+    rds_label = rds_title + (f"\\n{rds_id}" if rds_id else "")
+
+    ddb_label = ddb or "DynamoDB"
+
+    m = f"""
+flowchart LR
+  U[User] --> R53[Route 53] --> CF[{cf_label}]
+  CF -->|static| S3[{s3label}]
+  CF -->|dynamic| GW[{gw_label}]
+  GW -->|443/TLS| NLB[{lb_label}]
+  subgraph EKS[{eks_label}]
+    ING[Ingress] --> BE[Backend Service]
+    BE -- OIDC/SAML --> KC[{keycloak}]
+  end
+  NLB -->|ingress| ING
+  BE -->|authorized (FIS)| RDS[{rds_label}]
+  BE -.->|external/unauth| DDB[{ddb_label}]
+  BE -->|read/write| S3
+"""
+    (OUTDIR / path).write_text("```mermaid\n" + m.strip() + "\n```")
+
+
+
+
+
+
+
+--------------
 GRAPH_ATTR = dict(rankdir="LR", splines="ortho", nodesep="1.1", ranksep="1.2", pad="0.2", concentrate="false")
 NODE_ATTR  = dict(fontname="Helvetica", fontsize="12", margin="0.06,0.04")
 EDGE_ATTR  = dict(arrowsize="0.9", penwidth="1.2", labelfontsize="10", tailclip="true", headclip="true")
