@@ -1,0 +1,357 @@
+Executive Summary (1 page)
+Why we’re changing, what’s changing (Akamai replaces Route53+CloudFront; Vault added), no app URL/code change.
+Top benefits: simpler edge, stronger security, unified logging.
+Scope & Assumptions
+In scope: Edge, API GW (Regional), NLB/Ingress, S3 static, Keycloak, Vault.
+Out of scope: App refactors, DB schema, CI/CD changes.
+Envs: UAT/PROD now; DEV later.
+Requirements & NFRs (bulleted)
+Availability/DR targets, performance (P95), security (WAF, header enforcement), observability, cost guardrails.
+As-Is (single diagram + 5 bullets)
+Diagram: User → Route53 → CloudFront → API GW → NLB → Ingress → Services; S3; Keycloak.
+Bullets: current path behaviors, WAF/logging approach, known pain points.
+Proposed Target (single diagram + 8 bullets)
+Diagram: User → Akamai (DNS/CDN/WAF) → API GW (Regional) → NLB → Ingress → Services; S3; Vault.
+Bullets:
+Akamai-only edge (redirects/caching/waf).
+API GW remains Regional, custom domain.
+Origin protection via X-Frontdoor header (+ optional Akamai IP allow-list).
+Static via S3, long TTL; dynamic no-store.
+Client IP preserved (True-Client-IP).
+TLS: Akamai edge cert; ACM at origin; HSTS.
+Observability: Akamai DataStream → S3; dashboards updated.
+Vault for secrets (AppRole/JWT).
+Security Model (half page)
+Edge WAF/bot/rate limits.
+Header enforcement at ALB/ingress.
+Access to S3 restricted (Akamai IPs or VPC endpoint).
+Logging retention/compliance note.
+Migration & Cutover (half page)
+Staging validation → canary host → DNS CNAME flip (low TTL) → monitor → decommission old stack.
+Rollback: repoint CNAME to CloudFront.
+Risks & Decisions (table)
+Key decisions: Akamai-only edge; API GW Regional; introduce Vault.
+Top 5 risks with one-line mitigations.
+
+
+  -------------------------------------
+
+  1. Executive Summary
+The Ethos Portal was originally deployed into a legacy hWP-managed AWS account several years ago. As part of the ongoing consolidation under the FIS CIO-managed AWS organisation, the Hydra team is tasked with migrating the portal into the CIO-controlled account.
+This migration is not a lift-and-shift exercise. To achieve PCI-DSS compliance and meet CIO architecture/security standards, certain components must be re-architected:
+Secrets Management: All application and infrastructure secrets will be managed centrally using HashiCorp Vault, providing policy-based access, rotation, and full auditability.
+DNS and Edge Services: Responsibility for DNS and CDN will transition from AWS Route53 + CloudFront to Akamai, providing authoritative DNS, caching, WAF, bot protection, and sub-URL routing in alignment with CIO standards.
+CI/CD & Deployment Tooling: The Ethos Portal’s build and deployment processes will be re-aligned with CIO-standard tooling: Bitbucket for source code management, Terraform Enterprise (TFE) for infrastructure provisioning, CaaS-managed Jenkins for builds, and Harness for continuous deployment.
+The core application layer (API Gateway, NLB, ingress, services, Keycloak, data stores) remains consistent, ensuring no disruption to end-user experience.
+Key Benefits:
+Compliance & Security: Aligned with PCI-DSS and CIO security mandates; Vault enforces secure secrets management, and Akamai provides enterprise-grade edge protection.
+Standardisation: CI/CD, infra-as-code, and DNS/edge stack aligned with CIO tooling, improving maintainability and governance.
+Simplicity: Unified edge architecture (Akamai replacing Route53 + CloudFront), reducing complexity.
+Business Continuity: No changes to application URLs, APIs, or end-user flows; minimal disruption during cutover.
+This migration will result in a CIO-standard, compliant, and supportable deployment of the Ethos Portal in the CIO-managed AWS account.
+2. Scope & Assumptions
+In Scope
+Migration of Ethos Portal from hWP AWS account to FIS CIO-managed AWS account.
+Edge & DNS: Replace AWS Route53 + CloudFront with Akamai for authoritative DNS, CDN, and WAF.
+Secrets Management: Use HashiCorp Vault for all secrets (environment-specific namespaces, AppRole/JWT integrations, Vault Agent Injector where required).
+Core AWS Architecture:
+API Gateway (Regional) with ACM custom domain.
+NLB → ingress-nginx → backend services in CIO-managed VPC/subnets.
+Static content served from S3, with Akamai as front-door and bucket access restricted to Akamai egress IPs or private endpoints.
+Authentication via Keycloak, migrated to CIO account and integrated with Vault for DB credentials.
+CI/CD & Deployment Tooling:
+Bitbucket – source code repository.
+Terraform Enterprise (TFE) – infra provisioning using CIO-managed code & environments.
+CaaS-managed Jenkins – build pipelines to create container images and artifacts.
+Harness – continuous deployment pipelines for application rollout into CIO AWS account.
+Out of Scope
+Application Refactors: No changes to application code or APIs.
+Database Schema / Migration: Aurora PostgreSQL, DynamoDB, and related schemas remain unchanged.
+Observability Enhancements: Full monitoring/logging/metrics stack will be addressed in a later phase (not in scope for this migration).
+End-User Clients: No changes to browsers, mobile apps, or API consumers.
+Assumptions
+Environments: UAT and PROD will be migrated first; DEV will be provisioned after PROD cutover.
+Networking:
+CIO-managed VPC, subnets, and security groups already provisioned.
+Akamai egress IPs will be allow-listed at origins (API Gateway/ALB/S3).
+Ingress/ALB will enforce the X-Frontdoor header for origin validation.
+TLS:
+Akamai manages external TLS certificates for public DNS names.
+ACM provides TLS for API Gateway custom domains.
+Operations & Cutover:
+DNS migration will follow a phased cutover with TTL management.
+Rollback possible by repointing DNS back to the legacy stack during migration window.
+CI/CD Integration:
+TFE codebases will be maintained by CIO Infra team.
+Jenkins build pipelines and Harness CD pipelines will be aligned with CIO standards and tested prior to migration cutover.
+
+---------------------------------------------
+
+
+  3. Requirements & Non-Functional Requirements (NFRs)
+Availability & DR
+Application availability: Minimum 99.9% uptime for UAT and PROD environments.
+Multi-AZ resilience: All CIO-managed AWS deployments (EKS, RDS, NLB) to be provisioned across multiple Availability Zones.
+Disaster recovery: Recovery Time Objective (RTO) ≤ 4 hours; Recovery Point Objective (RPO) ≤ 1 hour.
+DNS cutover rollback: DNS TTL to be reduced during migration (≤ 300s) to allow rapid rollback by pointing records back to the hWP environment.
+Performance
+Target median TTFB: ≤ 250 ms for cached/static content.
+P95 latency for API calls: ≤ 500 ms under normal load.
+Support for modern web delivery: HTTP/2 and HTTP/3 (QUIC) enabled at the edge, with Brotli/Gzip compression.
+Static assets (PDFs, reports, public files) cached at edge with long TTLs; dynamic API responses bypass cache.
+Security
+Compliance with PCI-DSS and CIO security standards.
+All application and infrastructure secrets managed via HashiCorp Vault with AppRole/JWT authentication.
+Edge protection: Akamai WAF and bot mitigation enabled on all inbound traffic.
+Origin hardening:
+Custom header (X-Frontdoor) injected at Akamai and enforced at ALB/Ingress.
+Origins restricted to Akamai egress IP ranges.
+TLS: TLS 1.2+ enforced end-to-end; HSTS enabled at edge.
+Observability
+Current state: Limited to infra-level logs (CloudFront → S3, CloudWatch metrics). No application-specific logging implemented.
+Future direction: Observability enhancements (Akamai DataStream, structured app logs, dashboards) will be addressed in a later phase.
+Cost Guardrails
+Edge/CDN cost management via Akamai contract (traffic, WAF rules, requests).
+AWS costs monitored through CIO’s Terraform Enterprise guardrails and cost reporting.
+Egress costs minimised using caching for static content and Akamai Origin Shield.
+4. AWS Components Overview (As-Is)
+The following AWS services and supporting components are currently used in the Ethos Portal deployment inside the hWP AWS account:
+Amazon Route53 – Provided authoritative DNS for the Ethos Portal, integrated directly with CloudFront.
+Amazon CloudFront – Served as the CDN and edge layer; routed requests to API Gateway and S3; applied WAF policies; managed HTTPS redirects.
+AWS WAF – Deployed at the CloudFront layer for basic OWASP protection and IP filtering.
+Amazon API Gateway – Served as the main API front-door for application endpoints (/api, /security, /cms, /public). Configured as Edge-Optimized in some cases.
+AWS Network Load Balancer (NLB) – Connected API Gateway to downstream ingress controllers. Provided Layer-4 load balancing.
+Ingress-NGINX (inside EKS) – Received traffic from NLB and routed to backend microservices. Managed TLS for some flows.
+Amazon S3 – Hosted static content such as PDFs, reports, and other files. Accessed as a CloudFront origin.
+Amazon EKS (Kubernetes Cluster) – Hosted Ethos Portal backend application services. Integrated with NLB and ingress for traffic handling.
+Keycloak – Hosted separately in its own cluster, not inside the main EKS cluster. Provided identity and authentication services via OIDC/SAML.
+Amazon RDS (Aurora PostgreSQL) & DynamoDB – Supported relational and key-value storage requirements for the portal.
+Amazon CloudWatch – Provided infra-level monitoring and logs for AWS resources.
+Limitation: No application-specific structured logging implemented.
+5. As-Is Architecture
+flowchart LR
+  user((User))
+  r53[Route53 (DNS)]
+  cf[CloudFront (CDN + WAF)]
+  apigw[API Gateway (Edge/Regional)]
+  nlb[NLB]
+  ingress[Ingress-NGINX (EKS)]
+  svc[Backend Services (EKS)]
+  s3[(S3 Bucket - Static Content)]
+  kc[Keycloak (Separate Cluster)]
+  rds[(Aurora PostgreSQL)]
+  ddb[(DynamoDB)]
+
+  user --> r53 --> cf
+  cf --> apigw --> nlb --> ingress --> svc
+  cf --> s3
+  svc --> rds
+  svc --> ddb
+  svc --> kc
+Key Characteristics (As-Is):
+Routing & Behaviors:
+/api/* → API Gateway → NLB → ingress → backend services.
+/security/*, /cms/*, /public/* → routed through API Gateway to backend services.
+/files/*.pdf, /reports/*.(csv|txt) → served via CloudFront from S3.
+HTTP → HTTPS redirection handled at CloudFront.
+WAF & Logging:
+AWS WAF attached to CloudFront for OWASP protection.
+CloudFront access logs stored in S3; Athena used for reporting.
+No application-level logging currently implemented; observability limited to infra metrics.
+Authentication:
+Keycloak hosted in its own dedicated cluster.
+Authentication and federation flows pass via CloudFront → API Gateway → Keycloak.
+Strengths:
+CloudFront provided global CDN caching and WAF integration.
+Route53 + CloudFront allowed tight AWS-native DNS/CDN coupling.
+EKS cluster supported modular scaling of backend services.
+Limitations & Pain Points:
+Double edge complexity: Route53 + CloudFront added overlap with Akamai in the proposed model.
+Secrets management: Ad hoc, no centralised Vault in the current design.
+Observability gap: Lack of application-specific logs, metrics, and dashboards.
+Rigid URL rewrites: CloudFront behaviors limited flexibility for sub-URL routing/redirects.
+Operational overhead: Cache invalidation, WAF rule tuning, and duplicate TLS/WAF policies required extra effort.
+
+-------------------
+
+
+6. Proposed Target Architecture
+flowchart LR
+  user((User))
+  aka[Akamai (DNS + CDN + WAF)]
+  apigw[API Gateway (Regional)]
+  nlb[NLB]
+  ingress[Ingress-NGINX (EKS)]
+  svc[Backend Services (EKS)]
+  s3[(S3 Bucket - Static Content)]
+  kc[Keycloak (Separate Cluster)]
+  rds[(Aurora PostgreSQL)]
+  ddb[(DynamoDB)]
+  vault[(HashiCorp Vault - Secrets Mgmt)]
+  cicd[Bitbucket + TFE + Jenkins + Harness]
+
+  user --> aka
+  aka --> apigw --> nlb --> ingress --> svc
+  aka --> s3
+  svc --> rds
+  svc --> ddb
+  svc --> kc
+  svc --> vault
+  cicd --> svc
+  cicd --> apigw
+  cicd --> ingress
+Key Characteristics (Proposed Target):
+Edge & DNS
+Akamai becomes the single global edge, replacing Route53 + CloudFront.
+Provides authoritative DNS, CDN caching, WAF, bot protection, and advanced sub-URL redirects.
+Handles global HTTP→HTTPS redirection, caching, and header injection (X-Frontdoor).
+Routing & Behaviors
+/api/*, /security/*, /cms/*, /public/* → routed via Akamai → API Gateway (Regional) → NLB → ingress → backend services.
+/files/*.pdf, /reports/*.(csv|txt) → routed via Akamai directly to S3 (bucket locked to Akamai egress IPs).
+Sub-URL redirects and rewrites (e.g., /keycloak → /brengine/keycloak-new) managed at Akamai.
+Secrets Management
+All application and infrastructure secrets stored and accessed via HashiCorp Vault.
+Applications authenticate to Vault using AppRole or Kubernetes JWTs, with Vault Agent Injector sidecars where needed.
+Vault namespaces and policies aligned per environment (UAT, PROD, later DEV).
+CI/CD Tooling (CIO-Standard)
+Bitbucket: Centralised code repository for portal and infra.
+Terraform Enterprise (TFE): CIO-managed infra codebase and workspaces for VPC, subnets, API Gateway, NLB, EKS.
+CaaS-managed Jenkins: Builds container images and artifacts.
+Harness: Orchestrates continuous deployments into CIO AWS account.
+API Gateway (Regional)
+Deployed with ACM-issued custom domains.
+Integrated with NLB to reach ingress and backend services.
+Preserves client IP via True-Client-IP header.
+Configured for throttling and logging.
+Load Balancing & Ingress
+NLB provides L4 load balancing into CIO EKS.
+Ingress-NGINX performs routing at L7 to backend microservices.
+Enforces origin header (X-Frontdoor) injected by Akamai.
+Authentication
+Keycloak continues to run in its own dedicated cluster.
+Requests proxied through Akamai and API Gateway as required.
+Vault provides Keycloak DB credentials and future integration with workload identity.
+Storage
+S3 continues as repository for static content, now locked down to Akamai only.
+Aurora PostgreSQL (RDS) and DynamoDB remain the system of record for application data.
+Security Enhancements
+Akamai WAF policies replace AWS WAF.
+Bot protection and geo-fencing at edge.
+Origins restricted to Akamai egress IPs.
+End-to-end TLS enforced (Akamai → API GW ACM → NLB → Ingress).
+Observability
+Current migration scope excludes new observability stack.
+Future direction: Akamai DataStream → AWS S3 → Athena, plus centralised dashboards.
+Strengths of the Target Design:
+Simplifies edge architecture: one edge (Akamai), not two (Route53 + CloudFront).
+Standardises secrets, CI/CD, and infra provisioning per CIO requirements.
+Stronger compliance posture (PCI-DSS aligned).
+Improved flexibility for sub-URL redirects and routing at Akamai.
+Future-proof for observability, scaling, and multi-region failover.
+Differences vs As-Is:
+Replaced: Route53 + CloudFront → Akamai.
+Added: HashiCorp Vault (secrets), CIO CI/CD stack.
+Kept: API Gateway (Regional), NLB, Ingress, backend services, Keycloak (external cluster), RDS, DynamoDB.
+Deferred: Observability improvements (future phase).
+
+
+--------------------------------------
+
+
+As-Is vs Proposed — Side-by-Side Comparison
+Area	As-Is (hWP AWS account)	Proposed Target (CIO AWS account)
+Edge & DNS	Route53 (public DNS) + CloudFront (CDN).	Akamai as single edge: authoritative DNS + CDN + WAF + redirects.
+WAF / Edge Security	AWS WAF attached to CloudFront; basic IP lists.	Akamai WAF + bot management; geo/IP controls; granular policies.
+Origin Protection	None/limited; relies on CloudFront behavior.	Secret header X-Frontdoor injected at Akamai and required at ALB/Ingress; Akamai egress IP allow-list on origins/S3.
+API Gateway	Edge-Optimized in parts; some Regional; CloudFront dependency.	Regional API Gateway with ACM custom domain; no double-edge.
+North-South Routing	CloudFront → API GW → NLB → Ingress → Services.	Akamai → API GW (Regional) → NLB → Ingress → Services (same app path, cleaner edge).
+Static Content	CloudFront → S3 origin; public-ish bucket policies.	Akamai → S3 with bucket locked to Akamai egress IPs (or private endpoint); long-TTL caching.
+Sub-URL Redirects/Rewrites	Limited via CloudFront behaviors; no edge code.	Akamai Property rules (and EdgeWorkers if needed) for flexible redirects (e.g., /keycloak → /brengine/keycloak-new).
+Secrets Management	Ad-hoc/env vars; no central system.	HashiCorp Vault (AppRole/JWT, namespaces per env, audit, rotation).
+Authentication (Keycloak)	Keycloak in separate cluster; proxied via CloudFront/API GW.	Unchanged topology (separate cluster), proxied via Akamai/API GW; Vault for Keycloak DB creds (future).
+EKS / Services	EKS hosts backend services; ingress-nginx.	Same pattern in CIO VPCs; ingress enforces X-Frontdoor.
+CI/CD & Deployment	Mixed (legacy): varied repos/pipelines.	CIO standard: Bitbucket (code), TFE (infra), CaaS Jenkins (build), Harness (CD).
+TLS	TLS at CloudFront; origin TLS varies; HSTS not standardised.	TLS 1.2+ end-to-end: Akamai edge cert + ACM at API GW; HSTS at edge.
+Logging / Observability	CloudFront access logs → S3; CloudWatch infra metrics; no app-level logs.	Observability out of scope now (future: Akamai DataStream → S3/Athena + app logs).
+Availability / DR	Multi-AZ infra; rollback by DNS to CloudFront.	Same or better; fast rollback by CNAME flip; Akamai origin failover optional later.
+Performance	CloudFront cache for static; mixed latency for dynamic.	Akamai HTTP/2/3, Brotli, Origin Shield; targets: ≤250 ms TTFB (static median), ≤500 ms P95 (dynamic).
+Compliance	Partial PCI alignment; secrets not centralised.	PCI-aligned: Vault for secrets, Akamai WAF, auditable controls.
+Cost & Ops	Split policies, duplicate tuning, cache invalidations.	One edge to run; unified policies/logging; CIO-governed TFE for infra costs.
+Migration Impact Snapshot (what changes vs stays)
+Replaced: Route53 + CloudFront → Akamai; ad-hoc secrets → Vault.
+Standardised: CI/CD → Bitbucket + TFE + Jenkins + Harness.
+Unchanged: API paths, URLs, backend services, Keycloak separate cluster, RDS/DynamoDB schemas.
+Deferred: New observability stack (future phase).
+Cutover Readiness — Top 8 Verifications
+Akamai property rules match all current CF behaviors (paths/headers/TTLs).
+X-Frontdoor required at ALB/Ingress; requests without it are blocked.
+S3 bucket policy restricts to Akamai egress IPs (and works).
+API GW Regional custom domain OK; ACM cert valid; headers (True-Client-IP) preserved.
+All redirects (e.g., /keycloak → /brengine/keycloak-new) behave exactly as intended.
+TLS: Edge/proxy/origin chains validated; HSTS enabled at Akamai.
+CI/CD: Bitbucket → Jenkins build → Harness deploy → TFE infra apply paths tested.
+DNS plan: low TTLs, CNAME cutover, and rollback tested with canary hostname.
+
+
+-------------------------------
+
+
+
+7. Security Model
+The proposed Ethos Portal architecture has been designed to align with PCI-DSS and CIO security standards, with multiple layers of protection from edge to origin:
+Edge Security (Akamai):
+WAF Policies: All inbound traffic is inspected at the Akamai edge using Kona Site Defender (or Adaptive Security if licensed). Rulesets include OWASP Top-10 protections (SQLi, XSS, RCE), path validation, and IP reputation checks.
+Bot Management: Automated bot and scraper detection enabled at edge to reduce malicious/non-human traffic.
+Rate Limiting: Path-based rate limits applied (e.g., /api/* endpoints) to prevent brute force or abuse without impacting legitimate traffic.
+Origin Protection:
+Header Enforcement: A secret header (X-Frontdoor) is injected at Akamai. All ALB/Ingress rules enforce the presence of this header; requests without it are dropped.
+IP Allow-Listing: Origins (API Gateway, ALB, S3) restricted to Akamai egress IPs. This ensures that only validated edge traffic reaches the portal.
+Data Protection:
+TLS Everywhere: TLS 1.2+ required end-to-end (Akamai edge cert, ACM certs at API GW, TLS into NLB/Ingress).
+HSTS: Strict-Transport-Security headers enforced at Akamai edge.
+S3 Security:
+Buckets hosting static content (reports, files) configured with Block Public Access.
+Access allowed only from Akamai IPs or via S3 VPC endpoints.
+Sensitive objects (e.g., reports) served with Content-Disposition: attachment to avoid inline exposure.
+Secrets Management (Vault):
+All secrets (DB creds, API keys, service account tokens) retrieved via HashiCorp Vault using AppRole/JWT.
+Vault audit logs retained for compliance and traceability.
+Logging & Compliance:
+Akamai DataStream exports all edge access logs to S3, where they are retained for a CIO-defined period (e.g., 13 months) for PCI compliance.
+Origin and application logs integrated into CIO monitoring (future observability phase).
+Logging ensures full transaction traceability across edge, origin, and application tiers.
+8. Migration & Cutover Plan
+The Ethos Portal migration will follow a phased, low-risk cutover strategy:
+Staging Validation
+Deploy the Akamai property to staging environment.
+Test with staging hostname and hosts-file override: TLS, API flows, Keycloak authentication, static file downloads, caching, redirects.
+Validate X-Frontdoor enforcement at ALB/Ingress.
+Canary Host
+Provision a dedicated canary DNS hostname (e.g., canary.ethosportal.company.com) pointing to Akamai production property.
+Run parallel validation against production workloads without impacting end users.
+DNS Cutover
+Lower DNS TTLs for production domains (≤ 300s).
+Flip CNAME from legacy CloudFront distribution to Akamai edge hostname.
+Monitor during staged rollout (start at 10% traffic if weighted DNS available, then scale to 100%).
+Monitoring & Verification
+Observe edge and origin dashboards for error rates, latency, WAF events, and cache hit ratios.
+Confirm that all app flows, file downloads, and Keycloak authentication succeed end-to-end.
+Decommission Old Stack
+Once validated, decommission legacy CloudFront distributions and Route53 DNS records.
+Retain legacy setup in standby for 7–14 days for rollback buffer.
+Rollback Strategy
+If issues arise, restore DNS CNAME back to legacy CloudFront distribution (enabled via low TTLs).
+Validate rollback paths quickly (≤ 10 minutes propagation).
+9. Risks & Decisions
+Key Architecture Decisions
+Akamai-only Edge: Replace Route53 + CloudFront with Akamai for DNS, CDN, and WAF.
+API Gateway Regional: Retain API Gateway in Regional mode, avoiding double-edge overhead.
+Secrets via Vault: Introduce HashiCorp Vault for centralised, compliant secrets management.
+CI/CD Alignment: Standardise on Bitbucket, TFE, Jenkins, and Harness in CIO account.
+Top Risks & Mitigations
+Risk	Impact	Mitigation
+Misconfigured Akamai rules lead to broken routes or redirects.	Application downtime or failed user flows.	Staging + canary testing before cutover; rollback via DNS flip.
+Akamai egress IPs change without being updated in origin allow-lists.	Traffic blocked at API GW/ALB/S3; outage.	Automate IP updates via Akamai’s published feeds; monitoring/alerts on rejected traffic.
+Vault integration delays or misconfiguration.	Application secrets unavailable; deployment failure.	Early Vault namespace/policy setup; pre-migration integration testing with non-prod.
+Logging gaps due to migration (CloudFront → Akamai DataStream).	Loss of audit trail; PCI non-compliance.	Enable DataStream from Day 1; dual-log to legacy S3 until stable.
+DNS cutover propagation delays or cache issues.	Some users hit legacy stack while others use new stack inconsistently.	Reduce TTL to 300s before cutover; staged cutover with monitoring; rollback via legacy CNAME.
