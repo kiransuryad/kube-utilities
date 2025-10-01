@@ -355,3 +355,19 @@ Akamai egress IPs change without being updated in origin allow-lists.	Traffic bl
 Vault integration delays or misconfiguration.	Application secrets unavailable; deployment failure.	Early Vault namespace/policy setup; pre-migration integration testing with non-prod.
 Logging gaps due to migration (CloudFront → Akamai DataStream).	Loss of audit trail; PCI non-compliance.	Enable DataStream from Day 1; dual-log to legacy S3 until stable.
 DNS cutover propagation delays or cache issues.	Some users hit legacy stack while others use new stack inconsistently.	Reduce TTL to 300s before cutover; staged cutover with monitoring; rollback via legacy CNAME.
+
+
+
+
+------------------
+
+10. Conclusion
+The migration of the Ethos Portal from the legacy hWP AWS account into the FIS CIO-managed AWS environment represents both a technical necessity and an opportunity to uplift the platform.
+By introducing Akamai as the unified edge layer and HashiCorp Vault as the central secrets management solution, the proposed target architecture delivers:
+Alignment with PCI-DSS and CIO compliance requirements.
+Simplified edge design (Akamai-only, no Route53 + CloudFront overlap).
+Stronger security posture (header enforcement, WAF, IP allow-listing, TLS everywhere).
+Standardised CI/CD practices with Bitbucket, TFE, Jenkins, and Harness.
+A clear migration and rollback plan to minimise operational risk.
+No changes to application code or end-user URLs are required, ensuring a seamless migration experience. While observability improvements are out of scope for this phase, the architecture has been designed to accommodate future enhancements without further structural changes.
+This HLD provides a strategic blueprint for the Ethos Portal’s migration and re-architecture. Detailed implementation steps, configurations, and operational runbooks will be defined in the accompanying Low-Level Design (LLD).
