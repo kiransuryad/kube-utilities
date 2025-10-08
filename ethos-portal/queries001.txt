@@ -1,3 +1,159 @@
+1. Executive Summary
+Objective: replicate and harden existing API Gateway config from hWP into CIO AWS (UAT → PROD → DEV).
+Scope: API Gateway + integrations (VPC Link/ALB/NLB/Lambda), custom domains, WAF/logging/monitoring, IAM/resource policies, quotas/usage plans, deployments/stages, DNS edge (Akamai).
+Out of scope: app code changes, Akamai config itself (tracked elsewhere).
+2. References
+HLD link, Security Model link, Data flows, Akamai edge doc, Service runbooks.
+OpenAPI/Swagger exports attached (as-is + to-be).
+Terraform module(s) and workspace names (to be used by TFE).
+3. As-Is Snapshot (hWP Account)
+Goal: a faithful inventory you can diff.
+API type & endpoint type: REST vs HTTP; Regional/Private; endpoint URL.
+APIs & versions: IDs, names, tags.
+Stages: names, variables, canary settings, stage-level throttling & caching.
+Resources/Methods: full tree, methods, auth, request/response models, CORS.
+Integrations: type (VPC Link/HTTP/Lambda), URIs, timeouts, retries, mapping templates.
+Authorizers: Lambda/Cognito, TTLs, identity sources.
+Security: resource policy, API keys, usage plans/quotas, WAF association.
+Domains: custom domain names, base path mappings, ACM cert ARNs.
+Logging/Monitoring: execution logging level, access logs (format + destination), metrics/alarms.
+Gateway Responses: customized 4XX/5XX bodies/headers.
+Quotas & throttles: account-level vs stage/method-level.
+Known exceptions/workarounds: e.g., header enforcement logic at ALB; X-Api-Gateway header allowlist.
+(Attach raw exports: get-rest-apis, get-stages, get-resources, get-integration, OpenAPI export.)
+4. To-Be Design (CIO Account – UAT)
+4.1 High-Level Architecture
+Endpoint type (Regional/Private) and reasoning (Akamai edge → Regional; or Private + VPC Links).
+Integration pattern(s):
+VPC Link → NLB/ALB → EKS services (paths like /brengine/{proxy+})
+or Lambda proxy for select routes.
+Edge: Akamai → (Custom Domain) → API GW → VPC Link/Integration.
+Diagram (Mermaid) embedded.
+4.2 API Definition
+API type: REST or HTTP (justify; migration parity or rationalized).
+Resources & methods: full list (table), including any new/removed paths.
+Request validation: models, validators, schema links.
+Mapping templates: request/response (content-type, passthrough rules).
+CORS: allowed origins/headers/methods; preflight caching.
+4.3 Integrations
+VPC Link(s): names, subnets, SGs, NLB ARNs, health check ports/paths.
+HTTP/Lambda integration config: URIs, timeouts, retries, TLS.
+Headers: required forwards (e.g., X-Api-Gateway enforcement, X-Forwarded-For, correlation IDs).
+Error mapping: integration response → method response (status codes, bodies).
+4.4 AuthN/Z & Security
+Authorizer: Cognito/Lambda (ARNs, TTLs, identity sources).
+Resource policy: org lock, source VPCe/VPC CIDR allows, Akamai egress IPs if needed.
+API keys & usage plans: who gets keys, quotas/burst per plan.
+WAF: association (WebACL ARN), managed rule sets, rate limits.
+TLS: ACM certs for custom domains (UAT), renewal strategy.
+Header enforcement: pattern used (ALB rule or API GW mapping); document rule logic.
+Data protection: PII in logs redaction, encryption at rest (logs, cache).
+4.5 Stages & Deployments
+Stages: uat, prod (future dev), stage variables.
+Canary: % traffic, metrics guardrails.
+Caching: enabled? per-method; TTL; cache encryption.
+Throttling: stage and method limits (RPS/burst).
+4.6 Domains & Routing
+Custom domain names (UAT hostnames), base path mappings.
+Akamai DNS/CNAME target(s) and validation steps.
+Failover/rollback: flip back to old API domain or previous stage.
+4.7 Observability
+Execution logs: log group names, retention, log level (ERROR/INFO).
+Access logs: destination (CW Logs), JSON format (sample below).
+Metrics/Alarms: 4XX/5XX percentages, Latency p95/p99, IntegrationLatency, Throttle count; SNS topics; runbooks.
+{
+  "requestId":"$context.requestId",
+  "ip":"$context.identity.sourceIp",
+  "caller":"$context.identity.caller",
+  "user":"$context.identity.user",
+  "requestTime":"$context.requestTime",
+  "httpMethod":"$context.httpMethod",
+  "resourcePath":"$context.resourcePath",
+  "status":"$context.status",
+  "protocol":"$context.protocol",
+  "responseLength":"$context.responseLength",
+  "integrationStatus":"$context.integration.status",
+  "latency":"$context.responseLatency"
+}
+4.8 Limits, Performance & NFRs
+Expected TPS, peak/burst, latency targets, payload sizes.
+AWS quotas relevant to design (routes, mapping templates, VPC Link count).
+Cost notes (cache, logs, WAF, data transfer).
+5. Configuration Deltas (As-Is → To-Be)
+A crisp diff table to brief approvers and TFE:
+Area	hWP (As-Is)	CIO (To-Be)	Rationale/Impact
+Endpoint type	Regional	Regional	Keep edge parity w/ Akamai
+Auth	Lambda authorizer v1	Same	No change
+VPC Link	vpc-link-hwp-01 → nlb-abc	vpc-link-cio-uat-01 → nlb-xyz	New NLB ARNs
+Paths	/brengine/{proxy+}	Same + header check	Header guard at ALB
+Logging	INFO, 7 days	ERROR/INFO, 30 days	Compliance retention
+WAF	Not attached	Assoc. WebACL-UAT	PCI/WAF baseline
+Domains	api-uat.hwp.example.com	api-uat.cio.example.com	Akamai CNAME cut
+6. Terraform Handoff (for TFE Team)
+6.1 Workspaces & Modules
+Workspace names: cio-uat-apigw, cio-prod-apigw, cio-dev-apigw.
+Module(s): modules/apigw-rest (or apigw-http) + modules/vpc-link (if owned by API team) + modules/custom-domain.
+State: new; imports not required (greenfield) or import plan if reusing.
+6.2 Module Interface (example)
+variable "api_name"        { type = string }
+variable "endpoint_type"   { type = string } # "REGIONAL" | "PRIVATE"
+variable "openapi_spec_s3" { type = string } # s3://bucket/path/openapi.yaml
+variable "stage_name"      { type = string } # "uat"
+variable "stage_vars"      { type = map(string) }
+variable "vpc_link_id"     { type = string }
+variable "integrations"    { type = map(any) } # path→target map if not full OAS
+variable "resource_policy" { type = string }   # JSON
+variable "waf_web_acl_arn" { type = string }
+variable "domain_name"     { type = string }
+variable "acm_cert_arn"    { type = string }
+variable "base_path_map"   { type = map(string) } # basepath→api_stage
+variable "access_log_cfg"  { type = object({ log_group = string, format = string }) }
+variable "cw_retention_days" { type = number }
+Example Resource Policy (org/VPCe/Akamai lock)
+{
+  "Version":"2012-10-17",
+  "Statement":[
+    {"Effect":"Allow","Principal":"*","Action":"execute-api:Invoke","Resource":"arn:aws:execute-api:REGION:ACCT:API_ID/*/*/*",
+     "Condition":{"StringEquals":{"aws:PrincipalOrgID":"o-xxxxxxxx"}}},
+    {"Effect":"Allow","Principal":"*","Action":"execute-api:Invoke","Resource":"arn:aws:execute-api:REGION:ACCT:API_ID/*/*/*",
+     "Condition":{"StringEquals":{"aws:SourceVpce":"vpce-xxxxxxxx"}}}
+  ]
+}
+7. Build & Migration Plan
+Export as-is OpenAPI + JSON inventories from hWP.
+Normalize: remove account-specific ARNs/IDs; parameterize.
+Author to-be OpenAPI (same paths/methods) + CIO specifics (VPC Link IDs, domains).
+TFE apply to create API, stage, domain, mappings, WAF, logging.
+Smoke test internal invoke URLs; validate mappings, CORS, auth, headers.
+Akamai CNAME → CIO custom domain; health checks green.
+Cutover/rollback: DNS TTL strategy; rollback to hWP domain if needed.
+8. Testing & Validation
+Functional: method-level 200/4XX/5XX, error mappings.
+Non-functional: latency p95, throttling, cache hit if enabled.
+Security: resource policy denies outside org/VPCe; authorizer happy path & failure.
+Observability: logs produced with expected JSON; alarms fire on forced 5XX.
+Edge: Akamai → API GW end-to-end with expected headers.
+9. Operations
+Runbooks: deploy, rollback, rotating certs, rotating authorizer secrets, WAF updates.
+DR: recreate in another region? (if applicable).
+Maintenance windows & change control steps.
+Ownership & contacts (API, Networking, Security, TFE, Edge, App teams).
+10. Risks & Decisions
+Key decisions (REST vs HTTP, Regional vs Private, WAF attach, header-enforcement location).
+Top risks (Akamai healthcheck mismatch, mapping template regressions, VPC Link health) with mitigations.
+11. Appendices
+
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------
 Chronological plan (critical path with dependencies)
 Programme & Access Foundations
 Jira task list setup (teams & service users) → enables tracking and approvals.
