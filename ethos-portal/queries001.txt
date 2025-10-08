@@ -1,3 +1,95 @@
+Chronological plan (critical path with dependencies)
+Programme & Access Foundations
+Jira task list setup (teams & service users) → enables tracking and approvals.
+CyberArk service account password renew (if required) → needed before creating CI/CD secrets.
+HashiCorp Vault setup (namespaces/paths, auth method, policies, secret engines) → needed for Jenkins/Harness/EKS to fetch secrets.
+CheckmarxOne setup (org/projects, policies, tokens) → required before CI pipelines and to gate releases.
+Source Control & Repo Hygiene
+Bitbucket repository setup (covers “Create repositories”) — repos, default branches, CODEOWNERS, PR templates, minimal docs.
+Low-Level Designs → Infra Requests
+Identify services to be deployed inside EKS (list, images, charts, configs, secrets, data needs).
+EKS LLD (cluster, nodegroups, IAM, IRSA, SGs, ingress class).
+LLD for AWS services (RDS/Aurora, DynamoDB, S3, SNS, Lambda, alarms, VPC endpoints, IAM).
+TFE request for deploying AWS services (modules, vars, workspaces, approvals).
+Provisioning & Infra Bring-up
+Infrastructure validation once TFE team deployed components (EKS reachable, IRSA, ALB/NLB, RDS/Dynamo/S3, VPC endpoints, CloudWatch, SNS topics).
+CI Foundations
+Jenkins setup (service accounts & secrets in Vault/CyberArk, agents, folders, shared libs).
+Jenkins pipelines for Helm charts → JFrog + CheckmarxOne scans.
+Jenkins pipelines for container images → JFrog + CheckmarxOne scans.
+Fix CheckmarxOne vulnerabilities (policy gates to “pass UAT”).
+CD Foundations
+Harness setup (secrets via Vault, connectors to Bitbucket, JFrog, EKS; create Harness delegate).
+Harness service to connect to service Helm inside JFrog (Services + Manifests).
+Harness environment to connect to EKS (Infra defs, namespaces, RBAC).
+Harness pipeline to deploy each service to UAT (stages, approvals, post-deploy checks).
+App & Platform Artifacts
+Lambda code development (env configs/secrets from Vault, queues/topics).
+Lambda code deployment (via Harness/Jenkins or TFE module as per pattern).
+SNS, alarms deployment (topics, subs, CW alarms, alert routes).
+Data Migration (UAT → new UAT)
+DynamoDB migration (export/import or DMS; cutover plan).
+PostgreSQL migration (dump/restore or DMS; users/roles; extensions).
+S3 data migration (batch copy with ACLs/metadata; checksum verification).
+Edge & DNS
+Akamai team request for DNS deployments for internal URLs (origins, WAF/bot/rate/rules, TLS, health checks).
+URL validation once Akamai deployed (end-to-end over Akamai → ALB/NLB → Ingress).
+Validation & Sign-off
+Application validation from customer team (functional, non-functional smoke, data checks).
+UAT sign-off.
+What can run in parallel
+Early parallel: (2) Repo setup can start while (1) Programme & Access foundations run.
+Design parallel: EKS LLD (7) and AWS services LLD (8) can proceed in parallel after (6) Identify services.
+CI vs TFE: Jenkins setup (11) and pipeline authoring (12–13) can run while TFE is building infra (9–10).
+CD vs CI: Harness setup (15–18) can begin after minimal infra validation (10) and once charts/images exist in JFrog (12–13).
+App & Alerts: Lambda/SNS/alarms (19–21) can start after (10) infra validation.
+Data migrations (22–24) wait on target infra (10) and IAM/VPC endpoints; they can run in parallel with CD (15–18) but must complete before customer app validation (27).
+Akamai (25) can be pre-staged (config reviewed) but final DNS cut needs stable UAT endpoints (after 18 & 21).
+External dependencies & owners
+TFE team: (9) provisioning; (10) infra validation support.
+Security/AppSec (CheckmarxOne owners): (4), (12–14) policy gates.
+CyberArk team: (2) renewals & app registrations.
+Vault platform team: (3) namespaces, auth methods, policies.
+Akamai/Edge team: (25–26) DNS, WAF/bot/rate limits, origins, certs.
+DBA/Data team: (22–24) DMS/dumps, users/roles, data verification.
+Networking: VPC endpoints, firewall rules for ECR/JFrog/Bitbucket/Akamai health checks.
+Customer QA/Product: (27) validation; (28) sign-off.
+Dependency table (quick reference)
+#	Task	Depends on	External?
+1	Jira task list setup	—	—
+2	CyberArk password renew	—	CyberArk
+3	HashiCorp Vault setup	2	Vault team
+4	CheckmarxOne setup	—	AppSec
+5	Bitbucket repositories	1	—
+6	Identify services for EKS	5	App owners
+7	EKS LLD	6	—
+8	AWS Services LLD	6	—
+9	TFE request for AWS	7,8	TFE team
+10	Infra validation (post-TFE)	9	TFE team
+11	Jenkins setup	2,3,5	—
+12	Jenkins pipeline: charts→JFrog + Cx1	4,5,11	—
+13	Jenkins pipeline: images→JFrog + Cx1	4,5,11	—
+14	Fix CheckmarxOne vulns	12,13	AppSec
+15	Harness setup + delegate	3,10	—
+16	Harness service (JFrog Helm)	12,15	—
+17	Harness environment (EKS)	10,15	—
+18	Harness pipelines (deploy to UAT)	14,16,17	—
+19	Lambda code development	5,3	—
+20	Lambda code deployment	10,15,19	—
+21	SNS, alarms deployment	10	—
+22	DynamoDB migration	10	DBA/Data
+23	PostgreSQL migration	10	DBA/Data
+24	S3 migration	10	DBA/Data
+25	Akamai DNS requests	10,18	Akamai
+26	URL validation (Akamai)	25	Akamai
+27	Application validation (customer)	18,20–24,26	Customer QA
+28	UAT sign-off	27	Customer/Stakeholders
+
+
+
+
+
+--------------------------------------------------------------------
 Portal Migration – Next Clarifications & Access Requirements
 1. Environments & Data
 Please confirm our understanding: today only UAT & PROD environments exist, and a Dev environment will be provisioned after PROD deployment – is that correct?
