@@ -1,3 +1,64 @@
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+DISTRIB_ID="${1:-}"  # pass the distribution ID as arg
+if [[ -z "$DISTRIB_ID" ]]; then
+  echo "Usage: $0 <DISTRIBUTION_ID>"
+  exit 1
+fi
+
+OUT="cf-export-$DISTRIB_ID-$(date +%Y%m%d%H%M%S)"
+mkdir -p "$OUT"
+echo "Writing to $OUT"
+
+# Core
+aws cloudfront get-distribution-config --id "$DISTRIB_ID" > "$OUT/dist-config.json"
+aws cloudfront get-distribution        --id "$DISTRIB_ID" > "$OUT/dist.json"
+aws cloudfront list-tags-for-resource --resource "arn:aws:cloudfront::$(aws sts get-caller-identity --query Account --output text):distribution/$DISTRIB_ID" > "$OUT/tags.json" || true
+aws cloudfront list-invalidations --distribution-id "$DISTRIB_ID" > "$OUT/invalidations.json" || true
+
+# Policies (lists)
+aws cloudfront list-cache-policies --type managed > "$OUT/cache-policies-managed.json"
+aws cloudfront list-cache-policies --type custom  > "$OUT/cache-policies-custom.json"
+aws cloudfront list-origin-request-policies --type managed > "$OUT/orp-managed.json"
+aws cloudfront list-origin-request-policies --type custom  > "$OUT/orp-custom.json"
+aws cloudfront list-response-headers-policies --type managed > "$OUT/rhp-managed.json"
+aws cloudfront list-response-headers-policies --type custom  > "$OUT/rhp-custom.json"
+
+# CloudFront Functions
+aws cloudfront list-functions > "$OUT/cff-list.json"
+
+# OAI / OAC
+aws cloudfront list-cloud-front-origin-access-identities > "$OUT/oai-list.json" || true
+aws cloudfront list-origin-access-controls > "$OUT/oac-list.json" || true
+
+# Real-time logs
+aws cloudfront list-realtime-log-configs > "$OUT/rtlog-list.json" || true
+
+# Attempt to fetch associated WAF (GLOBAL) by listing; refine manually later
+aws wafv2 list-web-acls --scope CLOUDFRONT > "$OUT/webacls.json" || true
+
+# Extract ACM ARN (if present) and describe
+ACM_ARN=$(jq -r '.DistributionConfig.ViewerCertificate.ACMCertificateArn // empty' "$OUT/dist-config.json")
+if [[ -n "$ACM_ARN" ]]; then
+  aws acm describe-certificate --certificate-arn "$ACM_ARN" --region us-east-1 > "$OUT/acm.json" || true
+fi
+
+echo "Done. Next: inspect $OUT/dist-config.json for:
+- Behavior policy IDs (then run get-* for each to export full JSON)
+- LambdaFunctionAssociations (fetch via aws lambda get-function in us-east-1)
+- ResponseHeadersPolicy/CachePolicy/OriginRequestPolicy IDs to export in full
+- Real-time log config ARN to export
+- WAF WebACL name/id to export
+"
+
+
+
+
+
+
+--------------------------------
 1. Executive Summary
 Objective: replicate and harden existing API Gateway config from hWP into CIO AWS (UAT → PROD → DEV).
 Scope: API Gateway + integrations (VPC Link/ALB/NLB/Lambda), custom domains, WAF/logging/monitoring, IAM/resource policies, quotas/usage plans, deployments/stages, DNS edge (Akamai).
