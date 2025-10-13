@@ -1,4 +1,65 @@
+1. Executive Summary
+Objective: Replicate and harden the existing CloudFront configuration from the hWP AWS account into the CIO AWS environments.
+Key outcomes
+Parity with legacy distribution(s) (aliases, origins, behaviors, policies)
+Security alignment (TLS policy, WAFv2, OAI/OAC, headers)
+Observability (standard logs & real-time logs), runbooks
+Repeatable IaC (Terraform) and a safe, reversible cutover
+2. Scope & Assumptions
+In scope
+CloudFront Distributions (Web)
+Origins: S3, ALB/NLB, API Gateway, Custom
+Cache/Origin-Request/Response-Headers Policies (managed & custom)
+OAI / OAC, Origin Groups (failover)
+Viewer Certificate (ACM us-east-1) & TLS security policy
+Geo restrictions, signed URL/cookies, Key Groups (if used)
+WAFv2 (Global scope) association
+Standard access logs to S3, Real-Time Logs to Kinesis (if used)
+CloudFront Functions & Lambda@Edge associations
+DNS (Route 53 aliases), invalidation patterns
+Out of scope
+Application code in origins
+Non-CloudFront edge (e.g., full Akamai config), except where it integrates
+Assumptions
+Access to old account is read-only but sufficient (cloudfront:get/list, wafv2:get/list, acm:describe in us-east-1, lambda:get, route53:get/list)
+Certificates can be re-issued or re-imported in CIO account
 
+3. AS-IS (hWP AWS Account)
+3.1 Environment Map
+3.2 Distribution Inventory
+3.3 Viewer Certificate & TLS
+3.4 Origins
+3.5 Origin Groups (Failover)
+3.6 Cache Behaviors
+3.6.1 Default Cache Behavior
+3.6.2 Ordered Behaviors
+3.7 Policies (Referenced)
+3.7.1 Cache Policies
+3.7.2 Origin Request Policies
+3.7.3 Response Headers Policies
+3.8 Security
+3.8.1 WAFv2 (Global)
+3.8.2 OAI / OAC
+3.8.3 Signed URLs / Cookies / Key Groups (if applicable)
+3.9 Logging & Monitoring
+3.10 Functions at the Edge
+3.11 DNS
+3.12 Invalidations (Patterns)
+
+4. TO-BE Design (CIO Account)
+5. Migration & Validation
+6. Risks & Decisions
+7. Appendices
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------
 #!/usr/bin/env bash
 set -euo pipefail
 
