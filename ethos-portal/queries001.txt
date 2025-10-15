@@ -1,3 +1,233 @@
+Perfect — continuing the same **Ethos-Portal LLD style** (as in your API Gateway & CloudFront docs), here’s a **Low-Level Design template for AWS Network Load Balancer (NLB)**.
+
+This version follows your project format:
+
+* placeholders for **AS-IS (hWP AWS Account)** details
+* corresponding **TO-BE (CIO AWS Account)** design
+* consistent sectioning: Executive Summary → Scope → AS-IS → TO-BE → Terraform → Migration → Validation → Risks → Appendices
+
+You can copy it directly into Confluence or Markdown and fill in the values.
+
+---
+
+# 1. Executive Summary
+
+**Objective:**
+Replicate and harden the existing **AWS Network Load Balancer (NLB)** configuration from the hWP AWS Account into the CIO-managed AWS environments, ensuring parity in functionality, security, monitoring, and integrations (API Gateway, ECS/EKS, etc.).
+
+**Key Outcomes**
+
+* Equivalent listeners, target groups, and routing behaviour as legacy NLB.
+* Integration with existing VPC, subnets, and backend services.
+* Enhanced monitoring (CloudWatch, VPC Flow Logs, NLB Access Logs).
+* Infrastructure-as-Code reproducibility through Terraform.
+
+---
+
+# 2. Scope & Assumptions
+
+**In Scope**
+
+* AWS Network Load Balancers (Internet-facing and Internal)
+* Target Groups (EC2, ECS, IP targets)
+* Listeners, listener rules, health checks
+* Security groups and subnet associations
+* Cross-zone load balancing
+* Connection logging and CloudWatch monitoring
+* Elastic IPs (if used)
+* Integration with:
+
+  * API Gateway (Private integration via VPC Link)
+  * Application Load Balancer or EKS ingress services
+  * ECS services or EC2 instances
+
+**Out of Scope**
+
+* Application logic behind targets
+* DNS Route 53 records (documented separately)
+* SSL/TLS termination (handled at CloudFront or ALB layer)
+
+**Assumptions**
+
+* Existing NLB configuration is accessible for read operations.
+* Subnets and VPCs already provisioned in CIO accounts.
+* Security groups and IAM roles follow CIO security baselines.
+
+---
+
+# 3. AS-IS (hWP AWS Account)
+
+## 3.1 Environment Map
+
+| Env  | Account ID  | Region     | NLB Name     | Type                         | Notes |
+| ---- | ----------- | ---------- | ------------ | ---------------------------- | ----- |
+| UAT  | `<acct-id>` | `<region>` | `<nlb-name>` | `<internet-facing/internal>` |       |
+| PROD | `<acct-id>` | `<region>` | `<nlb-name>` | `<internet-facing/internal>` |       |
+
+## 3.2 Basic Details
+
+| Attribute                 | Value                                                             |
+| ------------------------- | ----------------------------------------------------------------- |
+| NLB ARN                   | `<arn:aws:elasticloadbalancing:region:acct:loadbalancer/net/...>` |
+| DNS Name                  | `<nlb-dns-name>`                                                  |
+| Scheme                    | `<internet-facing/internal>`                                      |
+| VPC ID                    | `<vpc-xxxx>`                                                      |
+| Subnets                   | `<subnet-a, subnet-b, subnet-c>`                                  |
+| Cross-Zone Load Balancing | `<enabled/disabled>`                                              |
+| Deletion Protection       | `<true/false>`                                                    |
+| Access Logs               | `<enabled/disabled>` (Bucket: `<s3://bucket/prefix>`)             |
+| IP Address Type           | `<ipv4/dualstack>`                                                |
+| Tags                      | `<project=ethos, env=uat>`                                        |
+
+## 3.3 Listeners
+
+| Protocol | Port | Default Action | Target Group | TLS Policy (if any)                     |
+| -------- | ---- | -------------- | ------------ | --------------------------------------- |
+| TCP      | 80   | Forward        | `tg-http`    | N/A                                     |
+| TLS      | 443  | Forward        | `tg-https`   | `<ELBSecurityPolicy-TLS13-1-2-2021-06>` |
+
+## 3.4 Target Groups
+
+| Target Group Name | Protocol | Port | Target Type | Health Check         | Dereg Delay | Stickiness | Targets                          |
+| ----------------- | -------- | ---- | ----------- | -------------------- | ----------- | ---------- | -------------------------------- |
+| `tg-http`         | TCP      | 80   | IP          | TCP:80, Healthy: 3/5 | 300s        | Disabled   | `<app1:10.0.1.x, app2:10.0.2.x>` |
+| `tg-https`        | TLS      | 443  | Instance    | TLS:443              | 300s        | Disabled   | `<ec2-ids>`                      |
+
+> Use `aws elbv2 describe-target-groups` and `describe-target-health` to extract details.
+
+## 3.5 Health Check Configuration
+
+| Target Group | Protocol | Path | Interval | Timeout | Healthy/Unhealthy Thresholds |
+| ------------ | -------- | ---- | -------- | ------- | ---------------------------- |
+| `tg-http`    | TCP      | N/A  | 10       | 6       | 3 / 3                        |
+
+## 3.6 Associated Services
+
+| Integration          | Type                                   | Notes                                        |          |
+| -------------------- | -------------------------------------- | -------------------------------------------- | -------- |
+| API Gateway VPC Link | Private                                | `/v1/brengine` integration                   |          |
+| ECS Service          | Network Mode                           | `<bridge                                     | awsvpc>` |
+| EKS Ingress          | NLB provisioned via Service annotation | `<kubernetes.io/service-type: LoadBalancer>` |          |
+
+## 3.7 Monitoring & Logging
+
+| Metric                                     | Namespace                       | Alarm Thresholds | Notes                  |
+| ------------------------------------------ | ------------------------------- | ---------------- | ---------------------- |
+| `ActiveFlowCount`                          | AWS/NLB                         | `<limit>`        | Track connection count |
+| `HealthyHostCount`                         | AWS/NLB                         | `<threshold>`    | Per target group       |
+| `UnHealthyHostCount`                       | AWS/NLB                         |                  |                        |
+| `ProcessedBytes`, `TCP_Client_Reset_Count` |                                 |                  |                        |
+| Access Logs                                | S3 bucket: `<s3://logs-bucket>` |                  | Retained 30 days       |
+
+---
+
+# 4. TO-BE Design (CIO AWS Account)
+
+## 4.1 High-Level Design
+
+```mermaid
+flowchart LR
+  client((Client))
+  cf[CloudFront/Akamai]
+  apigw[API Gateway (VPC Link)]
+  nlb[NLB - CIO]
+  tg1[Target Group 1 - ALB]
+  svc1[EKS/ECS Services]
+
+  client --> cf --> apigw --> nlb --> tg1 --> svc1
+```
+
+## 4.2 NLB Overview
+
+| Attribute                 | Value                                     |
+| ------------------------- | ----------------------------------------- |
+| Name                      | `cio-nlb-<env>`                           |
+| Type                      | `<internet-facing/internal>`              |
+| Scheme                    | `<dualstack>`                             |
+| Subnets                   | `<subnet-a, subnet-b, subnet-c>`          |
+| Cross-Zone Load Balancing | `<enabled>`                               |
+| Deletion Protection       | `<true>`                                  |
+| Access Logging            | Enabled → `s3://cio-logs/cloudfront/nlb/` |
+| Tags                      | `env=<env>, project=ethos-portal`         |
+
+## 4.3 Listeners
+
+| Protocol | Port | Target Group | TLS Policy                            | Certificates |
+| -------- | ---- | ------------ | ------------------------------------- | ------------ |
+| TCP      | 80   | `tg-http`    | N/A                                   | N/A          |
+| TLS      | 443  | `tg-https`   | `ELBSecurityPolicy-TLS13-1-2-2021-06` | `<ACM ARN>`  |
+
+## 4.4 Target Groups
+
+| Name     | Protocol | Port | Target Type | Health Check           | Stickiness | Dereg Delay |
+| -------- | -------- | ---- | ----------- | ---------------------- | ---------- | ----------- |
+| `tg-api` | TCP      | 8080 | IP          | TCP:8080, 10s interval | Disabled   | 300s        |
+| `tg-app` | TCP      | 80   | IP          | TCP:80                 | Disabled   | 300s        |
+
+## 4.5 Health Check Policy
+
+| Setting             | Value                                     |
+| ------------------- | ----------------------------------------- |
+| Protocol            | TCP                                       |
+| Interval            | 10s                                       |
+| Timeout             | 6s                                        |
+| Healthy Threshold   | 3                                         |
+| Unhealthy Threshold | 3                                         |
+| Matcher             | SuccessCode: 200–299 (for ALB-backed TGs) |
+
+## 4.6 Security Model
+
+| Aspect             | Implementation                                           |
+| ------------------ | -------------------------------------------------------- |
+| Network Access     | Controlled via Security Groups and NACLs                 |
+| TLS Termination    | Disabled (TCP mode)                                      |
+| Source Restriction | API Gateway / Akamai IPs only                            |
+| Logging            | S3 access logs, encrypted with KMS                       |
+| IAM Roles          | Restricted IAM for Terraform deployment                  |
+| Monitoring         | CloudWatch metrics, alarms integrated to SNS / PagerDuty |
+
+## 4.7 Integrations
+
+| Integration | Description                      | Notes                          |
+| ----------- | -------------------------------- | ------------------------------ |
+| API Gateway | Private integration via VPC Link | `<api-id>/v1/brengine`         |
+| ECS / EKS   | Targets via IP mode              | `<svc-namespace/service-name>` |
+| ALB         | Optional upstream chaining       | `<internal>`                   |
+
+## 4.8 Observability
+
+| Metric                       | Threshold | Alarm Action        |
+| ---------------------------- | --------- | ------------------- |
+| HealthyHostCount < 1         | Critical  | Notify DevOps       |
+| TCP_Client_Reset_Count > 100 | Warning   | Investigate backend |
+| ProcessedBytes anomaly       | Info      | Track burst         |
+
+## 4.9 DNS
+
+| Record                  | Type | Alias Target | TTL |
+| ----------------------- | ---- | ------------ | --- |
+| `nlb.<env>.internal`    | A    | `<nlb-dns>`  | 60  |
+| `api.<env>.company.com` | A    | `<api-gw>`   |     |
+
+---
+
+# 5. Terraform (CIO)
+# 6. Migration & Validation
+# 7. Configuration Deltas (AS-IS → TO-BE)
+# 8. Runbooks
+# 9. Risks & Decisions
+# 10. Tickets & Ownership
+# 11. Appendices
+
+
+---
+
+Would you like me to also generate the **matching Terraform variable file (variables.tf)** and **environment tfvars template (uat/prod)** to go with this LLD (so that the Infra team can start coding directly)?
+
+
+
+
+-----------------------------------------------------------------
 1. Executive Summary
 Objective: Replicate and harden the existing CloudFront configuration from the hWP AWS account into the CIO AWS environments.
 Key outcomes
