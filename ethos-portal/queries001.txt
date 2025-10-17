@@ -1,3 +1,124 @@
+LLD — AWS Aurora RDS (PostgreSQL)
+1. Executive Summary
+Objective: Stand up/replicate an Aurora PostgreSQL cluster that mirrors the legacy hWP setup while aligning to CIO guardrails for security, HA, observability, backup/restore, and cost controls.
+Key outcomes
+Multi-AZ Aurora cluster with reader(s), controlled failover.
+Proper network isolation (DB subnet group, SGs), KMS encryption, secrets management.
+PITR-enabled backups, automated snapshots, runbooks for maintenance/rotation.
+Terraform-driven, environment-segregated deployments and safe migration plan.
+2. Scope & Assumptions
+In scope
+Aurora cluster & instances (writer + readers).
+Parameter groups (cluster & instance), DB subnet group, option groups (n/a for Aurora).
+Storage encryption with KMS, Secrets Manager integration, Performance Insights.
+Backups, snapshots, PITR, maintenance windows.
+Monitoring/alerts (RDS metrics, Enhanced Monitoring, logs to CloudWatch).
+Connectivity via SGs, (optional) RDS Proxy, (optional) read replicas for analytics.
+Out of scope
+Application SQL/schema changes, data masking, BI tooling.
+Assumptions
+VPC/subnets exist; CIO KMS keys available; required IAM roles exist.
+Database size/perf profile similar to legacy unless specified.
+3. AS-IS (hWP AWS Account)
+(intentionally left blank — fill during discovery)
+4. TO-BE (CIO AWS Account)
+(intentionally left blank — to capture target state)
+5. Terraform (CIO)
+6. Migration & Validation
+6.1 Data migration paths (choose):
+6.2 Validation checklist
+7. Configuration Deltas (AS-IS → TO-BE)
+8. Runbooks
+9. Risks & Decisions
+10. Tickets & Ownership
+11. Appendices
+
+
+
+
+-------
+
+
+LLD — AWS DynamoDB
+1. Executive Summary
+Objective: Deploy/replicate DynamoDB tables used by the portal with correct capacity mode, encryption, backups, and streaming integrations; ensure cost-efficient scaling and observability.
+Key outcomes
+Tables modeled to match existing access patterns (PK/SK, GSIs/LSIs).
+KMS encryption, PITR and on-demand backups.
+Autoscaling or On-Demand capacity per workload.
+Streams + consumers (Lambda/Kinesis) defined and monitored.
+2. Scope & Assumptions
+In scope
+Tables, attributes, keys, GSIs/LSIs.
+TTL, Streams (NEW_IMAGE/OLD_IMAGE).
+KMS encryption, PITR, on-demand backups.
+Autoscaling policies; CloudWatch alarms & dashboards.
+(Optional) DAX for read-heavy low-latency patterns; Global Tables (multi-region).
+Out of scope
+Data modeling changes beyond parity (unless specified).
+Application refactors.
+Assumptions
+Access patterns known; item size within limits; hot partitions addressed by design.
+3. AS-IS (hWP AWS Account)
+(intentionally left blank — fill during discovery)
+4. TO-BE (CIO AWS Account)
+(intentionally left blank — to capture target state)
+5. Terraform (CIO)
+6. Migration & Validation
+6.1 Data migration paths (choose):
+6.2 Validation checklist
+7. Configuration Deltas (AS-IS → TO-BE)
+8. Runbooks
+9. Risks & Decisions
+10. Tickets & Ownership
+11. Appendices
+
+
+
+
+
+------------------
+
+
+
+LLD — AWS Lambda (Functions)
+1. Executive Summary
+Objective: Standardize and migrate Lambda functions supporting the portal (APIs, async jobs, event processors) with consistent runtime standards, security baselines, observability, and deployment pipelines.
+Key outcomes
+Versioned, environment-specific Lambda functions with IaC, CI/CD.
+Least-privilege IAM roles, KMS-encrypted env vars, VPC access where needed.
+Proper concurrency controls, DLQs/retries, structured logging and tracing.
+2. Scope & Assumptions
+In scope
+Lambda functions, aliases, versions, layers.
+Triggers: API Gateway, EventBridge rules, SQS/SNS, DynamoDB Streams, S3, Step Functions.
+IAM roles/policies, env vars & parameters (Secrets Manager/SSM).
+Concurrency (reserved), provisioned concurrency (if latency-sensitive).
+Logging (CloudWatch), tracing (X-Ray), metrics (EMF/CloudWatch), Powertools.
+Out of scope
+Application business logic beyond deployment/runtime standards.
+Assumptions
+Packaging via CI (Jenkins/Harness), artifacts in JFrog/S3; VPC endpoints available for private access; Node/Python runtimes preferred unless specified.
+3. AS-IS (hWP AWS Account)
+(intentionally left blank — fill during discovery)
+4. TO-BE (CIO AWS Account)
+(intentionally left blank — to capture target state)
+5. Terraform (CIO)
+6. Migration & Validation
+6.1 Data migration paths (choose):
+6.2 Validation checklist
+7. Configuration Deltas (AS-IS → TO-BE)
+8. Runbooks
+9. Risks & Decisions
+10. Tickets & Ownership
+11. Appendices
+
+
+
+
+
+----------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
 Perfect — continuing the same **Ethos-Portal LLD style** (as in your API Gateway & CloudFront docs), here’s a **Low-Level Design template for AWS Network Load Balancer (NLB)**.
 
 This version follows your project format:
