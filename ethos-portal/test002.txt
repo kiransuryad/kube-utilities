@@ -1,0 +1,20 @@
+vault read auth/approle/role/harness-approle
+
+vault list auth/approle/role/harness-approle/secret-id
+vault read auth/approle/role/harness-approle/secret-id-accessor/<accessor>
+vault list sys/leases/lookup/auth/approle/login
+
+
+
+vault login <admin_token>
+vault namespace set CaaS-Parent/A10002786-Ethos_Portal
+vault write auth/approle/role/harness-approle \
+  token_type=batch \
+  secret_id_ttl=8760h \
+  token_ttl=24h \
+  token_max_ttl=168h \
+  secret_id_num_uses=0 \
+  token_policies="harness-approle-policy"
+
+
+vault write -f auth/approle/role/harness-approle/secret-id
