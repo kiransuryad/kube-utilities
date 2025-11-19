@@ -1,0 +1,411 @@
+Chart.yaml
+  ---
+  
+apiVersion: v2
+name: ethos-portal
+description: Ethos Portal application (auth / unauth) for EKS behind ingress-nginx
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+
+  values.yaml
+  ---
+
+  # --- Global app identity ---
+nameOverride: ""
+fullnameOverride: ""
+
+# Deploy 2+ replicas by default
+replicaCount: 2
+
+image:
+  repository: my-account-id.dkr.ecr.eu-west-2.amazonaws.com/ethos-portal
+  tag: ""                    # default to .Chart.AppVersion if empty
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []          # e.g. [{ name: "ecr-creds" }]
+
+serviceAccount:
+  create: true
+  name: ""                    # if empty uses release name
+  annotations:
+    # IRSA placeholder – update with new AWS role ARN for this app
+    # eks.amazonaws.com/role-arn: arn:aws:iam::<new-account-id>:role/ethos-portal-irsa
+    {}
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 8080                  # container HTTP port
+
+ingress:
+  enabled: true
+  className: "nginx"          # ingress-nginx class
+  annotations:
+    # Example: tune timeouts / buffering for API-GW traffic if needed
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+  hosts:
+    - host: "ethos-portal.local"   # internal host used by API GW / tests
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []                     # example:
+  #  - secretName: ethos-portal-tls
+  #    hosts:
+  #      - ethos-portal.local
+
+# Environment values specific to portal
+env:
+  appEnv: "prod"              # dev | test | prod
+  tier: "backend"             # or "auth"/"unauth" if you want
+  keycloakRealm: "ethos-portal"
+  backendBaseUrl: "https://ethos-portal.example.com"
+  corsAllowedOrigins: "https://ethos-portal.example.com"
+  extra: []                   # extra raw env entries (list of {name, value})
+
+# Attach secrets / configmaps with DB, DynamoDB, etc.
+secrets:
+  envFromSecrets: []          # e.g. ["ethos-portal-rds", "ethos-portal-dynamodb"]
+
+config:
+  envFromConfigMaps: []       # e.g. ["ethos-portal-config"]
+
+# Probes – tune to your app
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: http
+  initialDelaySeconds: 30
+  timeoutSeconds: 5
+  periodSeconds: 15
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: http
+  initialDelaySeconds: 15
+  timeoutSeconds: 3
+  periodSeconds: 10
+  failureThreshold: 3
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+
+values-auth.yaml
+  ----
+
+image:
+  repository: my-account-id.dkr.ecr.eu-west-2.amazonaws.com/ethos-portal-auth
+  tag: "1.0.0"
+
+env:
+  appEnv: "prod"
+  tier: "auth"
+  keycloakRealm: "ethos-auth"
+  backendBaseUrl: "https://auth.ethos-portal.example.com"
+  corsAllowedOrigins: "https://auth.ethos-portal.example.com"
+  extra: []
+
+ingress:
+  hosts:
+    - host: "auth.ethos-portal.internal"
+      paths:
+        - path: /auth
+          pathType: Prefix
+  tls: []
+
+
+values-unauth.yaml
+  ----
+
+image:
+  repository: my-account-id.dkr.ecr.eu-west-2.amazonaws.com/ethos-portal-unauth
+  tag: "1.0.0"
+
+env:
+  appEnv: "prod"
+  tier: "unauth"
+  keycloakRealm: "ethos-unauth"          # or empty if not used
+  backendBaseUrl: "https://unauth.ethos-portal.example.com"
+  corsAllowedOrigins: "https://unauth.ethos-portal.example.com"
+  extra: []
+
+ingress:
+  hosts:
+    - host: "unauth.ethos-portal.internal"
+      paths:
+        - path: /unauth
+          pathType: Prefix
+  tls: []
+
+
+templates/_helpers.tpl
+  ------
+
+{{- define "ethos-portal.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{- define "ethos-portal.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else }}
+{{- printf "%s-%s" .Release.Name (include "ethos-portal.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+{{- end }}
+
+{{- define "ethos-portal.labels" -}}
+helm.sh/chart: {{ include "ethos-portal.name" . }}-{{ .Chart.Version | replace "+" "_" }}
+app.kubernetes.io/name: {{ include "ethos-portal.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{- define "ethos-portal.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "ethos-portal.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{- define "ethos-portal.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- if .Values.serviceAccount.name }}
+{{- .Values.serviceAccount.name }}
+{{- else }}
+{{- include "ethos-portal.fullname" . }}
+{{- end }}
+{{- else }}
+default
+{{- end }}
+{{- end }}
+
+
+templates/deployment.yaml
+  ------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ethos-portal.fullname" . }}
+  labels:
+    {{- include "ethos-portal.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ethos-portal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ethos-portal.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "ethos-portal.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: APP_ENV
+              value: {{ .Values.env.appEnv | quote }}
+            - name: APP_TIER
+              value: {{ .Values.env.tier | quote }}
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.env.keycloakRealm | quote }}
+            - name: BACKEND_BASE_URL
+              value: {{ .Values.env.backendBaseUrl | quote }}
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ .Values.env.corsAllowedOrigins | quote }}
+            {{- with .Values.env.extra }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            {{- range .Values.secrets.envFromSecrets }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+            {{- range .Values.config.envFromConfigMaps }}
+            - configMapRef:
+                name: {{ . }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+templates/service.yaml
+  ------
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ethos-portal.fullname" . }}
+  labels:
+    {{- include "ethos-portal.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ethos-portal.selectorLabels" . | nindent 4 }}
+
+
+templates/ingress.yaml
+  -------
+
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ethos-portal.fullname" . }}
+  labels:
+    {{- include "ethos-portal.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- $fullName := include "ethos-portal.fullname" . }}
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+
+
+templates/hpa.yaml
+  ------
+
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ethos-portal.fullname" . }}
+  labels:
+    {{- include "ethos-portal.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ethos-portal.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+
+
+templates/serviceaccount.yaml
+  -----
+
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "ethos-portal.serviceAccountName" . }}
+  labels:
+    {{- include "ethos-portal.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+
+
