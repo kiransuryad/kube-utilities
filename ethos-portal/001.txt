@@ -1,3 +1,81 @@
+#!/bin/bash
+set -e
+
+###########################################
+# CONFIGURATION
+###########################################
+
+# Old AWS Account Details (ECR Source)
+OLD_ACCOUNT_ID="<OLD_ACCOUNT_ID>"
+OLD_REGION="eu-west-2"
+
+# Image you want to migrate
+IMAGE_NAME="<IMAGE_NAME>"        # e.g. ethos-portal-auth
+IMAGE_TAG="<IMAGE_TAG>"          # e.g. 1.0.0
+
+# New Artifactory (Destination)
+# Example: mycompany.jfrog.io/hydra-docker-virtual
+NEW_ARTIFACTORY_URL="<ARTIFACTORY_URL>"
+NEW_ARTIFACTORY_USER="<JFROG_USER>"
+NEW_ARTIFACTORY_API_KEY="<JFROG_API_KEY>"
+
+###########################################
+# START
+###########################################
+
+echo "-----------------------------------------------------"
+echo " 🔐 Logging into OLD ECR"
+echo "-----------------------------------------------------"
+
+aws ecr get-login-password --region $OLD_REGION \
+  | docker login --username AWS --password-stdin \
+    ${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com
+
+echo ""
+echo "-----------------------------------------------------"
+echo " ⬇️ Pulling image from OLD ECR"
+echo "-----------------------------------------------------"
+
+SOURCE_IMAGE="${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG}"
+
+docker pull $SOURCE_IMAGE
+
+echo ""
+echo "-----------------------------------------------------"
+echo " 🔄 Retagging for Artifactory"
+echo "-----------------------------------------------------"
+
+TARGET_IMAGE="${NEW_ARTIFACTORY_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+docker tag $SOURCE_IMAGE $TARGET_IMAGE
+
+echo ""
+echo "-----------------------------------------------------"
+echo " 🔐 Logging into Artifactory"
+echo "-----------------------------------------------------"
+
+docker login $NEW_ARTIFACTORY_URL \
+  -u $NEW_ARTIFACTORY_USER \
+  -p $NEW_ARTIFACTORY_API_KEY
+
+echo ""
+echo "-----------------------------------------------------"
+echo " ⬆️ Pushing image to Artifactory"
+echo "-----------------------------------------------------"
+
+docker push $TARGET_IMAGE
+
+echo ""
+echo "-----------------------------------------------------"
+echo " ✅ Migration Complete!"
+echo "-----------------------------------------------------"
+echo "Old ECR Image : $SOURCE_IMAGE"
+echo "New Artifactory: $TARGET_IMAGE"
+echo "-----------------------------------------------------"
+
+
+
+----------------------------------------------------------------------------------------
 #!/usr/bin/env python3
 # Proposed architecture for Ethos Portal (Akamai front + external Vault)
 # Requires: pip install diagrams graphviz
