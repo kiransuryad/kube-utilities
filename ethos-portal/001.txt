@@ -1,3 +1,141 @@
+@Library(['common-lib3-stable']) _
+
+properties([
+  parameters([
+    string(name: 'IMAGE_NAME', defaultValue: 'ethos-portal-unauth', description: 'Image name'),
+    string(name: 'IMAGE_TAG', defaultValue: '1.61.0-3-unauth-uat', description: 'Tag to migrate')
+  ])
+])
+
+// POD TEMPLATE (your version)
+String podTemplateString = """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: aws
+    image: caas-docker-release-local.docker.fis.dev/jenkins/ubi8-minimal-hel-aws:3.6.3-1
+    tty: true
+    command: ['cat']
+
+  - name: buildah
+    image: caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1
+    tty: true
+    command: ['cat']
+
+  imagePullSecrets:
+  - name: caas-docker-release-local-ro
+
+  serviceAccountName: jenkins
+"""
+
+def label = "ecr-artifactory-${UUID.randomUUID().toString()}"
+
+podTemplate(label: label, yaml: podTemplateString, runAsUser: '1000') {
+
+node(label) {
+
+    env.OLD_AWS_ACCOUNT  = "588633075404"
+    env.OLD_AWS_REGION   = "us-east-1"
+    env.ARTIFACTORY_URL  = "artifactory.fis.dev"
+    env.ARTIFACTORY_REPO = "dsdata-docker-snapshot-local"
+
+    stage("Checkout Tools Repo") {
+        checkout([
+            $class: 'GitSCM',
+            branches: [[name: "*/develop"]],
+            userRemoteConfigs: [[
+                url: "https://bitbucket.fis.dev/scm/dsdata/ethos-tools-devops.git",
+                credentialsId: "ethos-portal-svc-acct"
+            ]]
+        ])
+    }
+
+    // -----------------------------------------
+    // LOAD JFROG API KEY (Vault secret)
+    // -----------------------------------------
+    stage("Load JFrog API Key") {
+        withCredentials([ string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY') ]) {
+            env.JFROG_USER = "svcacct-dsdata-caas-snapshot"
+        }
+    }
+
+    // -----------------------------------------
+    // AWS STS LOGIN (aws container)
+    // -----------------------------------------
+    stage("ECR → Export OCI from AWS") {
+        container('aws') {
+
+            withCredentials([
+                string(credentialsId: 'aws_access_key_id',     variable: 'AWS_ACCESS_KEY_ID'),
+                string(credentialsId: 'aws_secret_access_key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                string(credentialsId: 'aws_session_token',     variable: 'AWS_SESSION_TOKEN')
+            ]) {
+
+                sh """
+                export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+                export AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN
+
+                echo "Downloading OCI manifest and layers from ECR..."
+
+                aws ecr batch-get-image \
+                    --repository-name ${params.IMAGE_NAME} \
+                    --image-ids imageTag=${params.IMAGE_TAG} \
+                    --region ${env.OLD_AWS_REGION} \
+                    --query 'images[].imageManifest' \
+                    --output text > image_manifest.json
+
+                mkdir -p oci/blobs oci/refs
+
+                echo "\$(sha256sum image_manifest.json | cut -d ' ' -f1)" > oci/refs/latest
+
+                # Create OCI layout
+                cat > oci/layout.json << EOF
+                {"imageLayoutVersion": "1.0.0"}
+                EOF
+
+                echo "Saved OCI manifest to workspace."
+                """
+            }
+        }
+    }
+
+    // -----------------------------------------
+    // IMPORT OCI INTO BUILDAH & PUSH
+    // -----------------------------------------
+    stage("Import OCI → Push to Artifactory") {
+        container('buildah') {
+
+            withCredentials([ string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY') ]) {
+
+                sh """
+                echo "Logging into Artifactory..."
+                buildah login -u ${env.JFROG_USER} -p ${JFROG_API_KEY} ${ARTIFACTORY_URL}
+
+                echo "Importing OCI into buildah..."
+                buildah pull oci:oci
+
+                echo "Tagging for Artifactory..."
+                buildah tag oci:latest ${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+                echo "Pushing to Artifactory..."
+                buildah push ${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+                echo "SUCCESS: Image migrated!"
+                """
+            }
+        }
+    }
+
+}}
+
+
+
+
+
+
+----------------------------------------------
 stage("Install AWS CLI in Buildah") {
   container('buildah') {
     sh """
