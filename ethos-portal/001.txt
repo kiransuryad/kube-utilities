@@ -7,28 +7,31 @@ pipeline {
         IMAGE_NAME     = "ethos-portal"
         IMAGE_TAG      = "1.61.0-3-unauth-uat"
 
-        // Artifactory configuration
         NEW_ARTIFACTORY_URL  = "artifactory.fis.dev/artifactory"
         NEW_ARTIFACTORY_REPO = "dsdata-docker-snapshot-local"
         NEW_ARTIFACTORY_IMAGE = "ethos-portal-unauth"
-
-        // JFrog credentials stored in Jenkins
-        JFROG_USER     = credentials('JFROG_USER')       // Username
-        JFROG_API_KEY  = credentials('JFROG_API_KEY')     // API key
     }
 
     stages {
 
-        stage('Prep') {
+        stage('Load JFrog Credentials from Vault') {
             steps {
-                sh '''
-                    echo "============"
-                    echo "Preparing..."
-                    echo "Old ECR      : ${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com"
-                    echo "Image        : ${IMAGE_NAME}:${IMAGE_TAG}"
-                    echo "Target Repo  : ${NEW_ARTIFACTORY_URL}/${NEW_ARTIFACTORY_REPO}"
-                    echo "============"
-                '''
+                withVault([
+                    vaultSecrets: [
+                        [
+                            path: 'jenkins/artifactory-svc-acct-snapshot',
+                            secretValues: [
+                                [envVar: 'JFROG_USER',   vaultKey: 'username'],
+                                [envVar: 'JFROG_API_KEY', vaultKey: 'apikey']
+                            ]
+                        ]
+                    ]
+                ]) {
+                    sh '''
+                        echo "JFrog user loaded from Vault = ${JFROG_USER}"
+                        echo "JFrog API key length = ${#JFROG_API_KEY}"
+                    '''
+                }
             }
         }
 
@@ -70,42 +73,6 @@ pipeline {
         }
     }
 }
-
-
-
-
-
-
-
-
---------------------------------------------------------------
-#!/bin/bash
-set -e
-
-OLD_ACCOUNT_ID="568853075404"
-OLD_REGION="us-east-1"
-IMAGE_NAME="ethos-portal"
-IMAGE_TAG="1.61.0-3-unauth-uat"
-
-NEW_ARTIFACTORY_URL="artifactory.fis.dev"
-NEW_ARTIFACTORY_REPO="dsdata-docker-snapshot-local"
-NEW_ARTIFACTORY_IMAGE="ethos-portal-unauth"
-
-JFROG_USER="<JFROG_USER>"
-JFROG_API_KEY="<JFROG_API_KEY>"
-
-echo "🔐 Logging into ECR..."
-ECR_PASSWORD=$(aws ecr get-login-password --region $OLD_REGION)
-
-echo "🚀 Copying ECR → Artifactory using Skopeo..."
-skopeo copy \
-  --src-creds "AWS:${ECR_PASSWORD}" \
-  --dest-creds "${JFROG_USER}:${JFROG_API_KEY}" \
-  docker://${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG} \
-  docker://${NEW_ARTIFACTORY_URL}/${NEW_ARTIFACTORY_REPO}/${NEW_ARTIFACTORY_IMAGE}:${IMAGE_TAG}
-
-echo "✅ Migration complete!"
-
 
 
 
