@@ -3,13 +3,13 @@
 properties([
   parameters([
     string(name: 'IMAGE_NAME', defaultValue: 'ethos-portal-unauth', description: 'Image name'),
-    string(name: 'IMAGE_TAG', defaultValue: '1.61.0-3-unauth-uat', description: 'Tag to migrate')
+    string(name: 'IMAGE_TAG',  defaultValue: '1.61.0-3-unauth-uat', description: 'Tag to migrate')
   ])
 ])
 
-// ---------------------
+// ==========================
 // POD TEMPLATE
-// ---------------------
+// ==========================
 String podTemplateString = """
 apiVersion: v1
 kind: Pod
@@ -23,10 +23,11 @@ spec:
         limits:
           github.com/fuse: 1
 
-    - name: jdk11
-      image: caas-docker-release-local.docker.fis.dev/jenkins/ubi8-minimal-jdk11-maven:3.8.4-1
+    - name: buildah
+      image: caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1
       tty: true
       command: ['cat']
+      imagePullPolicy: IfNotPresent
       resources:
         limits:
           github.com/fuse: 1
@@ -38,131 +39,96 @@ spec:
 """
 
 def label = "ecr-artifactory-${UUID.randomUUID().toString()}"
-
 podTemplate(label: label, yaml: podTemplateString, runAsUser: '1000') {
 
-  node(label) {
+node(label) {
 
-    // ---------------------
-    // ENV / CONSTANTS
-    // ---------------------
-    env.OLD_AWS_ACCOUNT   = "588633075404"
-    env.OLD_AWS_REGION    = "us-east-1"
+    // ==========================
+    // ENV COMMONS
+    // ==========================
+    env.OLD_AWS_ACCOUNT = "588633075404"
+    env.OLD_AWS_REGION  = "us-east-1"
 
-    env.ARTIFACTORY_URL   = "artifactory.fis.dev"
-    env.ARTIFACTORY_REPO  = "dsdata-docker-snapshot-local"
+    env.ARTIFACTORY_URL  = "artifactory.fis.dev"
+    env.ARTIFACTORY_REPO = "dsdata-docker-snapshot-local"
 
     stage("Checkout Tools Repo") {
-      checkout([
-        $class: 'GitSCM',
-        branches: [[name: "*/develop"]],
-        userRemoteConfigs: [[
-          url: "https://bitbucket.fis.dev/scm/dsdata/ethos-tools-devops.git",
-          credentialsId: "ethos-portal-svc-acct"
-        ]]
-      ])
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: "*/develop"]],
+          userRemoteConfigs: [[
+              url: "https://bitbucket.fis.dev/scm/dsdata/ethos-tools-devops.git",
+              credentialsId: "ethos-portal-svc-acct"
+          ]]
+        ])
     }
 
-    // ---------------------
+    // ==========================
     // LOAD JFROG SECRET FROM VAULT
-    // ---------------------
+    // ==========================
     stage("Load JFrog API Key") {
-      withCredentials([
-        string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')
-      ]) {
-        env.JFROG_USER="svcacct-dsdata-caas-snapshot"
-      }
-    }
-
-    // ---------------------
-    // AUTH AWS
-    // ---------------------
-    stage("Authenticate to old AWS ECR") {
-      withCredentials([[
-        $class: 'AmazonWebServicesCredentialsBinding',
-        credentialsId: 'ASIAYSDKD53GLQBFWEDL'
-      ]]) {
-        container('aws') {
-          sh """
-          aws sts get-caller-identity
-          export ECR_PASSWORD=\$(aws ecr get-login-password --region ${env.OLD_AWS_REGION})
-          echo "AWS ECR login successful"
-          """
+        withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+            env.JFROG_USER = "svcacct-dsdata-caas-snapshot"
         }
-      }
     }
 
-    // ---------------------
-    // COPY IMAGE USING SKOPEO
-    // ---------------------
-    stage("Copy Image from ECR to Artifactory") {
-      container('aws') {
-        sh """
-        echo "Copying ${params.IMAGE_NAME}:${params.IMAGE_TAG}"
+    // ==========================
+    // AUTHENTICATE TO OLD ECR
+    // ==========================
+    stage("Authenticate to old AWS ECR") {
+        withCredentials([[ $class: 'AmazonWebServicesCredentialsBinding',
+                           credentialsId: 'ASIA...FWEDL' ]]) {
 
-        skopeo copy \
-          --override-os linux \
-          --override-arch amd64 \
-          --src-creds "AWS:\$ECR_PASSWORD" \
-          --dest-creds "${env.JFROG_USER}:${env.JFROG_API_KEY}" \
-          docker://${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG} \
-          docker://${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
-        """
-      }
+            container("aws") { sh """
+                aws sts get-caller-identity
+                export ECR_PASSWORD=\$(aws ecr get-login-password --region ${env.OLD_AWS_REGION})
+                echo "AWS ECR login successful"
+            """ }
+        }
     }
-    // ---------------------
-    // COPY IMAGE USING Buildah
-    // ---------------------
+
+// ==========================
+// COPY IMAGE USING BUILDAH/PODMAN
+// ==========================
 stage("Copy Image using Buildah") {
-  container('aws') {
 
-    withCredentials([[
-      $class: 'AmazonWebServicesCredentialsBinding',
-      credentialsId: 'ASIAYSDKD53GLQBFWEDL'
-    ]]) {
+    // JFrog API Key from Vault
+    withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
 
-      withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+        container("buildah") {
 
-        sh """
-        echo "Logging into AWS ECR…"
-        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-        export AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN
+            sh """
+            echo "Logging into AWS ECR (using password from earlier)…"
+            buildah login -u AWS -p "${env.ECR_PASSWORD}" \\
+              ${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com
 
-        export ECR_PASSWORD=\$(aws ecr get-login-password --region ${env.OLD_AWS_REGION})
+            echo "Logging into Artifactory…"
+            buildah login -u ${env.JFROG_USER} -p $JFROG_API_KEY ${env.ARTIFACTORY_URL}
 
-        echo "Logging into Artifactory…"
-        buildah login -u svcacct-dsdata-caas-snapshot -p $JFROG_API_KEY ${env.ARTIFACTORY_URL}
+            echo "Pulling from ECR…"
+            buildah pull --tls-verify=false \\
+              docker://${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG}
 
-        echo "Pulling from ECR…"
-        buildah pull --tls-verify=false \
-          "docker://${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG}"
+            echo "Tagging for Artifactory..."
+            buildah tag \\
+              docker://${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG} \\
+              ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
 
-        echo "Tagging for Artifactory…"
-        buildah tag \
-          "docker://${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG}" \
-          "${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}"
+            echo "Pushing to Artifactory…"
+            buildah push --tls-verify=false \\
+              ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
 
-        echo "Pushing to Artifactory…"
-        buildah push --tls-verify=false \
-          "${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}"
-
-        echo "Done! Buildah copy successful."
-        """
-      }
+            echo "✔ Done! Buildah copy successful."
+            """
+        }
     }
-  }
 }
 
 
     stage("Done") {
-      echo "Image migrated successfully → ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}"
+        echo "✔ Image migrated successfully → ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}"
     }
-  }
-}
-
-
-
+}}
 
 
 
