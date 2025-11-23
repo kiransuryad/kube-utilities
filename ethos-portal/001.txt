@@ -10,25 +10,27 @@ pipeline {
         NEW_ARTIFACTORY_URL  = "artifactory.fis.dev/artifactory"
         NEW_ARTIFACTORY_REPO = "dsdata-docker-snapshot-local"
         NEW_ARTIFACTORY_IMAGE = "ethos-portal-unauth"
+
+        // Username is static (not in Vault secret)
+        JFROG_USER = "svcacct-dsdata-caas-snapshot"
     }
 
     stages {
 
-        stage('Load JFrog Credentials from Vault') {
+        stage('Load JFrog API Key from Vault') {
             steps {
                 withVault([
                     vaultSecrets: [
                         [
                             path: 'jenkins/artifactory-svc-acct-snapshot',
                             secretValues: [
-                                [envVar: 'JFROG_USER',   vaultKey: 'username'],
-                                [envVar: 'JFROG_API_KEY', vaultKey: 'apikey']
+                                [envVar: 'JFROG_API_KEY', vaultKey: 'svcacct-dsdata-caas-snapshot']
                             ]
                         ]
                     ]
                 ]) {
                     sh '''
-                        echo "JFrog user loaded from Vault = ${JFROG_USER}"
+                        echo "JFrog user loaded = ${JFROG_USER}"
                         echo "JFrog API key length = ${#JFROG_API_KEY}"
                     '''
                 }
@@ -67,7 +69,7 @@ pipeline {
                       docker://${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG} \
                       docker://${NEW_ARTIFACTORY_URL}/${NEW_ARTIFACTORY_REPO}/${NEW_ARTIFACTORY_IMAGE}:${IMAGE_TAG}
 
-                    echo "🎉 Image successfully migrated to Artifactory!"
+                    echo "🎉 Image migration completed successfully!"
                 '''
             }
         }
