@@ -1,3 +1,60 @@
+stage("Install AWS CLI in Buildah") {
+  container('buildah') {
+    sh """
+      curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'
+      unzip awscliv2.zip
+      ./aws/install
+      aws --version
+    """
+  }
+}
+
+
+
+stage("Migrate Image using Buildah") {
+  container('buildah') {
+
+    withCredentials([
+      string(credentialsId: 'aws_access_key_id', variable: 'AWS_ACCESS_KEY_ID'),
+      string(credentialsId: 'aws_secret_access_key', variable: 'AWS_SECRET_ACCESS_KEY'),
+      string(credentialsId: 'aws_session_token',  variable: 'AWS_SESSION_TOKEN')
+    ]) {
+
+      withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+
+        sh """
+          # AWS env vars
+          export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+          export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+          export AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN
+
+          echo "Logging into ECR..."
+          export ECR_PASSWORD=\$(aws ecr get-login-password --region ${env.OLD_AWS_REGION})
+
+          buildah login -u AWS -p \$ECR_PASSWORD ${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com
+
+          echo "Pulling from ECR..."
+          buildah pull docker://${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+          echo "Tagging for Artifactory..."
+          buildah tag \
+            docker://${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG} \
+            ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+          echo "Logging into Artifactory..."
+          buildah login -u ${env.JFROG_USER} -p ${JFROG_API_KEY} ${env.ARTIFACTORY_URL}
+
+          echo "Pushing to Artifactory..."
+          buildah push ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+        """
+      }
+    }
+  }
+}
+
+
+
+-=-=-=-=-=-=-=-=----=-=-=-=-=-=-
 stage("Pull Image from ECR (AWS Container)") {
     container('aws') {
 
