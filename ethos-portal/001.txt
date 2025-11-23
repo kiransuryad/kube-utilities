@@ -1,3 +1,71 @@
+stage("Pull Image from ECR (AWS Container)") {
+    container('aws') {
+
+        withCredentials([
+            string(credentialsId: 'aws_old_access_key', variable: 'AWS_ACCESS_KEY_ID'),
+            string(credentialsId: 'aws_old_secret_key', variable: 'AWS_SECRET_ACCESS_KEY'),
+            string(credentialsId: 'aws_old_session_token', variable: 'AWS_SESSION_TOKEN')
+        ]) {
+
+            sh """
+                echo '🔐 Setting AWS credentials...'
+                export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+
+                echo '🔐 Logging into AWS ECR...'
+                aws sts get-caller-identity
+                export ECR_PASSWORD=\$(aws ecr get-login-password --region ${env.OLD_AWS_REGION})
+
+                docker login -u AWS -p \$ECR_PASSWORD \
+                  ${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com
+
+                echo '⬇️ Pulling image from ECR...'
+                docker pull ${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+                echo '📦 Saving image to tar (docker-archive)...'
+                docker save \
+                  -o ${WORKSPACE}/image.tar \
+                  ${env.OLD_AWS_ACCOUNT}.dkr.ecr.${env.OLD_AWS_REGION}.amazonaws.com/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+                echo '📁 TAR file saved at: ${WORKSPACE}/image.tar'
+            """
+        }
+    }
+}
+
+
+stage("Push to Artifactory (Buildah Container)") {
+    container('buildah') {
+
+        withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+
+            sh """
+                echo '🔐 Logging into Artifactory via Buildah...'
+                buildah login -u svcacct-dsdata-caas-snapshot -p ${JFROG_API_KEY} ${env.ARTIFACTORY_URL}
+
+                echo '📦 Loading docker-archive (tar) into Buildah...'
+                buildah pull docker-archive:${WORKSPACE}/image.tar
+
+                echo '🔄 Tagging image for Artifactory...'
+                buildah tag \
+                  docker.io/library/${params.IMAGE_NAME}:${params.IMAGE_TAG} \
+                  ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+                echo '⬆️ Pushing to Artifactory...'
+                buildah push --tls-verify=false \
+                  ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}
+
+                echo '🎉 Image migration SUCCESSFUL!'
+            """
+        }
+    }
+}
+
+
+
+
+--------------------------
 @Library(['common-lib3-stable']) _
 
 properties([
