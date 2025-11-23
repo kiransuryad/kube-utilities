@@ -1,113 +1,76 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    OLD_ACCOUNT_ID    = "588633075404"
-    OLD_REGION        = "us-east-1"
-    IMAGE_NAME        = "ethos-portal"
-    IMAGE_TAG         = "1.61.0-3-unauth-uat"
+    environment {
+        OLD_ACCOUNT_ID = "588633075404"
+        OLD_REGION     = "us-east-1"
+        IMAGE_NAME     = "ethos-portal"
+        IMAGE_TAG      = "1.61.0-3-unauth-uat"
 
-    NEW_ART_URL       = "artifactory.fis.dev/artifactory"
-    NEW_ART_REPO      = "dsdata-docker-snapshot-local"
-    NEW_ART_IMAGE     = "ethos-portal-unauth"
+        // Artifactory configuration
+        NEW_ARTIFACTORY_URL  = "artifactory.fis.dev/artifactory"
+        NEW_ARTIFACTORY_REPO = "dsdata-docker-snapshot-local"
+        NEW_ARTIFACTORY_IMAGE = "ethos-portal-unauth"
 
-    AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
-    AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-    AWS_SESSION_TOKEN     = credentials('aws-session-token')
-
-    ART_USER    = credentials('jfrog-username')
-    ART_API_KEY = credentials('jfrog-api-key')
-  }
-
-  stages {
-
-    stage('Prep Podman Auth Directories') {
-      steps {
-        sh '''
-          mkdir -p $HOME/.config/containers
-          mkdir -p $HOME/.local/share/containers
-          echo "Prep complete"
-        '''
-      }
+        // JFrog credentials stored in Jenkins
+        JFROG_USER     = credentials('JFROG_USER')       // Username
+        JFROG_API_KEY  = credentials('JFROG_API_KEY')     // API key
     }
 
-    stage('Login to Old ECR') {
-      steps {
-        sh '''
-          echo "Logging into ECR..."
-          export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
-          export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
-          export AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN"
+    stages {
 
-          ECR_PASS=$(aws ecr get-login-password --region $OLD_REGION)
+        stage('Prep') {
+            steps {
+                sh '''
+                    echo "============"
+                    echo "Preparing..."
+                    echo "Old ECR      : ${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com"
+                    echo "Image        : ${IMAGE_NAME}:${IMAGE_TAG}"
+                    echo "Target Repo  : ${NEW_ARTIFACTORY_URL}/${NEW_ARTIFACTORY_REPO}"
+                    echo "============"
+                '''
+            }
+        }
 
-          podman login \
-            --username AWS \
-            --password "$ECR_PASS" \
-            $OLD_ACCOUNT_ID.dkr.ecr.$OLD_REGION.amazonaws.com
-        '''
-      }
+        stage('Authenticate to AWS ECR') {
+            steps {
+                withCredentials([aws(
+                    credentialsId: 'ASIAYSDKD53GLQBFWEDL',
+                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    sh '''
+                        echo "🔐 Logging into AWS ECR..."
+                        export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                        export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
+                        ECR_PASSWORD=$(aws ecr get-login-password --region ${OLD_REGION})
+                        echo "${ECR_PASSWORD}" > ecr_pass.txt
+                    '''
+                }
+            }
+        }
+
+        stage('Copy Image from ECR to Artifactory') {
+            steps {
+                sh '''
+                    echo "🚀 Copying image using Skopeo..."
+
+                    skopeo copy \
+                      --override-os linux \
+                      --override-arch amd64 \
+                      --src-creds "AWS:$(cat ecr_pass.txt)" \
+                      --dest-creds "${JFROG_USER}:${JFROG_API_KEY}" \
+                      docker://${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG} \
+                      docker://${NEW_ARTIFACTORY_URL}/${NEW_ARTIFACTORY_REPO}/${NEW_ARTIFACTORY_IMAGE}:${IMAGE_TAG}
+
+                    echo "🎉 Image successfully migrated to Artifactory!"
+                '''
+            }
+        }
     }
-
-    stage('Pull Image From ECR') {
-      steps {
-        sh '''
-          SRC_IMAGE="$OLD_ACCOUNT_ID.dkr.ecr.$OLD_REGION.amazonaws.com/$IMAGE_NAME:$IMAGE_TAG"
-
-          echo "Pulling image: $SRC_IMAGE"
-          podman pull $SRC_IMAGE
-        '''
-      }
-    }
-
-    stage('Retag for Artifactory') {
-      steps {
-        sh '''
-          SRC_IMAGE="$OLD_ACCOUNT_ID.dkr.ecr.$OLD_REGION.amazonaws.com/$IMAGE_NAME:$IMAGE_TAG"
-          DEST_IMAGE="$NEW_ART_URL/$NEW_ART_REPO/$NEW_ART_IMAGE:$IMAGE_TAG"
-
-          echo "Re-tagging image..."
-          echo "DEST: $DEST_IMAGE"
-          podman tag $SRC_IMAGE $DEST_IMAGE
-        '''
-      }
-    }
-
-    stage('Login to Artifactory') {
-      steps {
-        sh '''
-          echo "Logging into Artifactory…"
-
-          podman login \
-            --username "$ART_USER" \
-            --password "$ART_API_KEY" \
-            $NEW_ART_URL
-        '''
-      }
-    }
-
-    stage('Push to Artifactory') {
-      steps {
-        sh '''
-          DEST_IMAGE="$NEW_ART_URL/$NEW_ART_REPO/$NEW_ART_IMAGE:$IMAGE_TAG"
-
-          echo "Pushing to Artifactory: $DEST_IMAGE"
-          podman push $DEST_IMAGE
-        '''
-      }
-    }
-
-  }
-
-  post {
-    success {
-      echo "🎉 SUCCESS — Image migrated from ECR → Artifactory"
-    }
-    failure {
-      echo "❌ FAILURE — Check logs"
-    }
-  }
 }
+
 
 
 
