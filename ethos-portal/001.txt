@@ -1,6 +1,150 @@
 @Library(['common-lib3-stable']) _
 
 properties([
+    parameters([
+        string(name: 'IMAGE_NAME', defaultValue: 'ethos-portal-unauth', description: 'Image name'),
+        string(name: 'IMAGE_TAG', defaultValue: '1.61.0-3-unauth-uat', description: 'Tag to migrate'),
+    ])
+])
+
+// =====================
+// POD TEMPLATE
+// =====================
+String podTemplateString = """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: aws
+      image: caas-docker-release-local.docker.fis.dev/jenkins/ubi8-minimal-hel-aws:3.6.3-1
+      tty: true
+      command: ['cat']
+      resources:
+        limits:
+          github.com/fuse: 1
+
+    - name: buildah
+      image: caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      resources:
+        limits:
+          github.com/fuse: 1
+
+  imagePullSecrets:
+    - name: caas-docker-release-local-ro
+
+  serviceAccountName: jenkins
+"""
+
+def label = "ecr-artifactory-${UUID.randomUUID().toString()}"
+
+podTemplate(label: label, yaml: podTemplateString, runAsUser: '1000') {
+
+node(label) {
+
+    // =======================
+    // CONSTANTS
+    // =======================
+    env.OLD_AWS_ACCOUNT = "588633075404"
+    env.OLD_AWS_REGION  = "us-east-1"
+    env.ARTIFACTORY_URL = "artifactory.fis.dev"
+    env.ARTIFACTORY_REPO = "dsdata-docker-snapshot-local"
+
+    // =======================
+    // LOAD JFROG API KEY
+    // =======================
+    stage("Load JFrog API Key") {
+        withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+            env.JFROG_USER = 'svcacct-dsdata-caas-snapshot'
+        }
+    }
+
+    // =======================
+    // AUTH AWS (3 variables)
+    // =======================
+    stage("Authenticate to old AWS ECR") {
+        container('aws') {
+            withCredentials([
+                string(credentialsId: 'aws_old_access_key', variable: 'AWS_ACCESS_KEY_ID'),
+                string(credentialsId: 'aws_old_secret_key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                string(credentialsId: 'aws_old_session_token', variable: 'AWS_SESSION_TOKEN')
+            ]) {
+                sh '''
+                    echo "🔐 Verifying AWS credentials..."
+                    aws sts get-caller-identity
+
+                    echo "🔐 Logging into AWS ECR..."
+                    export ECR_PASSWORD=$(aws ecr get-login-password --region ${OLD_AWS_REGION})
+                    
+                    echo "AWS authentication SUCCESSFUL"
+                '''
+            }
+        }
+    }
+
+    // =======================
+    // COPY IMAGE USING BUILDAH
+    // =======================
+    stage("Copy Image using Buildah") {
+        container('buildah') {
+
+            withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+            withCredentials([
+                string(credentialsId: 'aws_old_access_key', variable: 'AWS_ACCESS_KEY_ID'),
+                string(credentialsId: 'aws_old_secret_key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                string(credentialsId: 'aws_old_session_token', variable: 'AWS_SESSION_TOKEN')
+            ]) {
+
+                sh '''
+                    echo "🔐 Setting AWS environment vars..."
+                    export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                    export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                    export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+
+                    echo "🔐 Logging into AWS ECR..."
+                    export ECR_PASSWORD=$(aws ecr get-login-password --region ${OLD_AWS_REGION})
+
+                    echo "🔓 Logging into Artifactory..."
+                    buildah login -u ${JFROG_USER} -p ${JFROG_API_KEY} ${ARTIFACTORY_URL}
+
+                    echo "⬇️ Pulling from ECR..."
+                    buildah pull --tls-verify=false \
+                      "docker://${OLD_AWS_ACCOUNT}.dkr.ecr.${OLD_AWS_REGION}.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                    echo "🔄 Tagging for Artifactory..."
+                    buildah tag \
+                      "docker://${OLD_AWS_ACCOUNT}.dkr.ecr.${OLD_AWS_REGION}.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG}" \
+                      "${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                    echo "⬆️ Pushing to Artifactory..."
+                    buildah push --tls-verify=false \
+                      "${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                    echo "✅ Buildah copy successful!"
+                '''
+            }}
+        }
+    }
+
+    stage("Done") {
+        echo "🎉 Image migrated successfully → ${env.ARTIFACTORY_URL}/${env.ARTIFACTORY_REPO}/${params.IMAGE_NAME}:${params.IMAGE_TAG}"
+    }
+
+} // node
+} // podTemplate
+
+
+
+
+
+
+
+------------------------------------------------------------------------
+@Library(['common-lib3-stable']) _
+
+properties([
   parameters([
     string(name: 'IMAGE_NAME', defaultValue: 'ethos-portal-unauth', description: 'Image name'),
     string(name: 'IMAGE_TAG',  defaultValue: '1.61.0-3-unauth-uat', description: 'Tag to migrate')
