@@ -1,6 +1,39 @@
 #!/bin/bash
 set -e
 
+OLD_ACCOUNT_ID="568853075404"
+OLD_REGION="us-east-1"
+IMAGE_NAME="ethos-portal"
+IMAGE_TAG="1.61.0-3-unauth-uat"
+
+NEW_ARTIFACTORY_URL="artifactory.fis.dev"
+NEW_ARTIFACTORY_REPO="dsdata-docker-snapshot-local"
+NEW_ARTIFACTORY_IMAGE="ethos-portal-unauth"
+
+JFROG_USER="<JFROG_USER>"
+JFROG_API_KEY="<JFROG_API_KEY>"
+
+echo "🔐 Logging into ECR..."
+ECR_PASSWORD=$(aws ecr get-login-password --region $OLD_REGION)
+
+echo "🚀 Copying ECR → Artifactory using Skopeo..."
+skopeo copy \
+  --src-creds "AWS:${ECR_PASSWORD}" \
+  --dest-creds "${JFROG_USER}:${JFROG_API_KEY}" \
+  docker://${OLD_ACCOUNT_ID}.dkr.ecr.${OLD_REGION}.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG} \
+  docker://${NEW_ARTIFACTORY_URL}/${NEW_ARTIFACTORY_REPO}/${NEW_ARTIFACTORY_IMAGE}:${IMAGE_TAG}
+
+echo "✅ Migration complete!"
+
+
+
+
+
+
+------------------------------------------------------------------
+#!/bin/bash
+set -e
+
 ###########################################
 # CONFIGURATION
 ###########################################
