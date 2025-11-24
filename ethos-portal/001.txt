@@ -1,3 +1,16 @@
+curl -v http://localhost:8080/
+curl -v http://localhost:8080/health
+curl -v http://localhost:8080/ready
+curl -v http://localhost:8080/status
+curl -v http://localhost:8080/api/health
+curl -v http://localhost:8080/ping
+curl -v http://localhost:8080/actuator/health     # if Spring
+curl -v http://localhost:8080/q/health            # if Quarkus
+curl -v http://localhost:8080/metrics
+
+
+
+------------------
 spec:
   serviceAccountName: {{ include "ethos-portal.serviceAccountName" . }}
   securityContext:
