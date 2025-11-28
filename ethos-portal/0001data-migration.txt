@@ -1,0 +1,49 @@
+###############################################################################
+# UPLOAD DIRECTORY FROM REPO → S3 BUCKET
+###############################################################################
+
+locals {
+  # Recursively collect all files in repo/export-data/
+  dynamo_export_files = fileset("${path.module}/export-data", "**")
+}
+
+resource "aws_s3_object" "dynamo_export_upload" {
+  for_each = local.dynamo_export_files
+
+  bucket = module.ethos_artifacts_uat_s3.new_bucket["id"]
+  key    = "dynamodb-import/${each.value}"
+
+  source = "${path.module}/export-data/${each.value}"
+  etag   = filemd5("${path.module}/export-data/${each.value}")
+}
+
+
+----
+
+
+###############################################################################
+# REFERENCE EXISTING DYNAMODB TABLE
+###############################################################################
+
+data "aws_dynamodb_table" "existing" {
+  name = var.existing_table_name
+}
+
+###############################################################################
+# IMPORT DATA INTO EXISTING DYNAMODB TABLE
+###############################################################################
+
+resource "aws_dynamodb_table_import" "dynamo_import" {
+  depends_on = [
+    aws_s3_object.dynamo_export_upload
+  ]
+
+  table_arn = data.aws_dynamodb_table.existing.arn
+
+  s3_bucket_source {
+    bucket     = module.ethos_artifacts_uat_s3.new_bucket["id"]
+    key_prefix = "dynamodb-import/"
+  }
+
+  input_format = "DYNAMODB_JSON"
+}
