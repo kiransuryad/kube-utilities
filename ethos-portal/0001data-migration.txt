@@ -1,3 +1,46 @@
+echo "=== Checking S3 Access ==="
+
+aws s3 ls s3://<your-export-bucket> --region us-east-1
+if [ $? -ne 0 ]; then
+  echo "❌ ERROR: Harness does NOT have S3 list/get permissions"
+  exit 1
+else
+  echo "✔ S3 list allowed"
+fi
+
+
+echo "=== Checking DynamoDB DescribeTable ==="
+
+aws dynamodb describe-table \
+  --table-name ethos_uat_main_table \
+  --region us-east-1 > /dev/null 2>&1
+
+if [ $? -ne 0 ]; then
+  echo "❌ ERROR: Harness does NOT have DynamoDB DescribeTable permissions"
+  exit 1
+else
+  echo "✔ DynamoDB DescribeTable allowed"
+fi
+
+
+echo "=== Checking DynamoDB BatchWriteItem Permission ==="
+
+aws dynamodb batch-write-item \
+  --region us-east-1 \
+  --request-items '{}'  > /dev/null 2>&1
+
+if [ $? -ne 0 ]; then
+  echo "❌ ERROR: Harness does NOT have BatchWriteItem permission"
+  exit 1
+else
+  echo "✔ DynamoDB BatchWriteItem allowed"
+fi
+
+echo
+echo "🎉 All required permissions available. Restore is safe to proceed."
+
+
+---------------------------------
 SECRET_ID="your-secret-name"
 REGION="us-east-1"
 
