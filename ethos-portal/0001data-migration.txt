@@ -1,3 +1,21 @@
+SECRET_ID="your-secret-name"
+REGION="us-east-1"
+
+SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id "$SECRET_ID" \
+  --region "$REGION" \
+  --query SecretString \
+  --output text)
+
+PASSWORD=$(echo "$SECRET" | sed -n 's/.*"password":"\([^"]*\)".*/\1/p')
+
+echo "Password = $PASSWORD"
+echo "export DB_PASSWORD=$PASSWORD" >> $HARNESS_ENV_EXPORTS
+
+
+
+
+------------------------
 ###############################################################################
 # UPLOAD DIRECTORY FROM REPO → S3 BUCKET
 ###############################################################################
