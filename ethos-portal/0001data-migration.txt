@@ -1,3 +1,163 @@
+
+#!/bin/bash
+set -euo pipefail
+
+########################################
+# CONFIG
+########################################
+TABLE_NAME="ethos_uat_main_table"
+BUCKET="ethos-artifacts-uat-s3"
+PREFIX="dynamodb-import/01764087639925-ec20cfa4"
+REGION="us-east-1"
+
+# --- DRY RUN FLAG ---
+# true  = count items only
+# false = restore into DynamoDB
+DRY_RUN=true
+
+echo "=============================================="
+echo " DynamoDB Restore Utility"
+echo " Table     : $TABLE_NAME"
+echo " S3 Source : s3://$BUCKET/$PREFIX"
+echo " Region    : $REGION"
+echo " Dry Run   : $DRY_RUN"
+echo "=============================================="
+echo
+
+########################################
+# INSTALL TOOLS
+########################################
+echo "Installing jq..."
+yum install -y jq >/dev/null
+
+########################################
+# 1) SYNC EXPORT FILES FROM S3
+########################################
+echo "Syncing DynamoDB export files from S3..."
+aws s3 sync "s3://$BUCKET/$PREFIX/data" ./data --region "$REGION"
+
+echo "Files downloaded:"
+ls -1 data
+echo
+
+########################################
+# 2) DECOMPRESS .gz FILES
+########################################
+echo "Decompressing *.json.gz files..."
+find data -name '*.gz' -print -exec gunzip {} \;
+
+echo "Decompressed JSON files:"
+ls -1 data
+echo
+
+########################################
+# 3) DRY RUN MODE: COUNT RECORDS ONLY
+########################################
+if [ "$DRY_RUN" = true ]; then
+  echo "=============================================="
+  echo " DRY RUN MODE ENABLED — NO DATA WILL BE WRITTEN"
+  echo " Counting records in S3 export..."
+  echo "=============================================="
+  echo
+
+  TOTAL=0
+  for file in data/*.json; do
+    COUNT=$(wc -l < "$file")
+    echo "File: $(basename "$file") → $COUNT records"
+    TOTAL=$((TOTAL + COUNT))
+  done
+
+  echo "----------------------------------------------"
+  echo " TOTAL RECORDS IN BACKUP: $TOTAL"
+  echo "----------------------------------------------"
+
+  echo "Dry run complete."
+  exit 0
+fi
+
+########################################
+# 4) RESTORE MODE (ONLY IF DRY_RUN=false)
+########################################
+
+echo "=============================================="
+echo " RESTORE MODE ACTIVE — WRITING TO DYNAMODB"
+echo "=============================================="
+
+BATCH_FILE=$(mktemp)
+COUNT=0
+TOTAL_WRITTEN=0
+
+flush_batch() {
+  if [ "$COUNT" -eq 0 ]; then
+    return
+  fi
+
+  echo "Flushing batch of $COUNT items..."
+
+  cat "$BATCH_FILE" \
+    | jq -s --arg table "$TABLE_NAME" '{ ($table): [ .[] | { PutRequest: { Item: .Item } } ] }' \
+    > batch.json
+
+  # Retry unprocessed items
+  while true; do
+    RESP=$(aws dynamodb batch-write-item \
+      --region "$REGION" \
+      --request-items file://batch.json)
+
+    UNPROCESSED=$(echo "$RESP" | jq '.UnprocessedItems | length')
+
+    if [ "$UNPROCESSED" -eq 0 ]; then
+      break
+    fi
+
+    echo "UnprocessedItems: $UNPROCESSED – retrying..."
+    echo "$RESP" | jq '.UnprocessedItems' > batch.json
+    sleep 1
+  done
+
+  TOTAL_WRITTEN=$((TOTAL_WRITTEN + COUNT))
+  COUNT=0
+  : > "$BATCH_FILE"
+}
+
+: > "$BATCH_FILE"
+
+echo "Starting full restore into: $TABLE_NAME"
+
+for file in data/*.json; do
+  echo "Processing file: $file"
+
+  while IFS= read -r line; do
+    echo "$line" >> "$BATCH_FILE"
+    COUNT=$((COUNT + 1))
+
+    if [ "$COUNT" -eq 25 ]; then
+      flush_batch
+    fi
+  done < "$file"
+done
+
+flush_batch
+
+echo
+echo "=============================================="
+echo " RESTORE COMPLETE — TOTAL ITEMS WRITTEN: $TOTAL_WRITTEN"
+echo "=============================================="
+
+# Verify table count
+SCAN_COUNT=$(aws dynamodb scan \
+  --table-name "$TABLE_NAME" \
+  --select COUNT \
+  --region "$REGION" \
+  | jq '.Count')
+
+echo "DynamoDB current item count: $SCAN_COUNT"
+echo "Restore step finished successfully."
+
+
+
+
+---------------------------------------------------------------------------
 TABLE_NAME="ethos_uat_09876_main_table"
 S3_BUCKET="s3://my-export-bucket/exports/09876/"
 IAM_ROLE_ARN="arn:aws:iam::<acct>:role/dynamodb-import-role"
