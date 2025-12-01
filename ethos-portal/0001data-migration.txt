@@ -1,3 +1,43 @@
+resource "aws_iam_policy" "dynamodb_restore_policy" {
+  name        = "DynamoDBRestorePolicy"
+  description = "Allows S3 read and DynamoDB BatchWriteItem for restoring table data"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "S3Read"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::<your-export-bucket>",
+          "arn:aws:s3:::<your-export-bucket>/*"
+        ]
+      },
+      {
+        Sid    = "DynamoRestore"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:BatchWriteItem",
+          "dynamodb:PutItem",
+          "dynamodb:DescribeTable",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          "arn:aws:dynamodb:us-east-1:<acct>:table/ethos_uat_main_table",
+          "arn:aws:dynamodb:us-east-1:<acct>:table/ethos_uat_main_table/*"
+        ]
+      }
+    ]
+  })
+}
+
+
+
+-----------------------------------
 echo "=== Checking S3 Access ==="
 
 aws s3 ls s3://<your-export-bucket> --region us-east-1
