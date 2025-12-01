@@ -1,3 +1,24 @@
+statement {
+  sid    = "AllowAllEKSNodeRolesAccess"
+  effect = "Allow"
+  principals {
+    type = "AWS"
+    identifiers = [
+      "arn:aws:iam::${var.aws_account}:role/ethos-workers-eks-node-group-*"
+    ]
+  }
+  actions = [
+    "kms:Decrypt",
+    "kms:DescribeKey",
+    "kms:GenerateDataKey*"
+  ]
+  resources = ["*"]
+}
+
+
+
+
+-------------------------------------------------------------------------------------------
 curl -L -o jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
 chmod +x jq
 
