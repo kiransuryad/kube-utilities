@@ -1,4 +1,19 @@
+curl -L -o jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+chmod +x jq
 
+
+# Load statically bundled jq
+cp "${HARNESS_FILE_STORE_ROOT}/tools/jq" /tmp/jq
+chmod +x /tmp/jq
+export PATH="/tmp:$PATH"
+
+echo "jq loaded:"
+jq --version
+
+
+
+
+----------------------------------------------------
 #!/bin/bash
 set -euo pipefail
 
