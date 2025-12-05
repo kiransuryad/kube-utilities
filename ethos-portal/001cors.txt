@@ -1,3 +1,88 @@
+'use strict';
+
+exports.handler = async (event, context, callback) => {
+
+  const response = event.Records[0].cf.response;
+  const headers  = response.headers;
+  const request  = event.Records[0].cf.request;
+
+  // Extract the active host dynamically
+  const host = request.headers.host[0].value;
+  const active = `https://${host}`;
+
+  // Allowed domains for both current & future use
+  const trustedDomains = [
+    active,
+    'https://uat-ethos.fiscloudservices.com',
+    'https://uat-ethos.fisglobal.com',
+    'https://*.fiscloudservices.com',
+    'https://*.fisglobal.com',
+
+    // Google Tag Manager / GA
+    'https://www.googletagmanager.com',
+    'https://www.google-analytics.com',
+    'https://tagmanager.google.com',
+
+    // Wistia
+    'https://fast.wistia.com',
+    'https://*.wistia.com',
+
+    // Optimizely / Cresta
+    'https://cdn.optimizely.com',
+    'https://*.cresta.ai',
+
+    // AWS
+    'https://*.amazonaws.com',
+
+    // Marketo / Munchkin
+    'https://munchkin.marketo.com',
+    'https://*.marketo.com',
+
+    // Vidyard
+    'https://play.vidyard.com',
+    'https://*.vidyard.com'
+  ];
+
+  const scriptSrc  = `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${trustedDomains.join(' ')};`;
+  const connectSrc = `connect-src 'self' ${trustedDomains.join(' ')};`;
+  const imgSrc     = `img-src 'self' data: blob: ${trustedDomains.join(' ')};`;
+  const styleSrc   = `style-src 'self' 'unsafe-inline' ${trustedDomains.join(' ')};`;
+  const fontSrc    = `font-src 'self' data: ${trustedDomains.join(' ')};`;
+  const frameSrc   = `frame-src ${trustedDomains.join(' ')};`;
+
+  const csp = [
+    `default-src 'none'`,
+    scriptSrc,
+    connectSrc,
+    imgSrc,
+    styleSrc,
+    fontSrc,
+    frameSrc,
+    `media-src 'self' blob:`,
+    `object-src 'none'`
+  ].join(' ');
+
+  // Existing security headers
+  headers['x-frame-options']            = [{ key: 'X-Frame-Options', value: 'SAMEORIGIN'}];
+  headers['x-content-type-options']     = [{ key: 'X-Content-Type-Options', value: 'nosniff'}];
+  headers['x-xss-protection']           = [{ key: 'X-XSS-Protection', value: '1; mode=block'}];
+  headers['cache-control']              = [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate, proxy-revalidate, no-transform'}];
+  headers['pragma']                     = [{ key: 'Pragma', value: 'no-cache'}];
+  headers['expires']                    = [{ key: 'Expires', value: '0'}];
+  headers['strict-transport-security']  = [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubdomains; preload'}];
+  headers['referrer-policy']            = [{ key: 'Referrer-Policy', value: 'no-referrer'}];
+
+  // Apply CSP
+  headers['content-security-policy'] = [
+    { key: 'Content-Security-Policy', value: csp }
+  ];
+
+  callback(null, response);
+};
+
+
+
+----------------------
 const req = event.Records[0].cf.request;
 const host = req.headers.host[0].value;
 const active = `https://${host}`;
