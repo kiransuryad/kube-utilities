@@ -1,3 +1,149 @@
+###############################################
+### Fetch REST API created by the module
+###############################################
+data "aws_api_gateway_rest_api" "this" {
+  name = module.ethos-portal-uat-apigateway.rest_api.name
+}
+
+###############################################
+### Fetch resources created by module
+###############################################
+data "aws_api_gateway_resource" "public" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  path        = "/public"
+}
+
+data "aws_api_gateway_resource" "security" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  path        = "/security"
+}
+
+############################################################
+### /public OPTIONS
+############################################################
+
+# Method
+resource "aws_api_gateway_method" "public_options" {
+  rest_api_id     = data.aws_api_gateway_rest_api.this.id
+  resource_id     = data.aws_api_gateway_resource.public.id
+  http_method     = "OPTIONS"
+  authorization   = "NONE"
+  api_key_required = true
+}
+
+# Integration
+resource "aws_api_gateway_integration" "public_options_integration" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  resource_id = data.aws_api_gateway_resource.public.id
+  http_method = aws_api_gateway_method.public_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = <<EOF
+{
+  "statusCode": 200
+}
+EOF
+  }
+}
+
+# Method Response
+resource "aws_api_gateway_method_response" "public_options_response_200" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  resource_id = data.aws_api_gateway_resource.public.id
+  http_method = aws_api_gateway_method.public_options.http_method
+  status_code = "200"
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+# Integration Response
+resource "aws_api_gateway_integration_response" "public_options_integration_response" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  resource_id = data.aws_api_gateway_resource.public.id
+  http_method = aws_api_gateway_method.public_options.http_method
+  status_code = aws_api_gateway_method_response.public_options_response_200.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+############################################################
+### /security OPTIONS
+############################################################
+
+# Method
+resource "aws_api_gateway_method" "security_options" {
+  rest_api_id     = data.aws_api_gateway_rest_api.this.id
+  resource_id     = data.aws_api_gateway_resource.security.id
+  http_method     = "OPTIONS"
+  authorization   = "NONE"
+  api_key_required = true
+}
+
+# Integration
+resource "aws_api_gateway_integration" "security_options_integration" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  resource_id = data.aws_api_gateway_resource.security.id
+  http_method = aws_api_gateway_method.security_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = <<EOF
+{
+  "statusCode": 200
+}
+EOF
+  }
+}
+
+# Method Response
+resource "aws_api_gateway_method_response" "security_options_response_200" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  resource_id = data.aws_api_gateway_resource.security.id
+  http_method = aws_api_gateway_method.security_options.http_method
+  status_code = "200"
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+# Integration Response
+resource "aws_api_gateway_integration_response" "security_options_integration_response" {
+  rest_api_id = data.aws_api_gateway_rest_api.this.id
+  resource_id = data.aws_api_gateway_resource.security.id
+  http_method = aws_api_gateway_method.security_options.http_method
+  status_code = aws_api_gateway_method_response.security_options_response_200.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+
+
+
+----------------------------
 'use strict';
 
 exports.handler = async (event, context, callback) => {
