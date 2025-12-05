@@ -1,0 +1,54 @@
+const req = event.Records[0].cf.request;
+const host = req.headers.host[0].value;
+const active = `https://${host}`;
+
+const trustedDomains = [
+  active,
+  'https://uat-ethos.fiscloudservices.com',
+  'https://uat-ethos.fisglobal.com',
+  'https://*.fiscloudservices.com',
+  'https://*.fisglobal.com',
+
+  // Google Tag Manager / GA
+  'https://www.googletagmanager.com',
+  'https://www.google-analytics.com',
+  'https://tagmanager.google.com',
+
+  // Wistia
+  'https://fast.wistia.com',
+  'https://*.wistia.com',
+
+  // Optimizely / Cresta
+  'https://cdn.optimizely.com',
+  'https://*.cresta.ai',
+
+  // AWS Hosted Assets
+  'https://*.amazonaws.com',
+
+  // Marketo / Munchkin
+  'https://munchkin.marketo.com',
+  'https://*.marketo.com',
+
+  // Vidyard
+  'https://play.vidyard.com',
+  'https://*.vidyard.com'
+];
+
+const scriptSrc  = `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${trustedDomains.join(' ')};`;
+const connectSrc = `connect-src 'self' ${trustedDomains.join(' ')};`;
+const imgSrc     = `img-src 'self' data: blob: ${trustedDomains.join(' ')};`;
+const styleSrc   = `style-src 'self' 'unsafe-inline' ${trustedDomains.join(' ')};`;
+const fontSrc    = `font-src 'self' data: ${trustedDomains.join(' ')};`;
+const frameSrc   = `frame-src ${trustedDomains.join(' ')};`;
+
+const csp = [
+  `default-src 'none'`,
+  scriptSrc,
+  connectSrc,
+  imgSrc,
+  styleSrc,
+  fontSrc,
+  frameSrc,
+  `media-src 'self' blob:`,
+  `object-src 'none'`
+].join(' ');
