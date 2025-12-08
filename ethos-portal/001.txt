@@ -1,3 +1,129 @@
+variable "api_v2_deploy_trigger" {
+  type    = string
+  default = "1"
+}
+
+locals {
+  apigw_v2_access_log_format = jsonencode({
+    requestId          = "$context.requestId"
+    extendedRequestId  = "$context.extendedRequestId"
+    requestTime        = "$context.requestTime"
+    requestTimeEpoch   = "$context.requestTimeEpoch"
+
+    httpMethod         = "$context.httpMethod"
+    resourcePath       = "$context.resourcePath"
+    path               = "$context.path"
+    protocol           = "$context.protocol"
+
+    sourceIp           = "$context.identity.sourceIp"
+    userAgent          = "$context.identity.userAgent"
+
+    status             = "$context.status"
+    responseLength     = "$context.responseLength"
+    responseLatency    = "$context.responseLatency"
+
+    integrationStatus  = "$context.integrationStatus"
+    integrationLatency = "$context.integrationLatency"
+    integrationError   = "$context.integrationErrorMessage"
+
+    errorMessage       = "$context.error.message"
+    errorType          = "$context.error.responseType"
+  })
+}
+
+
+
+resource "aws_cloudwatch_log_group" "api_gw_access_v2" {
+  name              = "/aws/apigateway/${local.env_short_lower}-api-v2"
+  retention_in_days = 30
+}
+
+
+resource "aws_iam_role" "apigw_cloudwatch_role_v2" {
+  name = "${local.env_short_lower}-apigw-cloudwatch-role-v2"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = { Service = "apigateway.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "apigw_cloudwatch_policy_v2" {
+  name = "${local.env_short_lower}-apigw-cloudwatch-policy-v2"
+  role = aws_iam_role.apigw_cloudwatch_role_v2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:PutLogEvents",
+        "logs:GetLogEvents",
+        "logs:FilterLogEvents",
+        "logs:PutRetentionPolicy"
+      ],
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_api_gateway_account" "apigw_logging_v2" {
+  cloudwatch_role_arn = aws_iam_role.apigw_cloudwatch_role_v2.arn
+}
+
+resource "aws_api_gateway_deployment" "v2_deployment" {
+  rest_api_id = module.ethos-portal-uat-apigateway.rest_api_id
+
+  description = "Deployment for api-v2 stage"
+
+  triggers = {
+    redeploy = var.api_v2_deploy_trigger
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+
+resource "aws_api_gateway_stage" "api_v2" {
+  stage_name    = "api-v2"
+  rest_api_id   = module.ethos-portal-uat-apigateway.rest_api_id
+  deployment_id = aws_api_gateway_deployment.v2_deployment.id
+
+  xray_tracing_enabled = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gw_access_v2.arn
+    format          = local.apigw_v2_access_log_format
+  }
+
+  method_settings {
+    resource_path       = "/*"
+    http_method         = "*"
+    logging_level       = "INFO"
+    metrics_enabled     = true
+    data_trace_enabled  = true
+  }
+
+  tags = {
+    Environment = local.env_short_lower
+    Stage       = "api-v2"
+    ManagedBy   = "Terraform"
+  }
+}
+
+
+
+--------------------
 curl -v http://localhost:8080/
 curl -v http://localhost:8080/health
 curl -v http://localhost:8080/ready
