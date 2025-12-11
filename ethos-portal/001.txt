@@ -1,4 +1,41 @@
+#!/bin/bash
 
+set -euo pipefail
+
+# -----------------------------------------------------------------------------
+# INPUTS (Harness variables or hard-coded)
+# -----------------------------------------------------------------------------
+BUCKET="${BUCKET:-your-bucket-name}"
+KEY="${KEY:-path/index.html}"
+
+echo "Checking metadata for S3 object:"
+echo "  Bucket: $BUCKET"
+echo "  Key:    $KEY"
+echo "------------------------------------------------------"
+
+# -----------------------------------------------------------------------------
+# EXECUTE HEAD-OBJECT
+# -----------------------------------------------------------------------------
+
+HEAD_OUTPUT=$(aws s3api head-object \
+  --bucket "$BUCKET" \
+  --key "$KEY" 2>&1) || {
+    echo "❌ ERROR: Unable to fetch object metadata."
+    echo "$HEAD_OUTPUT"
+    exit 1
+}
+
+echo "✅ S3 Object Metadata:"
+echo "$HEAD_OUTPUT" | jq .
+
+
+
+
+
+
+
+
+-------------------------------------------
 variable "invalidate" {
   type        = bool
   default     = false
