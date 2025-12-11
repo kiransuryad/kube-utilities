@@ -1,3 +1,43 @@
+# ----- KMS Permissions for S3 SSE-KMS encrypted objects -----
+statement {
+  sid = "KMSS3CopyPermissions"
+
+  actions = [
+    "kms:Decrypt",
+    "kms:Encrypt",
+    "kms:ReEncryptFrom",
+    "kms:ReEncryptTo",
+    "kms:GenerateDataKey",
+    "kms:DescribeKey"
+  ]
+
+  resources = [
+    "arn:aws:kms:us-east-1:533267095208:key/584f9bc0-d83e-4c7b-9e63-3246c35c10f"
+  ]
+}
+
+
+{
+  "Sid": "AllowEKSOrHarnessRoleToUseKey",
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": "arn:aws:iam::533267095208:role/ethos-workers-eks-node-group-202407151047621190100000011"
+  },
+  "Action": [
+    "kms:Decrypt",
+    "kms:Encrypt",
+    "kms:ReEncryptFrom",
+    "kms:ReEncryptTo",
+    "kms:GenerateDataKey",
+    "kms:DescribeKey"
+  ],
+  "Resource": "*"
+}
+
+
+
+
+----------------------------------
 #!/bin/bash
 
 set -euo pipefail
