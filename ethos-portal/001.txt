@@ -1,3 +1,217 @@
+#!/bin/bash
+
+# Harness-ready S3 Content-Type fixer + CloudFront invalidation
+# - Scans all objects in a bucket (optionally under PREFIX)
+# - Guesses correct Content-Type by file extension
+# - Rewrites metadata via copy-object with URL-encoded source keys
+# - Retries on failure, skips but logs errors
+# - Produces summary + text files listing fixed / unknown / failed keys
+# - Triggers CloudFront invalidation at the end (if DISTRIBUTION_ID set)
+
+set -uo pipefail   # don't use -e because we want to skip-on-error
+
+# ----------------------------- CONFIG -----------------------------
+
+: "${BUCKET:?Environment variable BUCKET is required}"
+# CloudFront distribution (optional – if empty, invalidation is skipped)
+: "${DISTRIBUTION_ID:=}"
+# Optional prefix within the bucket (e.g. _next/, static/, etc.)
+: "${PREFIX:=}"
+
+WORKDIR="${WORKDIR:-.}"
+FIXED_LIST="${WORKDIR}/fixed_objects.txt"
+UNKNOWN_LIST="${WORKDIR}/unknown_objects.txt"
+FAILED_LIST="${WORKDIR}/failed_objects.txt"
+
+: > "$FIXED_LIST"
+: > "$UNKNOWN_LIST"
+: > "$FAILED_LIST"
+
+echo "============================================================"
+echo "🔎 Using S3 Bucket: $BUCKET"
+[ -n "$PREFIX" ] && echo "🔎 Prefix:        $PREFIX"
+[ -n "$DISTRIBUTION_ID" ] && echo "🔎 CloudFront:    $DISTRIBUTION_ID"
+echo "============================================================"
+
+# ------------------------ Helper functions -----------------------
+
+urlencode() {
+  # URL-encode a string for use in --copy-source
+  python3 - "$1" << 'EOF'
+import sys, urllib.parse
+print(urllib.parse.quote(sys.argv[1], safe=''))
+EOF
+}
+
+guess_mime_type() {
+  local key="$1"
+  local ext
+
+  ext="${key##*.}"
+  ext="$(echo "$ext" | tr '[:upper:]' '[:lower:]')"
+
+  case "$ext" in
+    html)  echo "text/html" ;;
+    htm)   echo "text/html" ;;
+    js)    echo "application/javascript" ;;
+    mjs)   echo "application/javascript" ;;
+    css)   echo "text/css" ;;
+    json)  echo "application/json" ;;
+
+    png)   echo "image/png" ;;
+    jpg)   echo "image/jpeg" ;;
+    jpeg)  echo "image/jpeg" ;;
+    gif)   echo "image/gif" ;;
+    webp)  echo "image/webp" ;;
+    svg)   echo "image/svg+xml" ;;
+    ico)   echo "image/x-icon" ;;
+
+    eot)   echo "application/vnd.ms-fontobject" ;;
+    ttf)   echo "font/ttf" ;;
+    woff)  echo "font/woff" ;;
+    woff2) echo "font/woff2" ;;
+
+    map)   echo "application/json" ;;
+    txt)   echo "text/plain" ;;
+    *)     echo "" ;;
+  esac
+}
+
+copy_with_retry() {
+  local key="$1"
+  local mime="$2"
+  local encoded_key
+  local attempts=0
+  local max_attempts=3
+  local rc=1
+  local out
+
+  encoded_key="$(urlencode "$key")"
+
+  while [ "$attempts" -lt "$max_attempts" ]; do
+    attempts=$((attempts + 1))
+    out=$(aws s3api copy-object \
+      --bucket "$BUCKET" \
+      --copy-source "${BUCKET}/${encoded_key}" \
+      --key "$key" \
+      --metadata-directive REPLACE \
+      --content-type "$mime" 2>&1)
+    rc=$?
+
+    if [ "$rc" -eq 0 ]; then
+      return 0
+    fi
+
+    echo "⚠️  Attempt ${attempts}/${max_attempts} failed for '${key}': $out" >&2
+    sleep 2
+  done
+
+  echo "❌ Giving up on '${key}' after ${max_attempts} attempts." >&2
+  return "$rc"
+}
+
+# --------------------- List all objects (paged) -------------------
+
+TOTAL=0
+FIXED=0
+UNKNOWN=0
+FAILED=0
+UNCHANGED=0
+
+echo "📜 Listing all objects in bucket..."
+NEXT_TOKEN=""
+
+while : ; do
+  if [ -z "$NEXT_TOKEN" ]; then
+    PAGE=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX")
+  else
+    PAGE=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX" --continuation-token "$NEXT_TOKEN")
+  fi
+
+  # No objects
+  if [ "$(echo "$PAGE" | jq '.KeyCount')" -eq 0 ]; then
+    break
+  fi
+
+  # Process keys in this page
+  echo "$PAGE" | jq -r '.Contents[].Key' | while read -r KEY; do
+    # Skip "folders"
+    if [[ "$KEY" == */ && "$KEY" != *.* ]]; then
+      continue
+    fi
+
+    TOTAL=$((TOTAL + 1))
+
+    MIME=$(guess_mime_type "$KEY")
+    if [ -z "$MIME" ]; then
+      echo "⚠️  UNKNOWN FILE TYPE: $KEY" | tee -a "$UNKNOWN_LIST"
+      UNKNOWN=$((UNKNOWN + 1))
+      continue
+    fi
+
+    echo "🛠  Fixing: $KEY  →  $MIME"
+
+    # Optional optimisation: check current Content-Type and skip if already correct
+    CURRENT_CT=$(aws s3api head-object --bucket "$BUCKET" --key "$KEY" \
+                  | jq -r '.ContentType // empty')
+
+    if [ "$CURRENT_CT" = "$MIME" ]; then
+      echo "   ↳ Skipping (already $MIME)"
+      UNCHANGED=$((UNCHANGED + 1))
+      echo "$KEY" >> "$FIXED_LIST"   # still log as processed
+      continue
+    fi
+
+    if copy_with_retry "$KEY" "$MIME"; then
+      FIXED=$((FIXED + 1))
+      echo "$KEY" >> "$FIXED_LIST"
+    else
+      FAILED=$((FAILED + 1))
+      echo "$KEY" >> "$FAILED_LIST"
+    fi
+  done
+
+  NEXT_TOKEN=$(echo "$PAGE" | jq -r '.NextContinuationToken // empty')
+  [ -z "$NEXT_TOKEN" ] && break
+done
+
+echo "============================================================"
+echo "✅ Finished S3 pass."
+echo "  Total objects seen:     $TOTAL"
+echo "  Fixed / updated:        $FIXED"
+echo "  Already correct:        $UNCHANGED"
+echo "  Unknown extensions:     $UNKNOWN"
+echo "  Failed to update:       $FAILED"
+echo
+echo "  Fixed objects list:     $FIXED_LIST"
+echo "  Unknown type list:      $UNKNOWN_LIST"
+echo "  Failed objects list:    $FAILED_LIST"
+echo "============================================================"
+
+# --------------------- CloudFront invalidation --------------------
+
+if [ -n "$DISTRIBUTION_ID" ]; then
+  echo "🚀 Creating CloudFront invalidation for /* ..."
+  CF_OUT=$(aws cloudfront create-invalidation \
+              --distribution-id "$DISTRIBUTION_ID" \
+              --paths "/*" 2>&1)
+  if [ "$?" -eq 0 ]; then
+    INVALIDATION_ID=$(echo "$CF_OUT" | jq -r '.Invalidation.Id // empty')
+    echo "✅ CloudFront invalidation submitted. ID: $INVALIDATION_ID"
+  else
+    echo "❌ Failed to create CloudFront invalidation: $CF_OUT" >&2
+  fi
+else
+  echo "ℹ️  DISTRIBUTION_ID not set. Skipping CloudFront invalidation."
+fi
+
+echo "🎯 DONE."
+
+
+
+
+
+-------------------------------
 # ----- KMS Permissions for S3 SSE-KMS encrypted objects -----
 statement {
   sid = "KMSS3CopyPermissions"
