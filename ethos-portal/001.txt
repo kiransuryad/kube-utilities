@@ -1,3 +1,43 @@
+
+variable "invalidate" {
+  type        = bool
+  default     = false
+  description = "Manually trigger a CloudFront invalidation"
+}
+
+locals {
+  frontend_hash        = filesha256("${path.module}/frontend/build/index.html")
+  lambda_redirect_hash = filesha256("${path.module}/lambda/redirect/index.js")
+  lambda_response_hash = filesha256("${path.module}/lambda/response/index.js")
+
+  # Change this local value if any of the hashes change OR invalidate=true
+  invalidate_trigger = var.invalidate ? timestamp() : (
+    "${local.frontend_hash}-${local.lambda_redirect_hash}-${local.lambda_response_hash}"
+  )
+}
+
+
+
+resource "aws_cloudfront_invalidation" "unified" {
+  distribution_id = aws_cloudfront_distribution.portal.id
+  paths           = ["/*"]
+
+  # This forces replacement whenever invalidate_trigger changes
+  lifecycle {
+    replace_triggered_by = [
+      local.invalidate_trigger
+    ]
+  }
+
+  depends_on = [
+    aws_cloudfront_distribution.portal
+  ]
+}
+
+
+
+
+---------------------------------------
 variable "api_v2_deploy_trigger" {
   type    = string
   default = "1"
