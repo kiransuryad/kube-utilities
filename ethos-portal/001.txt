@@ -18,20 +18,28 @@ locals {
 
 
 
-resource "aws_cloudfront_invalidation" "unified" {
-  distribution_id = aws_cloudfront_distribution.portal.id
-  paths           = ["/*"]
+resource "aws_cloudfront_distribution" "portal" {
+  # ... your distribution config ...
 
-  # This forces replacement whenever invalidate_trigger changes
   lifecycle {
-    replace_triggered_by = [
-      local.invalidate_trigger
-    ]
+    postcondition {
+      condition     = true
+      error_message = "Distribution must exist before invalidation"
+      actions = [
+        aws_cloudfront_create_invalidation.invalidate
+      ]
+    }
   }
+}
 
-  depends_on = [
-    aws_cloudfront_distribution.portal
-  ]
+# Action BLOCK must be outside the resource
+action "aws_cloudfront_create_invalidation" "invalidate" {
+  when = local.invalidate_trigger
+
+  input = {
+    distribution_id = aws_cloudfront_distribution.portal.id
+    paths           = ["/*"]
+  }
 }
 
 
