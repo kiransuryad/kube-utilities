@@ -18,29 +18,31 @@ locals {
 
 
 
+# Your existing CF distribution
 resource "aws_cloudfront_distribution" "portal" {
-  # ... your distribution config ...
-
-  lifecycle {
-    postcondition {
-      condition     = true
-      error_message = "Distribution must exist before invalidation"
-      actions = [
-        aws_cloudfront_create_invalidation.invalidate
-      ]
-    }
-  }
+  # ... your existing config ...
 }
 
-# Action BLOCK must be outside the resource
-action "aws_cloudfront_create_invalidation" "invalidate" {
-  when = local.invalidate_trigger
-
-  input = {
-    distribution_id = aws_cloudfront_distribution.portal.id
-    paths           = ["/*"]
+# CloudFront invalidation via AWS CLI
+resource "null_resource" "cloudfront_invalidation" {
+  # Any change here will destroy + recreate this resource,
+  # and that will re-run the provisioner below.
+  triggers = {
+    invalidate_trigger = local.invalidate_trigger
+    distribution_id    = aws_cloudfront_distribution.portal.id
+    paths              = "/*"                         # adjust if you want narrower invalidations
   }
+
+  provisioner "local-exec" {
+    # Requires AWS CLI configured where Terraform runs (env vars, profile, etc.)
+    command = "aws cloudfront create-invalidation --distribution-id ${self.triggers.distribution_id} --paths \"${self.triggers.paths}\""
+  }
+
+  depends_on = [
+    aws_cloudfront_distribution.portal
+  ]
 }
+
 
 
 
