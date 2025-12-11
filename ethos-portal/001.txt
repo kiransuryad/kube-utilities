@@ -1,3 +1,104 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# ================================================================
+# CONFIGURATION (Harness will inject these)
+# ================================================================
+BUCKET="${BUCKET:-ethos-portal-originbucket-533267095208-cdn-uat}"
+DISTRIBUTION_ID="${DISTRIBUTION_ID:-YOUR_CF_DIST_ID}"
+
+echo "🔍 Using S3 Bucket: $BUCKET"
+echo "🔍 CloudFront Distribution: $DISTRIBUTION_ID"
+echo "============================================================"
+
+
+# ================================================================
+# Content-Type mapping function
+# ================================================================
+get_content_type() {
+    case "$1" in
+        html)  echo "text/html" ;;
+        js)    echo "application/javascript" ;;
+        css)   echo "text/css" ;;
+        json)  echo "application/json" ;;
+        png)   echo "image/png" ;;
+        jpg|jpeg) echo "image/jpeg" ;;
+        svg)   echo "image/svg+xml" ;;
+        *)     echo "" ;;   # unknown filetype
+    esac
+}
+
+
+# ================================================================
+# Temporary files
+# ================================================================
+FIXED_LIST="fixed_files.log"
+UNKNOWN_LIST="unknown_filetypes.log"
+
+rm -f "$FIXED_LIST" "$UNKNOWN_LIST"
+touch "$FIXED_LIST" "$UNKNOWN_LIST"
+
+
+# ================================================================
+# Fetch all S3 object keys
+# ================================================================
+echo "📦 Listing all objects in bucket..."
+OBJECTS=$(aws s3api list-objects-v2 --bucket "$BUCKET" --query "Contents[].Key" --output text)
+
+echo "Found $(echo "$OBJECTS" | wc -w) objects."
+echo "------------------------------------------------------------"
+
+
+# ================================================================
+# Process each object
+# ================================================================
+for KEY in $OBJECTS; do
+    EXT="${KEY##*.}"
+
+    # Determine proper content type
+    NEW_CT=$(get_content_type "$EXT")
+
+    if [[ -z "$NEW_CT" ]]; then
+        echo "⚠️  UNKNOWN FILE TYPE: $KEY (.$EXT)" | tee -a "$UNKNOWN_LIST"
+        continue
+    fi
+
+    echo "🔧 Fixing: $KEY → $NEW_CT"
+
+    aws s3api copy-object \
+        --bucket "$BUCKET" \
+        --copy-source "$BUCKET/$KEY" \
+        --key "$KEY" \
+        --metadata-directive REPLACE \
+        --content-type "$NEW_CT" >/dev/null
+
+    echo "$KEY → $NEW_CT" >> "$FIXED_LIST"
+done
+
+echo "------------------------------------------------------------"
+echo "✔ Done fixing known filetypes."
+echo "📄 Fixed files saved in: $(pwd)/$FIXED_LIST"
+echo "📄 Unknown filetypes saved in: $(pwd)/$UNKNOWN_LIST"
+echo "------------------------------------------------------------"
+
+
+# ================================================================
+# CloudFront invalidation
+# ================================================================
+echo "🚀 Creating CloudFront invalidation..."
+
+aws cloudfront create-invalidation \
+    --distribution-id "$DISTRIBUTION_ID" \
+    --paths "/*"
+
+echo "✔ CloudFront invalidation submitted."
+echo "============================================================"
+echo "🎉 FINISHED — All known filetypes corrected and cache invalidated."
+
+
+
+-------------------------
 variable "cdn_bucket_name" {
   type        = string
   default     = "ethos-portal-originbucket-533267095208-cdn-uat"
