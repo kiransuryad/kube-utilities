@@ -1,51 +1,50 @@
-data "aws_iam_policy_document" "s3_cf_automation" {
-  # ----- S3: Read/write objects (content + metadata) -----
+variable "cdn_bucket_name" {
+  type        = string
+  default     = "ethos-portal-originbucket-533267095208-cdn-uat"
+}
+
+variable "cloudfront_distribution_id" {
+  type        = string
+  description = "CloudFront distribution to invalidate"
+}
+
+
+data "aws_iam_policy_document" "s3_cf_frontend" {
+  # ---------------- S3 FULL OBJECT-LEVEL ACCESS ----------------
   statement {
-    sid = "S3ObjectReadWrite"
+    sid = "S3ObjectAccess"
 
     actions = [
       "s3:GetObject",
       "s3:GetObjectVersion",
       "s3:PutObject",
-      "s3:PutObjectAcl",
       "s3:DeleteObject",
       "s3:GetObjectTagging",
       "s3:PutObjectTagging",
+      "s3:PutObjectAcl"
     ]
 
     resources = [
-      var.s3_bucket_prefix == "" ?
-      "arn:aws:s3:::${var.s3_bucket_name}/*" :
-      "arn:aws:s3:::${var.s3_bucket_name}/${var.s3_bucket_prefix}*"
+      "arn:aws:s3:::${var.cdn_bucket_name}/*"
     ]
   }
 
-  # ----- S3: List bucket + basic bucket metadata -----
+  # ---------------- S3 LIST BUCKET + READ METADATA -------------
   statement {
-    sid = "S3BucketListAndMeta"
+    sid = "S3ListBucket"
 
     actions = [
       "s3:ListBucket",
-      "s3:GetBucketLocation",
+      "s3:GetBucketLocation"
     ]
 
     resources = [
-      "arn:aws:s3:::${var.s3_bucket_name}"
+      "arn:aws:s3:::${var.cdn_bucket_name}"
     ]
-
-    # Optional: restrict ListBucket to a prefix (good hygiene)
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-
-      values = [
-        var.s3_bucket_prefix == "" ? "" : "${var.s3_bucket_prefix}*"
-      ]
-    }
   }
 
-  # ----- CloudFront: Invalidate cached objects -----
-  # Note: CloudFront historically uses "*" for resources.
+  # ---------------- CloudFront INVALIDATION --------------------
+  # CloudFront uses wildcard ARNs; AWS requires "*" here.
   statement {
     sid = "CloudFrontInvalidation"
 
@@ -54,7 +53,7 @@ data "aws_iam_policy_document" "s3_cf_automation" {
       "cloudfront:GetInvalidation",
       "cloudfront:ListInvalidations",
       "cloudfront:GetDistribution",
-      "cloudfront:GetDistributionConfig",
+      "cloudfront:GetDistributionConfig"
     ]
 
     resources = ["*"]
@@ -62,12 +61,13 @@ data "aws_iam_policy_document" "s3_cf_automation" {
 }
 
 
-resource "aws_iam_policy" "s3_cf_automation" {
-  name        = "s3-cf-automation-policy"
-  description = "Allows EKS/Harness to fix S3 Content-Type and invalidate CloudFront"
+resource "aws_iam_policy" "s3_cf_frontend" {
+  name        = "s3-cloudfront-frontend-automation"
+  description = "Allows metadata fixes on S3 CDN bucket + CloudFront invalidations"
 
-  policy = data.aws_iam_policy_document.s3_cf_automation.json
+  policy = data.aws_iam_policy_document.s3_cf_frontend.json
 }
+
 
 
 
