@@ -1,3 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REGION="us-east-1"
+TABLE_NAME="uat-ade-ethos-588633075404-main-table"
+PK_VALUE="ethos|configurations|vault"
+
+put_item () {
+  local SORT_KEY="$1"
+  local DATA_VALUE="$2"
+
+  aws dynamodb put-item \
+    --region "$REGION" \
+    --table-name "$TABLE_NAME" \
+    --item "{
+      \"partitionKey\": {\"S\": \"$PK_VALUE\"},
+      \"sortKey\": {\"S\": \"$SORT_KEY\"},
+      \"data\": {\"S\": \"$DATA_VALUE\"}
+    }" \
+    --condition-expression "attribute_not_exists(partitionKey) AND attribute_not_exists(sortKey)"
+
+  echo "Inserted: $SORT_KEY"
+}
+
+echo "🔐 Verifying AWS identity"
+aws sts get-caller-identity
+
+echo "🚀 Inserting Vault configuration entries"
+
+put_item "vault_base_url" "https://hcvdev.fiscloudservices.com"
+put_item "vault_namespace" "CaaS-Parent/A10002786-Ethos_Portal"
+put_item "vault_secret_engine" "uat-ethos-portal-backend/"
+put_item "vault_enabled" "true"
+
+echo "📖 Reading back records for partitionKey = $PK_VALUE"
+
+aws dynamodb query \
+  --region "$REGION" \
+  --table-name "$TABLE_NAME" \
+  --key-condition-expression "partitionKey = :pk" \
+  --expression-attribute-values "{
+    \":pk\": {\"S\": \"$PK_VALUE\"}
+  }" \
+  --projection-expression "partitionKey, sortKey, data" \
+  --output table
+
+echo "✅ Verification complete"
+
+
+
+
+
+
+
+
+-----------------------------------------------
 {{- if .Values.secrets.envFromSecrets }}
 envFrom:
 {{- range .Values.secrets.envFromSecrets }}
