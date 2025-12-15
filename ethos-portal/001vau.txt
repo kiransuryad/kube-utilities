@@ -1,3 +1,24 @@
+{{- if .Values.secrets.envFromSecrets }}
+envFrom:
+{{- range .Values.secrets.envFromSecrets }}
+  {{- if . }}
+  - secretRef:
+      name: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+
+--
+
+secrets:
+  envFromSecrets:
+    - vault-token
+
+
+
+
+----------------
 #!/bin/bash
 set -euo pipefail
 
