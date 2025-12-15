@@ -1,3 +1,48 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "Ensuring Vault token Kubernetes secret exists..."
+
+# Retrieve Vault token from Harness secret (backed by Vault)
+VAULT_TOKEN="<+secrets.getValue('vault-token-uat-ethos-portal')>"
+
+# Target namespace (from Harness infra)
+NAMESPACE="<+infra.namespace>"
+
+SECRET_NAME="vault-token"
+
+# Apply or update the Kubernetes secret
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${SECRET_NAME}
+  namespace: ${NAMESPACE}
+type: Opaque
+stringData:
+  token: "${VAULT_TOKEN}"
+EOF
+
+echo "Vault token secret '${SECRET_NAME}' ensured in namespace '${NAMESPACE}'."
+
+
+--
+
+env:
+  - name: VAULT_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: vault-token
+        key: token
+
+
+
+
+
+
+
+
+-----------------------------
 vault status
 vault token lookup
 vault secrets list | head
