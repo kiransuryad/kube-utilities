@@ -1,0 +1,32 @@
+vault status
+vault token lookup
+vault secrets list | head
+
+Create eks-java-read.hcl:
+# Allow reading secret values (KV v2)
+path "uat-ethos-portal-backend/data/*" {
+  capabilities = ["read"]
+}
+
+# Allow listing and reading metadata (KV v2)
+path "uat-ethos-portal-backend/metadata/*" {
+  capabilities = ["list", "read"]
+}
+
+
+vault policy write eks-java-read eks-java-read.hcl
+
+vault token create \
+  -display-name="eks-java-uat-ethos-portal" \
+  -policy="eks-java-read" \
+  -ttl="8760h" \
+  -orphan
+
+
+
+# Check global caps
+vault read sys/config/state/sanitized | egrep -i "default_lease_ttl|max_lease_ttl"
+
+# Check token auth tune
+vault read sys/auth/token/tune
+
