@@ -1,3 +1,67 @@
+spec:
+  template:
+    spec:
+      containers:
+        - name: ethos-auth
+          image: <image>
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: >
+                -XX:+UseContainerSupport
+                -XX:MaxRAMPercentage=65
+                -XX:InitialRAMPercentage=30
+                -XX:+HeapDumpOnOutOfMemoryError
+                -XX:HeapDumpPath=/tmp
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 1
+
+
+----
+
+
+spec:
+  template:
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ .Values.java.toolOptions | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+
+
+----
+
+
+java:
+  toolOptions: >-
+    -XX:+UseContainerSupport
+    -XX:MaxRAMPercentage=70
+    -XX:InitialRAMPercentage=40
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:HeapDumpPath=/tmp
+
+resources:
+  requests:
+    memory: 2Gi
+    cpu: 1
+  limits:
+    memory: 3Gi
+    cpu: 2
+
+
+
+
+
+-------------------------------------
 #!/usr/bin/env bash
 set -euo pipefail
 
