@@ -3,11 +3,14 @@ set -euo pipefail
 
 REGION="us-east-1"
 TABLE_NAME="uat-ade-ethos-533267095208-main-table"
-PK_VALUE="ethos|configurations|vault"
 
+########################################
+# Generic UPSERT function
+########################################
 upsert_item () {
-  local SORT_KEY="$1"
-  local DATA_VALUE="$2"
+  local PK_VALUE="$1"
+  local SORT_KEY="$2"
+  local DATA_VALUE="$3"
 
   aws dynamodb update-item \
     --region "$REGION" \
@@ -24,37 +27,75 @@ upsert_item () {
       \":val\": {\"S\": \"$DATA_VALUE\"}
     }"
 
-  echo "Upserted: $SORT_KEY"
+  echo "Upserted → PK=$PK_VALUE | SK=$SORT_KEY"
 }
 
+########################################
+# Verify function (safe projection)
+########################################
+verify_partition () {
+  local PK_VALUE="$1"
+
+  echo
+  echo "📖 Records for partitionKey = $PK_VALUE"
+
+  aws dynamodb query \
+    --region "$REGION" \
+    --table-name "$TABLE_NAME" \
+    --key-condition-expression "#pk = :pk" \
+    --expression-attribute-names '{
+      "#pk": "partitionKey",
+      "#sk": "sortKey",
+      "#d": "data"
+    }' \
+    --expression-attribute-values '{
+      ":pk": {"S": "'"$PK_VALUE"'"}
+    }' \
+    --projection-expression "#pk, #sk, #d" \
+    --output table
+}
+
+########################################
+# Identity check
+########################################
 echo "🔐 Verifying AWS identity"
 aws sts get-caller-identity
 
-echo "🚀 Upserting Vault configuration entries"
+########################################
+# Partition 1: Vault configuration
+########################################
+PK_VAULT="ethos|configurations|vault"
 
-upsert_item "vault_base_url" "https://hcvdev.fiscloudservices.com"
-upsert_item "vault_namespace" "CaaS-Parent/A10002786-Ethos_Portal"
-upsert_item "vault_secret_engine" "uat-ethos-portal-backend/"
-upsert_item "vault_enabled" "true"
+echo
+echo "🚀 Upserting Vault configuration"
 
-echo "📖 Reading back records for partitionKey = $PK_VALUE"
+upsert_item "$PK_VAULT" "vault_base_url" "https://hcvdev.fiscloudservices.com"
+upsert_item "$PK_VAULT" "vault_namespace" "CaaS-Parent/A10002786-Ethos_Portal"
+upsert_item "$PK_VAULT" "vault_secret_engine" "uat-ethos-portal-backend/"
+upsert_item "$PK_VAULT" "vault_enabled" "true"
 
-aws dynamodb query \
-  --region "$REGION" \
-  --table-name "$TABLE_NAME" \
-  --key-condition-expression "#pk = :pk" \
-  --expression-attribute-names '{
-    "#pk": "partitionKey",
-    "#sk": "sortKey",
-    "#d": "data"
-  }' \
-  --expression-attribute-values '{
-    ":pk": {"S": "'"$PK_VALUE"'"}
-  }' \
-  --projection-expression "#pk, #sk, #d" \
-  --output table
+########################################
+# Partition 2: Portal logging configuration
+########################################
+PK_PORTAL_LOGGING="ethos|configurations|portallogging"
 
-echo "✅ Verification complete"
+echo
+echo "🚀 Upserting Portal logging configuration"
+
+upsert_item "$PK_PORTAL_LOGGING" "db_url" \
+  "jdbc:postgresql://ethos-uat-aurora-pgsql.cluster-cfyakiya0clz.us-east-1.rds.amazonaws.com:5432/ethos"
+
+upsert_item "$PK_PORTAL_LOGGING" "db_username" "ethos"
+
+########################################
+# Verification
+########################################
+verify_partition "$PK_VAULT"
+verify_partition "$PK_PORTAL_LOGGING"
+
+echo
+echo "✅ DynamoDB upsert & verification complete"
+
 
 
 
