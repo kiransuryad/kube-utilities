@@ -2,6 +2,69 @@
 set -euo pipefail
 
 REGION="us-east-1"
+TABLE_NAME="uat-ade-ethos-533267095208-main-table"
+PK_VALUE="ethos|configurations|vault"
+
+upsert_item () {
+  local SORT_KEY="$1"
+  local DATA_VALUE="$2"
+
+  aws dynamodb update-item \
+    --region "$REGION" \
+    --table-name "$TABLE_NAME" \
+    --key "{
+      \"partitionKey\": {\"S\": \"$PK_VALUE\"},
+      \"sortKey\": {\"S\": \"$SORT_KEY\"}
+    }" \
+    --update-expression "SET #d = :val" \
+    --expression-attribute-names '{
+      "#d": "data"
+    }' \
+    --expression-attribute-values "{
+      \":val\": {\"S\": \"$DATA_VALUE\"}
+    }"
+
+  echo "Upserted: $SORT_KEY"
+}
+
+echo "🔐 Verifying AWS identity"
+aws sts get-caller-identity
+
+echo "🚀 Upserting Vault configuration entries"
+
+upsert_item "vault_base_url" "https://hcvdev.fiscloudservices.com"
+upsert_item "vault_namespace" "CaaS-Parent/A10002786-Ethos_Portal"
+upsert_item "vault_secret_engine" "uat-ethos-portal-backend/"
+upsert_item "vault_enabled" "true"
+
+echo "📖 Reading back records for partitionKey = $PK_VALUE"
+
+aws dynamodb query \
+  --region "$REGION" \
+  --table-name "$TABLE_NAME" \
+  --key-condition-expression "#pk = :pk" \
+  --expression-attribute-names '{
+    "#pk": "partitionKey",
+    "#sk": "sortKey",
+    "#d": "data"
+  }' \
+  --expression-attribute-values '{
+    ":pk": {"S": "'"$PK_VALUE"'"}
+  }' \
+  --projection-expression "#pk, #sk, #d" \
+  --output table
+
+echo "✅ Verification complete"
+
+
+
+
+
+------------------
+#!/usr/bin/env bash
+set -euo pipefail
+
+REGION="us-east-1"
 TABLE_NAME="uat-ade-ethos-588633075404-main-table"
 PK_VALUE="ethos|configurations|vault"
 
