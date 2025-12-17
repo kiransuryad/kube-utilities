@@ -1,3 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REGION="us-east-1"
+TABLE_NAME="uat-ade-ethos-533267095208-main-table"
+
+echo "🔐 Verifying AWS identity"
+aws sts get-caller-identity
+
+########################################
+# 1️⃣ Update keycloakID (user record)
+########################################
+PK_USER="portal|organization|FIS|users"
+SK_USER="user|75cb8777-b8a2-4697-8f4f-dd49165e1129"
+NEW_KEYCLOAK_ID="NEW-KEYCLOAK-ID"
+
+echo "🚀 Updating keycloakID"
+
+aws dynamodb update-item \
+  --region "$REGION" \
+  --table-name "$TABLE_NAME" \
+  --key "{
+    \"partitionKey\": {\"S\": \"$PK_USER\"},
+    \"sortKey\": {\"S\": \"$SK_USER\"}
+  }" \
+  --update-expression "SET #kid = :val" \
+  --expression-attribute-names '{
+    "#kid": "keycloakID"
+  }' \
+  --expression-attribute-values "{
+    \":val\": {\"S\": \"$NEW_KEYCLOAK_ID\"}
+  }" \
+  --condition-expression "attribute_exists(partitionKey) AND attribute_exists(sortKey)"
+
+########################################
+# 2️⃣ Update S3 bucket name (config record)
+########################################
+PK_CFG="ethos|configurations|ethosportal"
+SK_CFG="bucket_name"
+NEW_BUCKET="ethos-portal-cecl-cdn-uat"
+
+echo "🚀 Updating S3 bucket name"
+
+aws dynamodb update-item \
+  --region "$REGION" \
+  --table-name "$TABLE_NAME" \
+  --key "{
+    \"partitionKey\": {\"S\": \"$PK_CFG\"},
+    \"sortKey\": {\"S\": \"$SK_CFG\"}
+  }" \
+  --update-expression "SET #d = :val" \
+  --expression-attribute-names '{
+    "#d": "data"
+  }' \
+  --expression-attribute-values "{
+    \":val\": {\"S\": \"$NEW_BUCKET\"}
+  }" \
+  --condition-expression "attribute_exists(partitionKey) AND attribute_exists(sortKey)"
+
+echo "✅ Both updates completed successfully"
+
+
+
+
+
+
+----------------------------------------
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Pod
