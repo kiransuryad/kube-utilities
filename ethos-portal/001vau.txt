@@ -1,3 +1,41 @@
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: s3-debug
+  namespace: tools
+spec:
+  serviceAccountName: backend
+  containers:
+    - name: awscli
+      image: amazon/aws-cli:2.15.0
+      command: ["sleep", "3600"]
+  restartPolicy: Never
+EOF
+
+
+--
+
+kubectl exec -it s3-debug -n tools -- sh
+
+
+--
+
+aws sts get-caller-identity
+
+
+--
+
+aws s3api put-object \
+  --bucket <BUCKET_NAME> \
+  --key debug/irsa-test.txt \
+  --body /etc/hosts
+
+
+
+
+
+--------------------
 spec:
   template:
     spec:
