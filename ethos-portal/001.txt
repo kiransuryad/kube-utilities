@@ -1,3 +1,53 @@
+excellent, all is well and UAT environment is up and running successfully and client had signed off it as working as expected. Now, we need a checklist of tasks to complete before going to prod, also production checklist and lastly PCI checklist. First let us work on the tasks we need to complete before going to prod. 
+
+
+We build UAT environment like this,
+
+1. ALl Infra, IAM through terraform
+2. Common EKS services like ingress-nginx, cert-manager through helm charts deployment via harness pipelines
+3. Common services images like ingress-nginx image and others we copied to local artifactory and used. Question : Do we need to do a CheckmarxOne scanning for these images ? , if yes, should we create a seperate project inside checkmarxOne for these images ?
+
+Backend Code:
+1. Created a helm chart for the backend-auth & backend-unauth services
+2. Manually, built the images  for these services and copied them to jfrog artifactory. Task: Build a Jenkins Pipeline to build these images and push them to jfrog artifactory. Question : Should we include the checkmarxOne scanning for these app images inside the jenkins pipeline ?
+
+
+FrontEnd Code:
+1. We migrated the S3 bucket data from old S3 bucket from different AWS Account.
+2. Casey rebuilt the code after the front end changes and we pushed the new code into S3 bucket from terraform code.
+3. We changed the filetype of each file individually after the copy inside S3 bucket through harness pipeline.
+Task : Copy should happen through Harness pipeline and need a pipeline code to build the front end automatically and push the updated one into S3 bucket.
+4. We migrated the old assest from the old cecl S3 bucket to the new one. This seems to be a onetime task
+
+Lambda Code:
+1. Lambda code is in the bitbucket repository and we are deploying through terraform code.
+Enhancement : Can enhance by automating the zipping process as well inside the bibucket repo.
+
+Database Code:
+1. DynamoDB:
+	1. Data from old dynamodb is migrated from old Account to new one by hybrid approach, manual + harness pipeline
+	Task: Migration can be hybrid as this is a one time task. But adhoc updates can be through a proper automated pipeline. 
+
+2. PostgresDB:
+	1. Data from old postgresqldb is migrated from old Account to new one by hybrid approach, manual + harness pipeline
+
+
+Python Code:
+	1. Where does this python code sits ? what functionality does it provide ?
+
+
+
+1. For common third party images, Do we need to do a CheckmarxOne scanning for these images ? , if yes, should we create a seperate project inside checkmarxOne for these images ?
+2. For backend images , Should we include the checkmarxOne scanning for these app images inside the jenkins pipeline ?
+3. For Frontend code, Copy should happen through Harness pipeline and need a pipeline code to build the front end automatically and push the updated one into S3 bucket.
+4. For lambda code, Can enhance by automating the zipping process as well inside the bibucket repo.
+5. For dynamodb update, Migration can be hybrid as this is a one time task. But adhoc updates can be through a proper automated pipeline. 
+6. For python code, Where does this python code sits ? what functionality does it provide ?
+7. Akamai task, URL of fisglobal should point to the new UAT applicagtion
+8. Users should have read + write access to S3 buckets UI
+
+
+---------------
 urlencode() {
     local string="${1}"
     local length="${#string}"
