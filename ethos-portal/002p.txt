@@ -1,3 +1,288 @@
+@Library(['common-lib@3-stable']) _
+
+/*
+  ethos-backend-build.groovy
+
+  What it does:
+  - Checkout backend repo
+  - Maven build + test (JDK21)
+  - Optional Dockerfile "unauth" transform (legacy behaviour)
+  - Login to Artifactory docker registry (podman + buildah)
+  - Build + push image tags (build tag + release tag) via buildah
+  - CxOne container-security scan against both tags
+  - Adds registries.conf so short-name pulls (e.g., openjdk:21-...) resolve to docker.io without TTY prompts
+  - Avoids Groovy string interpolation for secrets (no Jenkins warning)
+
+  Notes:
+  - For base images, prefer fully-qualified references in Dockerfile:
+      FROM docker.io/library/openjdk:21-jdk-oracle
+    Even with registries.conf in place, FQDN is safest.
+*/
+
+properties([
+  parameters([
+    // Source
+    string(name: 'SOURCECODE_REPO', defaultValue: 'https://bitbucket.fis.dev/scm/dsdata/ethos_portal_backend.git', description: 'Bitbucket repo URL'),
+    string(name: 'BRANCH_NAME',     defaultValue: 'master', description: 'Git branch'),
+    string(name: 'CREDENTIALS_ID',  defaultValue: 'ethos-portal-svc-acct', description: 'Jenkins creds for Git checkout'),
+
+    // Build
+    booleanParam(name: 'RUN_MAVEN', defaultValue: true, description: 'Run mvn package/test'),
+    string(name: 'DOCKERFILE_PATH', defaultValue: 'Dockerfile', description: 'Dockerfile path'),
+    string(name: 'CONTEXT_DIR',     defaultValue: '.', description: 'Build context dir'),
+    choice(name: 'IMAGE_TYPE',      choices: ['auth', 'unauth'], description: 'Image variant'),
+    string(name: 'IMAGE_NAME',      defaultValue: 'ethos-portal-auth', description: 'Image name'),
+    string(name: 'IMAGE_VERSION',   defaultValue: '1.0.0', description: 'Version prefix'),
+    choice(name: 'DEPLOY_ENV',      choices: ['dev1', 'dev2', 'uat', 'prod'], description: 'Env suffix'),
+
+    // Artifactory Docker
+    string(name: 'DOCKER_REGISTRY', defaultValue: 'dsdata-docker-snapshot-local.docker.fis.dev', description: 'Artifactory Docker registry host'),
+    string(name: 'DOCKER_REPO',     defaultValue: 'dsdata-docker-snapshot-local', description: 'Repo key/path inside registry (if applicable)'),
+    string(name: 'JFROG_USER',      defaultValue: 'svcacct-dsdata-caas-snapshot', description: 'JFrog service user'),
+
+    // Checkmarx
+    booleanParam(name: 'RUN_CX_CONT_SCAN', defaultValue: true, description: 'Run Checkmarx container-security scan'),
+    string(name: 'CX_PROJECT_NAME', defaultValue: 'EP-EKS-Uit-Cont-Scan', description: 'Checkmarx project name'),
+    string(name: 'CX_SERVER_URL',   defaultValue: 'https://fis.cxone.cloud', description: 'CxOne server URL'),
+    string(name: 'CX_TENANT',       defaultValue: 'fis', description: 'CxOne tenant'),
+    string(name: 'CX_BRANCH',       defaultValue: '', description: 'Optional override; defaults to BRANCH_NAME'),
+    string(name: 'CX_TAG',          defaultValue: 'ContainerScan', description: 'Scan tag'),
+    string(name: 'CX_THRESHOLDS',   defaultValue: 'containers-critical=0', description: 'Thresholds, e.g., containers-critical=0;containers-high=0')
+  ])
+])
+
+// Pod Template (YAML)
+String podTemplateString = '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+  containers:
+    - name: maven
+      image: caas-docker-release-local.docker.fis.dev/jenkins/ubi9-minimal-maven-jdk21:3.9.9-1
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      workingDir: /home/jenkins/agent
+
+    - name: buildah
+      image: caas-docker-release-local.docker.fis.dev/mirror/buildah/stable:v1.23.1
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      resources:
+        limits:
+          github.com/fuse: 1
+
+    - name: podman
+      image: caas-docker-release-local.docker.fis.dev/mirror/podman:v5.3.2
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      resources:
+        requests:
+          ephemeral-storage: "2Gi"
+
+  imagePullSecrets:
+    - name: caas-docker-release-local-ro
+    - name: svcacct-dsdata-caas-snapshot
+'''
+
+def label = "ethos-build-${UUID.randomUUID().toString()}"
+
+podTemplate(label: label, yaml: podTemplateString, runAsUser: '1000') {
+  node(label) {
+
+    // Derived tags (avoid spaces issues by using shell vars later; job rename still recommended)
+    def cxBranch  = (params.CX_BRANCH?.trim()) ? params.CX_BRANCH.trim() : params.BRANCH_NAME
+    def buildTag  = "${params.IMAGE_VERSION}-${params.IMAGE_TYPE}-${env.BUILD_NUMBER}-${params.DEPLOY_ENV}"
+    def releaseTag = "${params.IMAGE_VERSION}-${params.IMAGE_TYPE}-${params.DEPLOY_ENV}"
+
+    // Repo prefix (optional)
+    def repoPrefix = (params.DOCKER_REPO?.trim()) ? "${params.DOCKER_REPO.trim()}/" : ""
+    def imageRefBuild = "${params.DOCKER_REGISTRY}/${repoPrefix}${params.IMAGE_NAME}:${buildTag}"
+    def imageRefRel   = "${params.DOCKER_REGISTRY}/${repoPrefix}${params.IMAGE_NAME}:${releaseTag}"
+
+    stage('Checkout Source') {
+      checkout([
+        $class: 'GitSCM',
+        branches: [[name: "*/${params.BRANCH_NAME}"]],
+        userRemoteConfigs: [[url: "${params.SOURCECODE_REPO}", credentialsId: "${params.CREDENTIALS_ID}"]]
+      ])
+    }
+
+    if (params.RUN_MAVEN) {
+      stage('Build & Test (Maven)') {
+        container('maven') {
+          // Do NOT use MAVEN_OPTS with a workspace path containing spaces.
+          // Pass repo.local directly to Maven with quotes.
+          sh '''
+            set -euo pipefail
+            mkdir -p "$WORKSPACE/.m2/repository"
+
+            mvn -B \
+              -Dmaven.repo.local="$WORKSPACE/.m2/repository" \
+              -DskipTests \
+              clean package
+
+            mvn -B \
+              -Dmaven.repo.local="$WORKSPACE/.m2/repository" \
+              test
+
+            ls -la target || true
+          '''
+        }
+      }
+    }
+
+    stage('Prepare Dockerfile Variant') {
+      container('maven') {
+        sh '''
+          set -euo pipefail
+          if [ "${IMAGE_TYPE}" = "unauth" ]; then
+            echo "Applying unauth Dockerfile transformation..."
+            sed -i 's/auth/unauth/g' "${DOCKERFILE_PATH}"
+          fi
+        '''
+      }
+    }
+
+    stage('Write registries.conf (docker.io for short names)') {
+      // This prevents: "short-name resolution enforced but cannot prompt without a TTY"
+      // when Dockerfile uses short names like: FROM openjdk:21-jdk-oracle
+      container('podman') {
+        sh '''
+          set -euo pipefail
+          cat > "$WORKSPACE/registries.conf" <<'EOF'
+unqualified-search-registries = ["docker.io"]
+
+[registries.search]
+registries = ["docker.io"]
+EOF
+
+          echo "registries.conf written to $WORKSPACE/registries.conf"
+        '''
+      }
+    }
+
+    stage('Login to Artifactory Docker Registry (podman)') {
+      container('podman') {
+        withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'ART_TOKEN')]) {
+          sh '''
+            set -euo pipefail
+            echo "Podman version:"
+            podman --version
+
+            echo "Logging into Artifactory registry with podman..."
+            podman login -u "${JFROG_USER}" -p "$ART_TOKEN" "${DOCKER_REGISTRY}"
+          '''
+        }
+      }
+    }
+
+    stage('Build & Push Image (buildah)') {
+      container('buildah') {
+        withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+
+          // Use env vars + single-quoted sh to avoid Groovy interpolation warnings for secrets.
+          withEnv([
+            "IMAGE_REF_BUILD=${imageRefBuild}",
+            "IMAGE_REF_REL=${imageRefRel}",
+            "CX_BRANCH=${cxBranch}"
+          ]) {
+            sh '''
+              set -euo pipefail
+
+              echo "Buildah version:"
+              buildah --version
+
+              # Ensure buildah also knows how to resolve short names without TTY prompts
+              export REGISTRIES_CONF="$WORKSPACE/registries.conf"
+
+              echo "Login to Artifactory with buildah..."
+              buildah login -u "${JFROG_USER}" -p "$JFROG_API_KEY" "${DOCKER_REGISTRY}"
+
+              echo "Building image: ${IMAGE_REF_BUILD}"
+              buildah bud \
+                -f "${DOCKERFILE_PATH}" \
+                -t "${IMAGE_REF_BUILD}" \
+                "${CONTEXT_DIR}"
+
+              echo "Tagging release tag: ${IMAGE_REF_REL}"
+              buildah tag "${IMAGE_REF_BUILD}" "${IMAGE_REF_REL}"
+
+              echo "Pushing build tag..."
+              buildah push "${IMAGE_REF_BUILD}"
+
+              echo "Pushing release tag..."
+              buildah push "${IMAGE_REF_REL}"
+
+              echo "SUCCESS: Image pushed:"
+              echo " - ${IMAGE_REF_BUILD}"
+              echo " - ${IMAGE_REF_REL}"
+            '''
+          }
+        }
+      }
+    }
+
+    stage('CxOne - Container Scan') {
+      if (!params.RUN_CX_CONT_SCAN) {
+        echo "Checkmarx container scan disabled."
+        return
+      }
+
+      // Ensure podman env is sane for any image pulls during scan.
+      container('podman') {
+        withEnv(["XDG_RUNTIME_DIR=${env.WORKSPACE}", "HOME=${env.WORKSPACE}"]) {
+          withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'ART_TOKEN')]) {
+            sh '''
+              set -euo pipefail
+              echo "Ensuring podman is logged in (scanner may pull images)..."
+              podman login -u "${JFROG_USER}" -p "$ART_TOKEN" "${DOCKER_REGISTRY}"
+            '''
+          }
+        }
+      }
+
+      def imagesArg = "${imageRefBuild},${imageRefRel}"
+
+      checkmarxASTScanner(
+        branchName: cxBranch,
+        checkmarxInstallation: 'checkmarx-one-cli-latest',
+        credentialsId: 'checkmarx-one-creds',   // <-- set to your existing CxOne creds ID
+        projectName: params.CX_PROJECT_NAME,
+        serverUrl: params.CX_SERVER_URL,
+        tenantName: params.CX_TENANT,
+        additionalOptions: "--scan-types container-security --container-images ${imagesArg} --report-format summaryJSON --tags ${params.CX_TAG} --project-tags ${params.CX_PROJECT_NAME} --threshold ${params.CX_THRESHOLDS}",
+        useOwnAdditionalOptions: true,
+        useOwnServerCredentials: true
+      )
+    }
+
+    stage('Done') {
+      echo "Done. Built + pushed (and optionally scanned):"
+      echo " - ${imageRefBuild}"
+      echo " - ${imageRefRel}"
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
 withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
   sh '''
     set -euo pipefail
