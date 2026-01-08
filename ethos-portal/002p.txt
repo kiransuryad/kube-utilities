@@ -1,3 +1,35 @@
+withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+  sh '''
+    set -euo pipefail
+    buildah login -u "$JFROG_USER" -p "$JFROG_API_KEY" "$DOCKER_REGISTRY"
+  '''
+}
+
+
+sh '''
+  cat > "$WORKSPACE/registries.conf" <<'EOF'
+unqualified-search-registries = ["docker.io"]
+
+[registries.search]
+registries = ["docker.io"]
+EOF
+'''
+
+
+
+withEnv(["REGISTRIES_CONF=$WORKSPACE/registries.conf"]) {
+  sh '''
+    buildah bud -f Dockerfile -t "$imageRefBuild" .
+  '''
+}
+
+
+
+
+
+
+------------------------------------------------------------
+
 if (params.RUN_MAVEN) {
   stage('Build & Test (Maven)') {
     container('maven') {
