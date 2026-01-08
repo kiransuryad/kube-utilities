@@ -1,0 +1,229 @@
+@Library(['common-lib@3-stable']) _
+
+properties([
+  parameters([
+    // Source
+    string(name: 'SOURCECODE_REPO',   defaultValue: 'https://bitbucket.fis.dev/scm/dsdata/ethos-portal.git', description: 'Bitbucket repo URL'),
+    string(name: 'BRANCH_NAME',       defaultValue: 'develop', description: 'Git branch'),
+    string(name: 'CREDENTIALS_ID',    defaultValue: 'ethos-portal-svc-acct', description: 'Jenkins creds for Git checkout'),
+
+    // Build
+    booleanParam(name: 'RUN_MAVEN',   defaultValue: true, description: 'Run mvn package/test'),
+    string(name: 'DOCKERFILE_PATH',   defaultValue: 'Dockerfile', description: 'Dockerfile path'),
+    string(name: 'CONTEXT_DIR',       defaultValue: '.', description: 'Build context dir'),
+    choice(name: 'IMAGE_TYPE',        choices: ['auth', 'unauth'], description: 'Image variant'),
+    string(name: 'IMAGE_NAME',        defaultValue: 'ethos-portal', description: 'Image name'),
+    string(name: 'IMAGE_VERSION',     defaultValue: '1.0.0', description: 'Version prefix'),
+    choice(name: 'DEPLOY_ENV',        choices: ['dev1','dev2','uat','prod'], description: 'Env suffix'),
+
+    // Artifactory Docker
+    string(name: 'DOCKER_REGISTRY',   defaultValue: 'dsdata-docker-snapshot-local.docker.fis.dev', description: 'Artifactory Docker registry host'),
+    string(name: 'DOCKER_REPO',       defaultValue: 'dsdata-docker-snapshot-local', description: 'Repo key/path inside registry (if applicable)'),
+    string(name: 'JFROG_USER',        defaultValue: 'svcacct-dsdata-caas-snapshot', description: 'JFrog service user'),
+
+    // Checkmarx
+    booleanParam(name: 'RUN_CX_CONT_SCAN', defaultValue: true, description: 'Run Checkmarx container-security scan'),
+    string(name: 'CX_PROJECT_NAME',        defaultValue: 'EP-EKS-Uit-Cont-Scan', description: 'Checkmarx project name'),
+    string(name: 'CX_SERVER_URL',          defaultValue: 'https://fis.cxone.cloud', description: 'CxOne server URL'),
+    string(name: 'CX_TENANT',              defaultValue: 'fis', description: 'CxOne tenant'),
+    string(name: 'CX_BRANCH',              defaultValue: '', description: 'Optional override; defaults to BRANCH_NAME'),
+    string(name: 'CX_TAG',                 defaultValue: 'ContainerScan', description: 'Scan tag'),
+    string(name: 'CX_THRESHOLDS',          defaultValue: 'containers-critical=0', description: 'Thresholds, e.g., containers-critical=0;containers-high=0')
+  ])
+])
+
+/*
+  Required Jenkins credentials (as per your screenshots/pattern):
+  - Artifactory docker token: string credential id 'svcacct-dsdata-caas-snapshot' -> variable ART_TOKEN or JFROG_API_KEY
+  - Checkmarx: you appear to use "useOwnServerCredentials: true" + credentialsId.
+    Keep credentialsId below aligned to your existing CxOne config.
+*/
+
+String podTemplateString = """apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+  containers:
+    - name: maven
+      image: caas-docker-release-local.docker.fis.dev/jenkins/ubi8-minimal-jdk11-maven:3.8.4-1
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+
+    - name: podman
+      image: caas-docker-release-local.docker.fis.dev/jenkins/podman:latest
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      securityContext:
+        privileged: true
+
+    - name: buildah
+      image: caas-docker-release-local.docker.fis.dev/jenkins/buildah:latest
+      imagePullPolicy: IfNotPresent
+      command: ['cat']
+      tty: true
+      securityContext:
+        privileged: true
+
+  imagePullSecrets:
+    - name: caas-docker-release-local-ro
+"""
+
+def label = "ethos-build-${UUID.randomUUID().toString()}"
+
+podTemplate(label: label, yaml: podTemplateString, runAsUser: '1000') {
+  node(label) {
+
+    // Derived tags
+    def cxBranch      = (params.CX_BRANCH?.trim()) ? params.CX_BRANCH.trim() : params.BRANCH_NAME
+    def buildTag      = "${params.IMAGE_VERSION}-${params.IMAGE_TYPE}-${env.BUILD_NUMBER}-${params.DEPLOY_ENV}"
+    def releaseTag    = "${params.IMAGE_VERSION}-${params.IMAGE_TYPE}-${params.DEPLOY_ENV}"
+
+    // Registry path — adjust if your registry expects <host>/<repo>/<image>:tag vs <host>/<image>:tag.
+    // Your examples show pushing to something like: dsdata-docker-snapshot-local.docker.fis.dev (host)
+    // and then using ${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${IMAGE_NAME}:${IMAGE_TAG} in buildah.
+    // For docker registry pushes, the canonical is: <host>/<repo>/<image>:tag (repo optional depending on registry).
+    def repoPrefix = (params.DOCKER_REPO?.trim()) ? "${params.DOCKER_REPO.trim()}/" : ""
+    def imageRefBuild  = "${params.DOCKER_REGISTRY}/${repoPrefix}${params.IMAGE_NAME}:${buildTag}"
+    def imageRefRel    = "${params.DOCKER_REGISTRY}/${repoPrefix}${params.IMAGE_NAME}:${releaseTag}"
+
+    stage('Checkout Source') {
+      // If you already have a shared-lib wrapper like enaGit.checkoutRepo, you can swap to that.
+      checkout([
+        $class: 'GitSCM',
+        branches: [[name: "*/${params.BRANCH_NAME}"]],
+        userRemoteConfigs: [[url: "${params.SOURCECODE_REPO}", credentialsId: "${params.CREDENTIALS_ID}"]]
+      ])
+    }
+
+    if (params.RUN_MAVEN) {
+      stage('Build & Test (Maven)') {
+        container('maven') {
+          sh '''
+            set -euo pipefail
+            mvn -B -DskipTests clean package
+            mvn -B test
+            ls -la target || true
+          '''
+        }
+      }
+    }
+
+    stage('Prepare Dockerfile Variant') {
+      // Keep parity with the old pipeline behaviour. Prefer build-args/targets long term.
+      container('maven') {
+        sh """
+          set -euo pipefail
+          if [ "${params.IMAGE_TYPE}" = "unauth" ]; then
+            echo "Applying unauth Dockerfile transformation..."
+            sed -i 's/auth/unauth/g' ${params.DOCKERFILE_PATH}
+          fi
+        """
+      }
+    }
+
+    stage('Login to Artifactory Docker Registry') {
+      container('podman') {
+        withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'ART_TOKEN')]) {
+          sh """
+            set -euo pipefail
+            echo "Podman version:"
+            podman --version
+
+            echo "Logging into Artifactory registry with podman..."
+            podman login -u "${params.JFROG_USER}" -p "$ART_TOKEN" ${params.DOCKER_REGISTRY}
+          """
+        }
+      }
+    }
+
+    stage('Build & Push Image (Buildah)') {
+      container('buildah') {
+        withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'JFROG_API_KEY')]) {
+          sh """
+            set -euo pipefail
+
+            echo "Buildah version:"
+            buildah --version
+
+            echo "Login to Artifactory with buildah..."
+            buildah login -u "${params.JFROG_USER}" -p "$JFROG_API_KEY" ${params.DOCKER_REGISTRY}
+
+            echo "Building image: ${imageRefBuild}"
+            buildah bud \
+              -f ${params.DOCKERFILE_PATH} \
+              -t ${imageRefBuild} \
+              ${params.CONTEXT_DIR}
+
+            echo "Tagging release tag: ${imageRefRel}"
+            buildah tag ${imageRefBuild} ${imageRefRel}
+
+            echo "Pushing build tag..."
+            buildah push ${imageRefBuild}
+
+            echo "Pushing release tag..."
+            buildah push ${imageRefRel}
+
+            echo "SUCCESS: Image pushed:"
+            echo " - ${imageRefBuild}"
+            echo " - ${imageRefRel}"
+          """
+        }
+      }
+    }
+
+    stage('CxOne - Container Scan') {
+      if (!params.RUN_CX_CONT_SCAN) {
+        echo "Checkmarx container scan disabled."
+        return
+      }
+
+      // Matches your pattern:
+      // checkmarxASTScanner(
+      //   branchName: 'develop',
+      //   checkmarxInstallation: 'checkmarx-one-cli-latest',
+      //   credentialsId: '...',
+      //   projectName: '...',
+      //   serverUrl: 'https://fis.cxone.cloud',
+      //   tenantName: 'fis',
+      //   additionalOptions: '--scan-types container-security --container-images ...'
+      //   useOwnAdditionalOptions: true,
+      //   useOwnServerCredentials: true
+      // )
+      container('podman') {
+        withEnv(["XDG_RUNTIME_DIR=${env.WORKSPACE}", "HOME=${env.WORKSPACE}"]) {
+          // Reuse the same token for podman login already done; safe to keep here if your scanner pulls images.
+          withCredentials([string(credentialsId: 'svcacct-dsdata-caas-snapshot', variable: 'ART_TOKEN')]) {
+            sh """
+              set -euo pipefail
+              echo "Ensuring podman is logged in (scanner may pull images)..."
+              podman login -u "${params.JFROG_USER}" -p "$ART_TOKEN" ${params.DOCKER_REGISTRY}
+            """
+          }
+        }
+
+        // Scan BOTH tags (build + release) so you have traceability.
+        def imagesArg = "${imageRefBuild},${imageRefRel}"
+
+        checkmarxASTScanner(
+          branchName: cxBranch,
+          checkmarxInstallation: 'checkmarx-one-cli-latest',
+          credentialsId: 'checkmarx-one-creds',          // <-- set this to your existing CxOne creds ID
+          projectName: params.CX_PROJECT_NAME,
+          serverUrl: params.CX_SERVER_URL,
+          tenantName: params.CX_TENANT,
+          additionalOptions: "--scan-types container-security --container-images ${imagesArg} --report-format summaryJSON --tags ${params.CX_TAG} --project-tags ${params.CX_PROJECT_NAME} --threshold ${params.CX_THRESHOLDS}",
+          useOwnAdditionalOptions: true,
+          useOwnServerCredentials: true
+        )
+      }
+    }
+
+    stage('Done') {
+      echo "Done. Built + pushed + (optionally) scanned:"
+      echo " - ${imageRefBuild}"
+      echo " - ${imageRefRel}"
+    }
+  }
+}
