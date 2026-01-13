@@ -1,0 +1,430 @@
+build_node
+---
+
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+log(){ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
+die(){ log "ERROR: $*"; exit 1; }
+
+: "${WORKSPACE_DIR:?Set WORKSPACE_DIR (e.g. /harness)}"
+: "${ENVIRONMENT:?Set ENVIRONMENT dev|dev2|uat|prod}"
+
+# Repo/workspace layout
+FRONTEND_FOLDER="${FRONTEND_FOLDER:-FIS_UX_platform}"
+COMPONENT_FOLDER="${COMPONENT_FOLDER:-${FRONTEND_FOLDER}/packages/ethos-app}"
+OUT_REL="${OUT_REL:-${COMPONENT_FOLDER}/out}"
+ROBOTS_TXT_PATH="${ROBOTS_TXT_PATH:-${FRONTEND_FOLDER}/robots.txt}"
+
+# Build behaviour
+DEPLOY_ENV="${DEPLOY_ENV:-$ENVIRONMENT}"              # npm run build${DEPLOY_ENV}
+APPLICATION_NAME="${APPLICATION_NAME:-reactive-framework}"
+
+# Artifact output
+ARTIFACT_DIR="${ARTIFACT_DIR:-${WORKSPACE_DIR}/artifact}"
+mkdir -p "${ARTIFACT_DIR}"
+
+# ------------------------------
+# Feature flags
+# ------------------------------
+# 1) NPM cache between runs:
+# - Set ENABLE_NPM_CACHE=true and point NPM_CACHE_DIR to a directory that Harness caches between runs.
+# - In Harness, configure Cache Paths for NPM_CACHE_DIR.
+ENABLE_NPM_CACHE="${ENABLE_NPM_CACHE:-true}"
+NPM_CACHE_DIR="${NPM_CACHE_DIR:-${WORKSPACE_DIR}/.cache/npm}"   # set this as Harness cache path
+
+# 2) Build output checksum (for deploy guard):
+# - Always produced, Stage B decides whether to use it.
+# - Uses SHA256 of the tarball for strong guard.
+ENABLE_BUILD_CHECKSUM="${ENABLE_BUILD_CHECKSUM:-true}"
+
+# ------------------------------
+# Paths
+# ------------------------------
+COMPONENT_ABS="${WORKSPACE_DIR}/${COMPONENT_FOLDER}"
+OUT_ABS="${WORKSPACE_DIR}/${OUT_REL}"
+ROBOTS_ABS="${WORKSPACE_DIR}/${ROBOTS_TXT_PATH}"
+
+[[ -d "${COMPONENT_ABS}" ]] || die "Missing component folder: ${COMPONENT_ABS}"
+[[ -f "${COMPONENT_ABS}/package.json" ]] || die "Missing package.json: ${COMPONENT_ABS}/package.json"
+
+# Read app version
+APP_VERSION="$(node -p "require('${COMPONENT_ABS}/package.json').version")"
+[[ -n "${APP_VERSION}" ]] || die "Could not read version from package.json"
+
+JULIAN="$(date -u +%j)"
+BUILD_NUMBER="${BUILD_NUMBER:-${HARNESS_BUILD_ID:-0}}"
+ARTIFACT_NAME="${APPLICATION_NAME}-${ENVIRONMENT}-${APP_VERSION}.${JULIAN}${BUILD_NUMBER}.tar.gz"
+ARTIFACT_PATH="${ARTIFACT_DIR}/${ARTIFACT_NAME}"
+CHECKSUM_PATH="${ARTIFACT_DIR}/${ARTIFACT_NAME}.sha256"
+
+log "Build: env=${ENVIRONMENT}, deploy_env=${DEPLOY_ENV}, version=${APP_VERSION}"
+log "Component: ${COMPONENT_ABS}"
+log "Artifact: ${ARTIFACT_PATH}"
+
+# NPM cache wiring
+if [[ "${ENABLE_NPM_CACHE}" == "true" ]]; then
+  mkdir -p "${NPM_CACHE_DIR}"
+  export npm_config_cache="${NPM_CACHE_DIR}"
+  log "NPM cache enabled: npm_config_cache=${npm_config_cache}"
+else
+  log "NPM cache disabled"
+fi
+
+pushd "${COMPONENT_ABS}" >/dev/null
+
+npm cache verify
+npm install
+npm run bootstrap
+npm run "build${DEPLOY_ENV}"
+npm run export
+
+popd >/dev/null
+
+# Copy robots.txt into out/
+if [[ -f "${ROBOTS_ABS}" ]]; then
+  log "Copying robots.txt -> ${OUT_ABS}/robots.txt"
+  mkdir -p "${OUT_ABS}"
+  cp -f "${ROBOTS_ABS}" "${OUT_ABS}/robots.txt"
+else
+  log "robots.txt not found at ${ROBOTS_ABS} (continuing)"
+fi
+
+[[ -d "${OUT_ABS}" ]] || die "Build output folder missing: ${OUT_ABS}"
+
+# Pack out/ into tarball
+log "Packing out/ into artifact tarball"
+tar -C "${OUT_ABS}" -czf "${ARTIFACT_PATH}" .
+
+# Write pointer file
+echo "${ARTIFACT_NAME}" > "${ARTIFACT_DIR}/artifact_name.txt"
+
+# Strong checksum for guard
+if [[ "${ENABLE_BUILD_CHECKSUM}" == "true" ]]; then
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${ARTIFACT_PATH}" | awk '{print $1}' > "${CHECKSUM_PATH}"
+  else
+    # macOS alternative; usually Linux in CI but keep robust
+    shasum -a 256 "${ARTIFACT_PATH}" | awk '{print $1}' > "${CHECKSUM_PATH}"
+  fi
+  log "Checksum written: ${CHECKSUM_PATH} = $(cat "${CHECKSUM_PATH}")"
+else
+  log "Build checksum disabled"
+fi
+
+log "Build complete."
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------------------
+deploy_to_s3
+--
+
+
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+log(){ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
+die(){ log "ERROR: $*"; exit 1; }
+
+: "${WORKSPACE_DIR:?Set WORKSPACE_DIR (e.g. /harness)}"
+: "${ENVIRONMENT:?Set ENVIRONMENT dev|dev2|uat|prod}"
+: "${AWS_REGION:?Set AWS_REGION (e.g. us-east-1)}"
+
+ARTIFACT_DIR="${ARTIFACT_DIR:-${WORKSPACE_DIR}/artifact}"
+
+# Artifact name resolution
+ARTIFACT_NAME="${ARTIFACT_NAME:-}"
+if [[ -z "${ARTIFACT_NAME}" ]]; then
+  [[ -f "${ARTIFACT_DIR}/artifact_name.txt" ]] || die "Set ARTIFACT_NAME or provide ${ARTIFACT_DIR}/artifact_name.txt"
+  ARTIFACT_NAME="$(cat "${ARTIFACT_DIR}/artifact_name.txt")"
+fi
+
+ARTIFACT_PATH="${ARTIFACT_DIR}/${ARTIFACT_NAME}"
+[[ -f "${ARTIFACT_PATH}" ]] || die "Artifact tar.gz not found: ${ARTIFACT_PATH}"
+
+# ------------------------------
+# Feature flags
+# ------------------------------
+# 2) Checksum guard:
+# - If enabled, compare local artifact checksum to remote stored checksum in S3.
+# - If same: skip s3 sync + invalidation.
+ENABLE_CHECKSUM_GUARD="${ENABLE_CHECKSUM_GUARD:-true}"
+CHECKSUM_FILE="${CHECKSUM_FILE:-${ARTIFACT_DIR}/${ARTIFACT_NAME}.sha256}"
+S3_GUARD_OBJECT_KEY="${S3_GUARD_OBJECT_KEY:-.deploy/last_successful_sha256.txt}"  # stored inside the same bucket
+
+# 3) Safer invalidation:
+# - If enabled, compute changed paths by diffing previous manifest vs new manifest in S3.
+# - If too many changes or errors: fallback to "/*" or skip based on policy.
+ENABLE_SELECTIVE_INVALIDATION="${ENABLE_SELECTIVE_INVALIDATION:-true}"
+INVALIDATION_FALLBACK_MODE="${INVALIDATION_FALLBACK_MODE:-all}"  # "all" or "skip"
+MAX_INVALIDATION_PATHS="${MAX_INVALIDATION_PATHS:-1000}"         # CloudFront limit per invalidation request is 1000 paths
+S3_MANIFEST_OBJECT_KEY="${S3_MANIFEST_OBJECT_KEY:-.deploy/last_manifest.txt}" # stores list of deployed files
+
+# Optional: prefix to deploy under bucket (leave empty to deploy to root)
+S3_PREFIX="${S3_PREFIX:-}"  # example: "ui/" (no leading slash required)
+
+# AWS targets (prefer explicit)
+S3_BUCKET_URI="${S3_BUCKET_URI:-}"
+CLOUDFRONT_DIST_ID="${CLOUDFRONT_DIST_ID:-}"
+MAP_LEGACY="${MAP_LEGACY:-false}"
+
+if [[ "${MAP_LEGACY}" == "true" ]]; then
+  case "${ENVIRONMENT}" in
+    dev)
+      S3_BUCKET_URI="${S3_BUCKET_URI:-s3://ethos-portal-originbucket-949089020426-cdn-dev}"
+      CLOUDFRONT_DIST_ID="${CLOUDFRONT_DIST_ID:-EHSP0QXPRX9Y5}"
+      ;;
+    dev2)
+      S3_BUCKET_URI="${S3_BUCKET_URI:-s3://ethos-portal-originbucket-949089020426-cdn-dev2-dev2}"
+      CLOUDFRONT_DIST_ID="${CLOUDFRONT_DIST_ID:-E1L4U0SFTXSP0C}"
+      ;;
+    uat)
+      S3_BUCKET_URI="${S3_BUCKET_URI:-s3://ethos-portal-originbucket-588633075404-cdn-uat}"
+      CLOUDFRONT_DIST_ID="${CLOUDFRONT_DIST_ID:-EFL7FX4EXG3E1}"
+      ;;
+    prod)
+      S3_BUCKET_URI="${S3_BUCKET_URI:-s3://ethos-portal-originbucket-825483532371-cdn-prod}"
+      CLOUDFRONT_DIST_ID="${CLOUDFRONT_DIST_ID:-E3KUIFDB60KFP0}"
+      ;;
+    *)
+      die "Unsupported ENVIRONMENT for mapping: ${ENVIRONMENT}"
+      ;;
+  esac
+fi
+
+[[ -n "${S3_BUCKET_URI}" ]] || die "S3_BUCKET_URI is required (or set MAP_LEGACY=true)"
+[[ -n "${CLOUDFRONT_DIST_ID}" ]] || die "CLOUDFRONT_DIST_ID is required (or set MAP_LEGACY=true)"
+
+# Optional assume-role
+ASSUME_ROLE_ARN="${ASSUME_ROLE_ARN:-}"
+ROLE_SESSION_NAME="${ROLE_SESSION_NAME:-harness-frontend-deploy}"
+
+assume_role_if_needed() {
+  if [[ -z "${ASSUME_ROLE_ARN}" ]]; then
+    return 0
+  fi
+  command -v jq >/dev/null 2>&1 || die "jq required for assume-role"
+  log "Assuming role: ${ASSUME_ROLE_ARN}"
+  local out
+  out="$(aws sts assume-role \
+    --role-arn "${ASSUME_ROLE_ARN}" \
+    --role-session-name "${ROLE_SESSION_NAME}" \
+    --region "${AWS_REGION}")"
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+  AWS_ACCESS_KEY_ID="$(jq -r '.Credentials.AccessKeyId' <<<"$out")"
+  AWS_SECRET_ACCESS_KEY="$(jq -r '.Credentials.SecretAccessKey' <<<"$out")"
+  AWS_SESSION_TOKEN="$(jq -r '.Credentials.SessionToken' <<<"$out")"
+  [[ -n "${AWS_ACCESS_KEY_ID}" && "${AWS_ACCESS_KEY_ID}" != "null" ]] || die "assume-role failed"
+  log "Assume-role succeeded."
+}
+
+# Normalize target path
+TARGET_S3_URI="${S3_BUCKET_URI}"
+if [[ -n "${S3_PREFIX}" ]]; then
+  # ensure no leading slash
+  S3_PREFIX="${S3_PREFIX#/}"
+  TARGET_S3_URI="${S3_BUCKET_URI%/}/${S3_PREFIX%/}/"
+fi
+
+# helper: get bucket name without s3://
+bucket_name_from_uri() {
+  local u="$1"
+  u="${u#s3://}"
+  echo "${u%%/*}"
+}
+
+BUCKET_NAME="$(bucket_name_from_uri "${S3_BUCKET_URI}")"
+
+assume_role_if_needed
+
+# ------------------------------
+# Checksum guard
+# ------------------------------
+local_sha=""
+remote_sha=""
+
+if [[ "${ENABLE_CHECKSUM_GUARD}" == "true" ]]; then
+  if [[ -f "${CHECKSUM_FILE}" ]]; then
+    local_sha="$(cat "${CHECKSUM_FILE}" | tr -d ' \n\r\t')"
+    log "Local checksum: ${local_sha}"
+  else
+    log "Checksum guard enabled but missing local checksum file: ${CHECKSUM_FILE} (continuing without guard)"
+    ENABLE_CHECKSUM_GUARD="false"
+  fi
+
+  if [[ "${ENABLE_CHECKSUM_GUARD}" == "true" ]]; then
+    # Try to fetch remote sha (may not exist on first deploy)
+    if aws s3api head-object --bucket "${BUCKET_NAME}" --key "${S3_GUARD_OBJECT_KEY}" --region "${AWS_REGION}" >/dev/null 2>&1; then
+      remote_sha="$(aws s3 cp "s3://${BUCKET_NAME}/${S3_GUARD_OBJECT_KEY}" - --region "${AWS_REGION}" | tr -d ' \n\r\t')"
+      log "Remote checksum: ${remote_sha}"
+      if [[ -n "${remote_sha}" && "${remote_sha}" == "${local_sha}" ]]; then
+        log "Checksum guard: no changes detected. Skipping deploy + invalidation."
+        exit 0
+      fi
+    else
+      log "Remote checksum object not found (first deploy or not yet written): s3://${BUCKET_NAME}/${S3_GUARD_OBJECT_KEY}"
+    fi
+  fi
+else
+  log "Checksum guard disabled"
+fi
+
+# ------------------------------
+# Unpack artifact
+# ------------------------------
+DEPLOY_DIR="${WORKSPACE_DIR}/deploy_out"
+rm -rf "${DEPLOY_DIR}"
+mkdir -p "${DEPLOY_DIR}"
+
+log "Unpacking ${ARTIFACT_PATH} -> ${DEPLOY_DIR}"
+tar -C "${DEPLOY_DIR}" -xzf "${ARTIFACT_PATH}"
+
+# ------------------------------
+# Selective invalidation support: build new manifest
+# ------------------------------
+NEW_MANIFEST="${WORKSPACE_DIR}/new_manifest.txt"
+OLD_MANIFEST="${WORKSPACE_DIR}/old_manifest.txt"
+CHANGED_PATHS_FILE="${WORKSPACE_DIR}/changed_paths.txt"
+
+# Create new manifest (sorted list of file paths, relative, with leading slash for CF invalidation)
+# Note: CloudFront invalidation paths must start with "/"
+(
+  cd "${DEPLOY_DIR}"
+  find . -type f -print \
+    | sed 's|^\./||' \
+    | sort \
+    | awk '{print "/" $0}'
+) > "${NEW_MANIFEST}"
+
+# ------------------------------
+# Deploy to S3
+# ------------------------------
+log "Pre-deploy S3 listing: ${TARGET_S3_URI}"
+aws s3 ls "${TARGET_S3_URI}" --recursive --region "${AWS_REGION}" || true
+
+log "Syncing to S3 with --delete: ${DEPLOY_DIR} -> ${TARGET_S3_URI}"
+aws s3 sync "${DEPLOY_DIR}" "${TARGET_S3_URI}" --delete --region "${AWS_REGION}"
+
+log "Post-deploy S3 listing: ${TARGET_S3_URI}"
+aws s3 ls "${TARGET_S3_URI}" --recursive --region "${AWS_REGION}" || true
+
+# ------------------------------
+# Selective invalidation (optional)
+# ------------------------------
+invalidate_all() {
+  log "CloudFront invalidation: dist=${CLOUDFRONT_DIST_ID}, paths=/*"
+  aws cloudfront create-invalidation \
+    --distribution-id "${CLOUDFRONT_DIST_ID}" \
+    --paths "/*" \
+    --region "${AWS_REGION}" >/dev/null
+}
+
+invalidate_paths_from_file() {
+  local file="$1"
+  local count
+  count="$(wc -l < "$file" | tr -d ' ')"
+  if [[ "${count}" -le 0 ]]; then
+    log "No paths to invalidate."
+    return 0
+  fi
+  if [[ "${count}" -gt "${MAX_INVALIDATION_PATHS}" ]]; then
+    log "Changed paths (${count}) exceed MAX_INVALIDATION_PATHS=${MAX_INVALIDATION_PATHS}"
+    if [[ "${INVALIDATION_FALLBACK_MODE}" == "all" ]]; then
+      invalidate_all
+      return 0
+    fi
+    log "Fallback mode=skip, skipping invalidation."
+    return 0
+  fi
+
+  # Build args list safely
+  # shellcheck disable=SC2046
+  log "CloudFront invalidation: dist=${CLOUDFRONT_DIST_ID}, paths_count=${count}"
+  aws cloudfront create-invalidation \
+    --distribution-id "${CLOUDFRONT_DIST_ID}" \
+    --paths $(cat "$file") \
+    --region "${AWS_REGION}" >/dev/null
+}
+
+if [[ "${ENABLE_SELECTIVE_INVALIDATION}" == "true" ]]; then
+  log "Selective invalidation enabled"
+
+  # fetch previous manifest if exists
+  if aws s3api head-object --bucket "${BUCKET_NAME}" --key "${S3_MANIFEST_OBJECT_KEY}" --region "${AWS_REGION}" >/dev/null 2>&1; then
+    aws s3 cp "s3://${BUCKET_NAME}/${S3_MANIFEST_OBJECT_KEY}" "${OLD_MANIFEST}" --region "${AWS_REGION}" >/dev/null
+    # compute changed paths = symmetric difference (added/removed)
+    comm -3 <(sort "${OLD_MANIFEST}") <(sort "${NEW_MANIFEST}") | sed '/^\s*$/d' > "${CHANGED_PATHS_FILE}" || true
+
+    # Optional: also always invalidate "/" for SPA entrypoint safety if you want:
+    # echo "/" >> "${CHANGED_PATHS_FILE}"
+
+    invalidate_paths_from_file "${CHANGED_PATHS_FILE}"
+  else
+    log "No previous manifest; first deploy. Using fallback invalidation."
+    if [[ "${INVALIDATION_FALLBACK_MODE}" == "all" ]]; then
+      invalidate_all
+    else
+      log "Fallback mode=skip, skipping invalidation."
+    fi
+  fi
+else
+  log "Selective invalidation disabled; invalidating all"
+  invalidate_all
+fi
+
+# ------------------------------
+# Persist guard state (checksum + manifest)
+# ------------------------------
+if [[ -n "${local_sha}" ]]; then
+  log "Writing checksum guard object: s3://${BUCKET_NAME}/${S3_GUARD_OBJECT_KEY}"
+  printf "%s" "${local_sha}" | aws s3 cp - "s3://${BUCKET_NAME}/${S3_GUARD_OBJECT_KEY}" --region "${AWS_REGION}" >/dev/null
+fi
+
+log "Writing manifest: s3://${BUCKET_NAME}/${S3_MANIFEST_OBJECT_KEY}"
+aws s3 cp "${NEW_MANIFEST}" "s3://${BUCKET_NAME}/${S3_MANIFEST_OBJECT_KEY}" --region "${AWS_REGION}" >/dev/null
+
+log "Deploy complete."
+
+
+-------------------------------------------------------------------
+
+
+Stage A (Build)
+
+Enable npm cache (recommended):
+
+ENABLE_NPM_CACHE=true
+
+NPM_CACHE_DIR=/harness/.cache/npm
+
+Harness Cache Paths include /harness/.cache/npm
+
+Write checksum (recommended):
+
+ENABLE_BUILD_CHECKSUM=true (default)
+
+Stage B (Deploy)
+
+Checksum guard:
+
+ENABLE_CHECKSUM_GUARD=true (default)
+
+S3_GUARD_OBJECT_KEY=.deploy/last_successful_sha256.txt (default)
+
+Selective invalidation:
+
+ENABLE_SELECTIVE_INVALIDATION=true (default)
+
+S3_MANIFEST_OBJECT_KEY=.deploy/last_manifest.txt
+
+MAX_INVALIDATION_PATHS=1000 (CloudFront limit)
+
+INVALIDATION_FALLBACK_MODE=all (safe default)
