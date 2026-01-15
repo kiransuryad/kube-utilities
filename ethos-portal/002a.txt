@@ -1,3 +1,62 @@
+set -euo pipefail
+
+echo "== Versions =="
+node -v
+npm -v
+
+echo "== Install native build deps (safe) =="
+apk add --no-cache python3 make g++ libc6-compat >/dev/null
+
+echo "== Verify repo layout =="
+pwd
+ls -la
+test -d FIS_UX_platform
+
+echo "== Build from monorepo root =="
+cd FIS_UX_platform
+
+# If you want to be strict/reproducible and your lockfile is reliable, use npm ci:
+# npm ci
+# Otherwise use npm install (safer if lockfile is not consistently maintained):
+npm install
+
+npm run bootstrap
+npm run build
+npm run export
+
+echo "== Copy robots.txt to export output (matches Jenkins behaviour) =="
+cp -f robots.txt packages/ethos-app/out/robots.txt || true
+
+echo "== Output listing =="
+ls -la packages/ethos-app/out | head -n 200
+
+echo "== Success: build artifacts are in FIS_UX_platform/packages/ethos-app/out =="
+
+---
+
+Run: Package Artifact (tar.gz)
+-----
+
+set -euo pipefail
+
+ARTIFACT_DIR="FIS_UX_platform/packages/ethos-app/out"
+ARTIFACT_NAME="ethos-frontend-out.tar.gz"
+
+test -d "$ARTIFACT_DIR"
+
+tar -C "$ARTIFACT_DIR" -czf "$ARTIFACT_NAME" .
+
+echo "Created: $ARTIFACT_NAME"
+ls -lh "$ARTIFACT_NAME"
+
+
+
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------
 build_node
 ---
 
