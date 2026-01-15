@@ -1,3 +1,74 @@
+set -euo pipefail
+
+OUT_DIR="/harness/FIS_UX_platform/packages/ethos-app/out"
+: "${S3_BUCKET:?Set S3_BUCKET}"
+: "${AWS_DEFAULT_REGION:=us-east-1}"
+
+test -d "$OUT_DIR"
+test "$(ls -A "$OUT_DIR")" || { echo "ERROR: OUT_DIR is empty, refusing to sync"; exit 1; }
+
+echo "AWS CLI:"
+aws --version
+
+echo "Sync source: $OUT_DIR"
+echo "Sync dest:   s3://${S3_BUCKET}/"
+
+if [ "${DRY_RUN:-false}" = "true" ]; then
+  echo "DRY RUN enabled (no changes will be made)"
+  aws s3 sync "$OUT_DIR" "s3://${S3_BUCKET}/" --delete --dryrun
+else
+  aws s3 sync "$OUT_DIR" "s3://${S3_BUCKET}/" --delete
+fi
+
+echo "S3 sync complete."
+
+
+---
+
+AWS_DEFAULT_REGION = us-east-1
+
+S3_BUCKET = ethos-portal-originbucket-533267095208-cdn-uat
+
+Optional safety: DRY_RUN = false (set true once to preview)
+
+----
+
+
+set -euo pipefail
+
+: "${CF_DIST_ID:?Set CF_DIST_ID}"
+: "${AWS_DEFAULT_REGION:=us-east-1}"
+
+echo "AWS CLI:"
+aws --version
+
+echo "Creating CloudFront invalidation on distribution: $CF_DIST_ID"
+INV_ID="$(aws cloudfront create-invalidation \
+  --distribution-id "$CF_DIST_ID" \
+  --paths "/*" \
+  --query 'Invalidation.Id' \
+  --output text)"
+
+echo "Invalidation created: $INV_ID"
+echo "Waiting for completion..."
+aws cloudfront wait invalidation-completed --distribution-id "$CF_DIST_ID" --id "$INV_ID"
+
+echo "Invalidation completed."
+
+
+---
+Env vars:
+
+AWS_DEFAULT_REGION = us-east-1
+
+CF_DIST_ID = <your-distribution-id> (e.g. E7LFX4EXG3E1)
+
+
+
+
+
+
+--------------------
 ARTIFACTORY_NPM_TOKEN = <+secrets.getValue("ARTIFACTORY_NPM_TOKEN")>
 
 ----
