@@ -1,3 +1,51 @@
+ARTIFACTORY_NPM_TOKEN = <+secrets.getValue("ARTIFACTORY_NPM_TOKEN")>
+
+----
+
+set -euo pipefail
+
+echo "Node: $(node -v)"
+echo "NPM:  $(npm -v)"
+
+# Fail fast if wrong node
+node -e "const v=process.versions.node.split('.').map(Number); if(v[0]<24){console.error('Need Node>=24, got',process.versions.node); process.exit(1)}"
+
+apk add --no-cache python3 make g++ libc6-compat >/dev/null
+
+cd /harness/FIS_UX_platform
+
+# --- npm via Artifactory ---
+ARTI_REGISTRY="https://artifactory.fis.dev/artifactory/api/npm/npmjs-npm-remote/"
+cat > ~/.npmrc <<EOF
+registry=${ARTI_REGISTRY}
+always-auth=true
+//artifactory.fis.dev/artifactory/api/npm/npmjs-npm-remote/:_authToken=${ARTIFACTORY_NPM_TOKEN}
+EOF
+chmod 600 ~/.npmrc
+
+echo "Registry is: $(npm config get registry)"
+
+# --- install + build ---
+npm install --no-audit --no-fund
+
+npm run build
+npm run export
+
+cp -f robots.txt packages/ethos-app/out/robots.txt || true
+ls -la packages/ethos-app/out | head -n 100
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------
 set -eu
 
 echo "Node: $(node -v)"
