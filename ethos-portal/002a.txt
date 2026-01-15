@@ -1,5 +1,56 @@
 set -euo pipefail
 
+echo "== Versions (Jenkins-equivalent) =="
+node -v
+npm -v
+
+apk add --no-cache python3 make g++ libc6-compat >/dev/null
+
+cd FIS_UX_platform
+
+echo "== npm cache verify =="
+npm cache verify || true
+
+echo "== npm install =="
+npm install
+
+echo "== npm bootstrap =="
+npm run bootstrap
+
+echo "== npm build${ENVIRONMENT} =="
+npm run "build${ENVIRONMENT}"
+
+echo "== npm export =="
+npm run export
+
+echo "== Copy robots.txt =="
+cp -f robots.txt packages/ethos-app/out/robots.txt || true
+
+echo "== Output =="
+ls -la packages/ethos-app/out | head -n 200
+
+
+--
+
+set -euo pipefail
+cd FIS_UX_platform/packages/ethos-app/out
+
+tar -czf /harness/ethos_frontend_out.tar.gz .
+ls -lh /harness/ethos_frontend_out.tar.gz
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------
+set -euo pipefail
+
 echo "== Versions =="
 node -v
 npm -v
