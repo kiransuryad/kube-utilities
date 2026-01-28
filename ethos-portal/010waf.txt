@@ -1,0 +1,119 @@
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
+# Your "normal" provider (for most resources)
+provider "aws" {
+  region = var.aws_region
+}
+
+# IMPORTANT: WAFv2 for CLOUDFRONT scope must be created in us-east-1
+provider "aws" {
+  alias  = "use1"
+  region = "us-east-1"
+}
+
+variable "aws_region" {
+  type    = string
+  default = "eu-west-2"
+}
+
+variable "project" {
+  type    = string
+  default = "ethos-portal"
+}
+
+variable "allowed_ip_addresses" {
+  description = "IPv4 addresses/CIDRs to allow (e.g., [\"203.0.113.10/32\", \"198.51.100.0/24\"])"
+  type        = list(string)
+  default     = []
+}
+
+# Optional: if you also need IPv6 allowlisting, create a second IP set with IP_ADDRESS_VERSION = IPV6
+# variable "allowed_ipv6_addresses" { ... }
+
+############################
+# 1) WAFv2 IP Set (CLOUDFRONT)
+############################
+resource "aws_wafv2_ip_set" "allowlist_ipv4" {
+  provider           = aws.use1
+  name               = "${var.project}-cf-allowlist-ipv4"
+  description        = "Allowed IPv4 addresses for CloudFront"
+  scope              = "CLOUDFRONT"
+  ip_address_version = "IPV4"
+  addresses          = var.allowed_ip_addresses
+
+  tags = {
+    Project = var.project
+  }
+}
+
+############################
+# 2) WAFv2 Web ACL (CLOUDFRONT) with Allowlist rule
+############################
+resource "aws_wafv2_web_acl" "cf_web_acl" {
+  provider    = aws.use1
+  name        = "${var.project}-cf-web-acl"
+  description = "CloudFront Web ACL: allow only IPs in allowlist (default block)"
+  scope       = "CLOUDFRONT"
+
+  # "Allow only these IPs" pattern:
+  # - default block
+  # - explicit allow rule for IP set
+  default_action {
+    block {}
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${var.project}-cf-web-acl"
+    sampled_requests_enabled   = true
+  }
+
+  rule {
+    name     = "AllowFromIPSet"
+    priority = 0
+
+    action {
+      allow {}
+    }
+
+    statement {
+      ip_set_reference_statement {
+        arn = aws_wafv2_ip_set.allowlist_ipv4.arn
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project}-allow-from-ipset"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  tags = {
+    Project = var.project
+  }
+}
+
+############################
+# 3) Attach Web ACL to CloudFront Distribution
+############################
+# Option A (most common): you manage the distribution in Terraform
+resource "aws_cloudfront_distribution" "this" {
+  # ... your existing distribution config ...
+
+  # Attach WAF Web ACL:
+  web_acl_id = aws_wafv2_web_acl.cf_web_acl.arn
+}
+
+# Option B: if the distribution already exists and is NOT managed by Terraform,
+# you generally should import it into Terraform and then set web_acl_id on the imported resource.
+# (CloudFront doesn't support a separate "association" resource like ALB does.)
