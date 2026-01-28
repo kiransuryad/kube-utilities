@@ -1,3 +1,30 @@
+locals {
+  allowed_ip_addresses = [
+    for ip in split("\n", trimspace(file("${path.module}/allowed_ips.txt"))) :
+    trimspace(ip)
+    if trimspace(ip) != ""
+  ]
+}
+
+resource "aws_wafv2_ip_set" "allowlist_ipv4" {
+  provider           = aws.use1
+  name               = "${var.project}-cf-allowlist-ipv4"
+  scope              = "CLOUDFRONT"
+  ip_address_version = "IPV4"
+  addresses          = local.allowed_ip_addresses
+}
+
+
+---
+
+grep -nEv '^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$' allowed_ips.txt
+
+
+
+
+
+
+----------------------------------
 terraform {
   required_version = ">= 1.5.0"
 
