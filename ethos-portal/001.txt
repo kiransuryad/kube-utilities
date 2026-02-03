@@ -1,3 +1,123 @@
+data "aws_iam_policy_document" "ethos_cecl_cdn_uat_bucket_policy" {
+
+  # 1) Enforce HTTPS for everyone (bucket + objects)
+  statement {
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = ["s3:*"]
+
+    resources = [
+      module.ethos_cecl_cdn_uat_s3.new_bucket["arn"],
+      "${module.ethos_cecl_cdn_uat_s3.new_bucket["arn"]}/*"
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  # 2) Require encryption header on uploads (deny if missing)
+  statement {
+    sid    = "DenyUnencryptedObjectUploads"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${module.ethos_cecl_cdn_uat_s3.new_bucket["arn"]}/*"]
+
+    condition {
+      test     = "Null"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["true"]
+    }
+  }
+
+  # 3) Allow only AES256 or aws:kms (deny all other encryption values)
+  statement {
+    sid    = "DenyWrongEncryptionType"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${module.ethos_cecl_cdn_uat_s3.new_bucket["arn"]}/*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["AES256", "aws:kms"]
+    }
+  }
+
+  # 4) Allow your SSO role to list bucket
+  statement {
+    sid    = "AllowSSORoleListBucket"
+    effect = "Allow"
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_PS-ethosportalsupport_781affccdcbbeef4"
+      ]
+    }
+
+    actions = [
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+      "s3:GetBucketLocation"
+    ]
+
+    resources = [module.ethos_cecl_cdn_uat_s3.new_bucket["arn"]]
+  }
+
+  # 5) Allow your SSO role object access (tune actions as required)
+  statement {
+    sid    = "AllowSSORoleObjectAccess"
+    effect = "Allow"
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_PS-ethosportalsupport_781affccdcbbeef4"
+      ]
+    }
+
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:PutObject",
+      "s3:DeleteObject"
+    ]
+
+    resources = ["${module.ethos_cecl_cdn_uat_s3.new_bucket["arn"]}/*"]
+  }
+}
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------
 excellent, all is well and UAT environment is up and running successfully and client had signed off it as working as expected. Now, we need a checklist of tasks to complete before going to prod, also production checklist and lastly PCI checklist. First let us work on the tasks we need to complete before going to prod. 
 
 
