@@ -1,3 +1,133 @@
+data "aws_iam_policy_document" "ethos_artifacts_uat_bucket_policy" {
+
+  #
+  # 1) Enforce HTTPS (TLS) for everyone
+  #
+  statement {
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = ["s3:*"]
+
+    resources = [
+      module.ethos_artifacts_uat_s3.new_bucket["arn"],
+      "${module.ethos_artifacts_uat_s3.new_bucket["arn"]}/*"
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  #
+  # 2) Deny uploads if encryption header is missing
+  #
+  statement {
+    sid    = "DenyUnencryptedObjectUploads"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${module.ethos_artifacts_uat_s3.new_bucket["arn"]}/*"]
+
+    condition {
+      test     = "Null"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["true"]
+    }
+  }
+
+  #
+  # 3) Deny uploads unless encryption is AES256 or aws:kms
+  #
+  statement {
+    sid    = "DenyWrongEncryptionType"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${module.ethos_artifacts_uat_s3.new_bucket["arn"]}/*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["AES256", "aws:kms"]
+    }
+  }
+
+  #
+  # 4) Allow your SSO role to list bucket (console/cli)
+  #
+  statement {
+    sid    = "AllowSSORoleListBucket"
+    effect = "Allow"
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_PS-ethosportalsupport_781affccdcbbeef4"
+      ]
+    }
+
+    actions = [
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+      "s3:GetBucketLocation"
+    ]
+
+    resources = [module.ethos_artifacts_uat_s3.new_bucket["arn"]]
+  }
+
+  #
+  # 5) Allow your SSO role object access (tune actions as needed)
+  #
+  statement {
+    sid    = "AllowSSORoleObjectAccess"
+    effect = "Allow"
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_PS-ethosportalsupport_781affccdcbbeef4"
+      ]
+    }
+
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:PutObject"
+      # "s3:DeleteObject"
+    ]
+
+    resources = ["${module.ethos_artifacts_uat_s3.new_bucket["arn"]}/*"]
+  }
+}
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------------------------------
 data "aws_iam_policy_document" "ethos_originbucket_uat_bucket_policy" {
 
   #
