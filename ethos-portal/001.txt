@@ -1,3 +1,39 @@
+statement {
+  sid    = "AllowCloudFrontToUseKeyViaS3"
+  effect = "Allow"
+
+  principals {
+    type        = "Service"
+    identifiers = ["s3.amazonaws.com"]
+  }
+
+  actions = [
+    "kms:Decrypt",
+    "kms:Encrypt",
+    "kms:ReEncrypt*",
+    "kms:GenerateDataKey*",
+    "kms:DescribeKey",
+  ]
+
+  resources = ["*"]
+
+  condition {
+    test     = "StringEquals"
+    variable = "AWS:SourceAccount"
+    values   = ["533267095208"]
+  }
+
+  condition {
+    test     = "ArnLike"
+    variable = "AWS:SourceArn"
+    values   = ["arn:aws:cloudfront::533267095208:distribution/E10N7VERLKUCSD"]
+  }
+}
+
+
+
+
+-------------------------------------------------------------------------------
 {
   "Sid": "AllowCloudFrontToUseKeyViaS3",
   "Effect": "Allow",
