@@ -1,3 +1,34 @@
+{
+  "Sid": "AllowCloudFrontToUseKeyViaS3",
+  "Effect": "Allow",
+  "Principal": {
+    "Service": "s3.amazonaws.com"
+  },
+  "Action": [
+    "kms:Decrypt",
+    "kms:Encrypt",
+    "kms:ReEncrypt*",
+    "kms:GenerateDataKey*",
+    "kms:DescribeKey"
+  ],
+  "Resource": "*",
+  "Condition": {
+    "StringEquals": {
+      "AWS:SourceAccount": "533267095208"
+    },
+    "ArnLike": {
+      "AWS:SourceArn": "arn:aws:cloudfront::533267095208:distribution/E10N7VERLKUCSD"
+    }
+  }
+}
+
+
+
+
+
+
+
+-------------------------------------
 data "aws_iam_policy_document" "ethos_portal_originbucket_533267095208_cdn_uat_policy" {
 
   #
