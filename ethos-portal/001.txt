@@ -1,3 +1,23 @@
+If you’re willing to add a tiny toggle (safer than comment/uncomment), pattern:
+
+variable "enable_apigw_resource_lookup" {
+  type    = bool
+  default = true
+}
+
+
+Then wrap the data/resource with count:
+
+data "aws_api_gateway_rest_api" "this" {
+  count = var.enable_apigw_resource_lookup ? 1 : 0
+  name  = module.ethos-portal-prod-apigateway.rest_api.name
+}
+
+
+
+
+
+-------------------------
 {
   "Version": "2012-10-17",
   "Statement": [
