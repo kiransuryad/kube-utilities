@@ -1,3 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ---------------------------
+# HARD-CODE THESE 6 VALUES
+# ---------------------------
+SRC_HOST="aurora-prod-pgsql.cluster-XXXX.us-east-1.rds.amazonaws.com"
+SRC_PORT="5432"
+SRC_DB="your_database_name"
+SRC_USER="your_db_username"
+SRC_PASSWORD="your_db_password"
+
+S3_URI="s3://your-bucket/your-prefix/"   # must end with /
+
+# Encryption password (store this safely; without it you cannot restore)
+ENC_PASSWORD="CHANGE_THIS_TO_A_STRONG_PASSWORD"
+
+# ---------------------------
+# Output filenames
+# ---------------------------
+TS="$(date -u +%Y%m%dT%H%M%SZ)"
+BASE="${SRC_DB}_${TS}"
+DUMP="/tmp/${BASE}.dump"
+GZ="/tmp/${BASE}.dump.gz"
+ENC="/tmp/${BASE}.dump.gz.enc"
+
+echo "1) pg_dump -> $DUMP"
+export PGPASSWORD="${SRC_PASSWORD}"
+pg_dump -h "${SRC_HOST}" -p "${SRC_PORT}" -U "${SRC_USER}" -d "${SRC_DB}" -Fc --no-owner --no-acl -f "${DUMP}"
+unset PGPASSWORD
+
+echo "2) gzip -> $GZ"
+gzip -c "${DUMP}" > "${GZ}"
+
+echo "3) encrypt -> $ENC"
+# AES-256-GCM with PBKDF2. ENC_PASSWORD is used to derive the key.
+export OPENSSL_PASS="${ENC_PASSWORD}"
+openssl enc -aes-256-gcm -pbkdf2 -iter 200000 -salt \
+  -pass env:OPENSSL_PASS \
+  -in "${GZ}" \
+  -out "${ENC}"
+unset OPENSSL_PASS
+
+echo "4) upload -> ${S3_URI}${BASE}.dump.gz.enc"
+aws s3 cp "${ENC}" "${S3_URI}${BASE}.dump.gz.enc"
+
+echo "5) cleanup local files"
+rm -f "${DUMP}" "${GZ}" "${ENC}"
+
+echo "DONE."
+
+
+
+
+
+
+
+
+----------------------
 If you’re willing to add a tiny toggle (safer than comment/uncomment), pattern:
 
 variable "enable_apigw_resource_lookup" {
