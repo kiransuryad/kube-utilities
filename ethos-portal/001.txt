@@ -1,3 +1,9 @@
+select 'public.apilogging' as table, count(*) as rows from public.apilogging
+union all
+select 'public.logging' as table, count(*) as rows from public.logging;
+
+
+-----------
 select pg_size_pretty(pg_database_size(current_database()));
 
 select pg_size_pretty(sum(pg_total_relation_size(c.oid)))
