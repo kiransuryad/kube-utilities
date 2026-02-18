@@ -1,3 +1,19 @@
+export PGPASSWORD='YOUR_PASSWORD'
+nohup pg_dump \
+  -h aurora-prod-pgsql-snapshot-0218-cluster.cluster-xxxx.us-east-1.rds.amazonaws.com \
+  -U postgres \
+  -d ethos \
+  -Fd \
+  -j 8 \
+  -Z 6 \
+  -f /mnt/pgdump/ethos_dump_dir \
+  > /mnt/pgdump/dump.log 2>&1 &
+
+
+
+
+
+-------------------------------------
 aws rds describe-db-instances \
   --query "DBInstances[?DBClusterIdentifier=='aurora-prod-pgsql-snapshot-0218-cluster'].{ID:DBInstanceIdentifier,Class:DBInstanceClass}" \
   --output table
