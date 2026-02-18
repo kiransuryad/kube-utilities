@@ -1,3 +1,10 @@
+aws rds describe-db-instances \
+  --query "DBInstances[?DBClusterIdentifier=='aurora-prod-pgsql-snapshot-0218-cluster'].{ID:DBInstanceIdentifier,Class:DBInstanceClass}" \
+  --output table
+
+
+
+------------
 select 'public.apilogging' as table, count(*) as rows from public.apilogging
 union all
 select 'public.logging' as table, count(*) as rows from public.logging;
