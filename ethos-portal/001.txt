@@ -1,3 +1,16 @@
+pg_dump \
+  -h aurora-prod-pgsql-snapshot-0218-cluster.cluster-cdgx7c4r6h4u.us-east-1.rds.amazonaws.com \
+  -U postgres \
+  -d ethos \
+  -Fd \
+  -j 4 \
+  -Z 3 \
+  -f /mnt/pgdump/ethos_dump_dir \
+  -v 2>&1 | tee /mnt/pgdump/logs/pg_dump_$(date +%F_%H%M%S).log
+
+
+
+-----------
 What We Do Now (Clean Restart Strategy)
 
 You now have the correct 400GB EBS mounted.
