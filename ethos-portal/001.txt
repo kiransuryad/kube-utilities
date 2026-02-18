@@ -9,7 +9,42 @@ nohup pg_dump \
   -f /mnt/pgdump/ethos_dump_dir \
   > /mnt/pgdump/dump.log 2>&1 &
 
+---
 
+After starting the command, run:
+
+ps -ef | grep pg_dump
+
+
+You should see:
+
+1 master pg_dump
+
+8 worker processes (because -j 8)
+
+Then check log is being written:
+
+tail -f /mnt/pgdump/dump.log
+
+
+If it is progressing, you're good.
+
+🔎 How To Check Later
+
+When you reconnect:
+
+1️⃣ Check if dump is still running
+ps -ef | grep pg_dump
+
+
+If processes exist → still running
+If not → finished
+
+2️⃣ Check disk usage
+du -sh /mnt/pgdump
+
+3️⃣ Check free disk
+df -h
 
 
 
