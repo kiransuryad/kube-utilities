@@ -1,3 +1,93 @@
+What We Do Now (Clean Restart Strategy)
+
+You now have the correct 400GB EBS mounted.
+Good.
+
+Step 1 — Delete incomplete dump
+rm -rf /mnt/pgdump/ethos_dump_dir
+
+Step 2 — Restart properly, but safer
+
+This time:
+
+Reduce parallelism slightly
+
+Log errors explicitly
+
+Capture exit code
+
+Run:
+
+nohup pg_dump \
+  -h aurora-prod-pgsql-snapshot-0218-cluster.cluster-cdgx7c4r6h4u.us-east-1.rds.amazonaws.com \
+  -U postgres \
+  -d ethos \
+  -Fd \
+  -j 4 \
+  -Z 6 \
+  -f /mnt/pgdump/ethos_dump_dir \
+  > /mnt/pgdump/dump.log 2>&1 &
+
+
+I reduced -j from 8 to 4.
+
+Why?
+
+Parallel 8 jobs + compression 6 can spike CPU and memory.
+Aurora + EC2 may throttle.
+
+Step 3 — Monitor properly
+
+Instead of guessing, monitor like this:
+
+Check process:
+
+ps -ef | grep pg_dump
+
+
+Check log:
+
+tail -f /mnt/pgdump/dump.log
+
+
+Check size growth:
+
+watch -n 15 du -sh /mnt/pgdump/ethos_dump_dir
+
+When It Finishes Correctly
+
+You should see in log:
+
+pg_dump: finished item ...
+pg_dump: dumping contents ...
+pg_dump: finished
+
+
+Then:
+
+pg_restore -l /mnt/pgdump/ethos_dump_dir | wc -l
+
+
+Should show hundreds or thousands.
+
+Very Important
+
+Before restarting, tell me:
+
+Run this:
+
+psql -h <endpoint> -U postgres -d ethos \
+-c "SELECT pg_size_pretty(pg_database_size('ethos'));"
+
+
+I want to know the actual logical DB size.
+That will determine expected dump size and runtime.
+
+
+
+
+
+--------------------------------------------------
 export PGPASSWORD='YOUR_PASSWORD'
 nohup pg_dump \
   -h aurora-prod-pgsql-snapshot-0218-cluster.cluster-xxxx.us-east-1.rds.amazonaws.com \
