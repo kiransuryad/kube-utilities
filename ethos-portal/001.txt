@@ -1,3 +1,163 @@
+Step 1 — Check Aurora Writer Instance Type
+
+From AWS CLI:
+
+aws rds describe-db-instances \
+  --query "DBInstances[?DBClusterIdentifier=='aurora-prod-pgsql'].{ID:DBInstanceIdentifier,Class:DBInstanceClass}" \
+  --output table
+
+
+If you see something like:
+
+db.r6g.2xlarge
+
+db.r6g.4xlarge
+
+etc.
+
+That determines how aggressive you can go.
+
+Step 2 — Check max_connections
+
+From PostgreSQL:
+
+psql -h <endpoint> -U <user> -d <db> -c "show max_connections;"
+
+
+If max_connections is:
+
+500+ → 8 or 16 is fine
+
+100 → be conservative (4–8)
+
+Step 3 — Check Runner Capacity
+
+On your runner:
+
+nproc
+free -h
+df -h
+
+
+If:
+
+8+ cores → -j 8
+
+16+ cores → -j 12 or -j 16
+
+<4 cores → stay at 4
+
+Practical Safe Recommendations for 190GB
+Aurora Instance	Recommended -j
+r6g.large	4
+r6g.2xlarge	8
+r6g.4xlarge	12
+r6g.8xlarge+	16
+
+If unsure → use -j 8. It’s safe in most cases.
+
+PART 2 — Run in Background (Survive Shell Disconnect)
+
+Yes — and you absolutely should.
+
+Use nohup.
+
+Recommended Production-Safe Command
+nohup pg_dump \
+  -Fd \
+  -j 8 \
+  -h <endpoint> \
+  -U <user> \
+  -d <db> \
+  --no-owner --no-acl \
+  -f /tmp/ethos_dumpdir \
+  > /tmp/pg_dump.log 2>&1 &
+
+
+Then:
+
+echo $! > /tmp/pg_dump.pid
+
+
+Now:
+
+It runs even if SSM session dies
+
+Output goes to /tmp/pg_dump.log
+
+You can reconnect later
+
+Check Status Later
+
+Reconnect and run:
+
+ps -p $(cat /tmp/pg_dump.pid)
+
+
+Monitor:
+
+tail -f /tmp/pg_dump.log
+
+
+Check directory growth:
+
+du -sh /tmp/ethos_dumpdir
+
+If You Want Even More Reliable (Best Option)
+
+Use screen or tmux.
+
+If available:
+
+sudo yum install -y tmux
+tmux
+
+
+Run dump inside tmux.
+
+Detach:
+
+Ctrl+B then D
+
+
+Reattach later:
+
+tmux attach
+
+
+This is cleaner than nohup.
+
+Final Practical Advice
+
+For 190GB:
+
+Use -Fd -j 8
+
+Use nohup
+
+Make sure you have 250GB free disk
+
+Monitor CPU in CloudWatch while running
+
+Now give me:
+
+Aurora writer instance class
+
+Runner CPU count (nproc)
+
+Current free disk (df -h)
+
+And I’ll tell you the exact safe -j value (8 vs 12 vs 16).
+
+
+
+
+
+
+
+
+
+---------------------------------
 #!/usr/bin/env bash
 set -euo pipefail
 
