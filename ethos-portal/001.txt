@@ -1,3 +1,82 @@
+🚀 Step 1 — Tar the directory dump
+
+Postgres directory format must be tarred.
+
+cd /mnt/pgdump
+tar -cvf ethos_dump_2026-02-18.tar ethos_dump_dir
+
+
+Expected size:
+~88 GB (uncompressed tar)
+
+🚀 Step 2 — Encrypt
+Clean AES-256 encryption
+openssl enc -aes-256-cbc -salt \
+  -in ethos_dump_2026-02-18.tar \
+  -out ethos_dump_2026-02-18.tar.enc
+
+
+It will prompt for password.
+
+Result:
+ethos_dump_2026-02-18.tar.enc
+
+Now your dump is encrypted before leaving EC2.
+
+🚀 Step 3 — Upload to S3 (with KMS)
+
+Use multipart automatically (AWS CLI handles it).
+
+aws s3 cp ethos_dump_2026-02-18.tar.enc \
+  s3://source-prod-backups/postgres/ \
+  --sse aws:kms \
+  --sse-kms-key-id <kms-key-arn>
+
+
+If using IAM role attached to EC2, no creds needed.
+
+🧠 Important: Verify Upload
+aws s3 ls s3://source-prod-backups/postgres/
+
+
+And verify size matches.
+
+🔁 Step 4 — Transfer to Target Account
+
+Best method:
+
+Option 1 — Cross-account bucket policy + copy
+
+From target account:
+
+aws s3 cp \
+  s3://source-prod-backups/postgres/ethos_dump_2026-02-18.tar.enc \
+  s3://target-backups/postgres/ \
+  --source-region us-east-1 \
+  --region us-east-1
+
+Option 2 — S3 Replication (better long-term)
+Option 3 — S3 Batch copy (for scale)
+🚀 Step 5 — Download in Target
+aws s3 cp \
+  s3://target-backups/postgres/ethos_dump_2026-02-18.tar.enc .
+
+🔓 Step 6 — Decrypt
+openssl enc -d -aes-256-cbc \
+  -in ethos_dump_2026-02-18.tar.enc \
+  -out ethos_dump_2026-02-18.tar
+
+📦 Step 7 — Untar
+tar -xvf ethos_dump_2026-02-18.tar
+
+🔁 Step 8 — Restore
+pg_restore -Fd -j 8 -d targetdb ethos_dump_dir
+
+
+
+
+
+----------------------------
 pg_dump \
   -h aurora-prod-pgsql-snapshot-0218-cluster.cluster-cdgx7c4r6h4u.us-east-1.rds.amazonaws.com \
   -U postgres \
