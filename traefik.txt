@@ -1,3 +1,202 @@
+Good. Strip it down to the shortest path:
+
+Bastion → internal NLB → Traefik → Keycloak
+
+Forget ALB and browser for now.
+
+What we need to prove in order
+Step 1
+
+Prove Traefik itself is reachable through the internal NLB.
+
+From bastion:
+
+curl -vk https://<internal-nlb-dns>/ping
+
+Expected:
+
+200
+
+body like OK
+
+You already said this is good. So:
+
+NLB is fine
+
+Traefik on 443 is fine
+
+Step 2
+
+Prove the request reaches the Keycloak route in Traefik.
+
+From bastion, use the real host header:
+
+curl -vk https://<internal-nlb-dns>/ -H 'Host: dev-ethos-idp.fiscloudservices.com'
+
+and also:
+
+curl -vk https://<internal-nlb-dns>/auth -H 'Host: dev-ethos-idp.fiscloudservices.com'
+
+We are not saying /auth is the final desired public URL. We are only using it as a diagnostic because Keycloak currently still runs internally with /auth.
+
+What the result tells us
+If / gives 404 and /auth gives something meaningful
+
+Then:
+
+Traefik routing works
+
+Keycloak is still expecting /auth
+
+path translation is the remaining problem
+
+If both / and /auth give 500
+
+Then:
+
+route is matching
+
+upstream Keycloak/backend transport is failing
+
+If both give 404
+
+Then:
+
+host/path match is not correct in Traefik
+
+Step 3
+
+Watch Traefik logs live while hitting the URL
+
+Open another bastion terminal:
+
+kubectl get pods -n traefik-ingres
+kubectl logs -f <traefik-pod> -n traefik-ingres --since=5m
+
+Then run the curl again.
+
+We want to see whether Traefik logs:
+
+x509 / backend TLS error
+
+404 / no route
+
+service not found
+
+That tells us exactly where it fails.
+
+Step 4
+
+Test Keycloak service directly inside cluster
+
+Use your tools pod or any debug pod in cluster:
+
+kubectl get svc -n keycloak-eda
+kubectl exec -it <debug-pod> -n <some-namespace> -- sh
+
+Then test direct service access.
+
+If service name is keycloak-http and port is 8443:
+
+curl -vk https://keycloak-http.keycloak-eda.svc.cluster.local:8443/auth
+
+Also test root:
+
+curl -vk https://keycloak-http.keycloak-eda.svc.cluster.local:8443/
+What this tells us
+If direct service /auth works
+
+Then Keycloak itself is fine, and the problem is Traefik → Keycloak integration.
+
+If direct service /auth fails
+
+Then the problem is inside Keycloak service/backend itself.
+
+Step 5
+
+Check the exact live Ingress and Service
+
+Run:
+
+kubectl describe ingress keycloak -n keycloak-eda
+kubectl describe svc keycloak-http -n keycloak-eda
+kubectl get serverstransport -n keycloak-eda
+kubectl describe serverstransport keycloak-backend-transport -n keycloak-eda
+
+I want to verify:
+
+host rule
+
+path rule
+
+backend service name/port
+
+whether service annotations exist
+
+whether ServersTransport exists with insecureSkipVerify: true
+
+Fastest likely outcomes
+Most likely outcome A
+
+/ping works, but / and /auth through NLB return 500, and Traefik logs still show x509/IP SAN errors.
+
+Then the remaining issue is still:
+Traefik → Keycloak HTTPS backend verification
+
+Most likely outcome B
+
+/ fails but /auth works.
+
+Then the remaining issue is:
+path translation / -> /auth
+
+Most likely outcome C
+
+Direct service call to Keycloak fails.
+
+Then Traefik is innocent and we move to Keycloak service/backend config.
+
+Exact command set I want you to run now
+
+From bastion:
+
+curl -vk https://<internal-nlb-dns>/ping
+curl -vk https://<internal-nlb-dns>/ -H 'Host: dev-ethos-idp.fiscloudservices.com'
+curl -vk https://<internal-nlb-dns>/auth -H 'Host: dev-ethos-idp.fiscloudservices.com'
+
+In parallel:
+
+kubectl get pods -n traefik-ingres
+kubectl logs -f <traefik-pod> -n traefik-ingres --since=5m
+
+And from a debug pod:
+
+curl -vk https://keycloak-http.keycloak-eda.svc.cluster.local:8443/auth
+
+Send me:
+
+output of the three curls
+
+the Traefik log lines during the / and /auth hit
+
+output of direct service curl
+
+That will isolate it cleanly.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------
 image:
   registry: edas-docker-snapshot-local.docker.fis.dev
   repository: traefik/traefik
