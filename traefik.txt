@@ -1,0 +1,62 @@
+Minimal diff summary
+Remove
+ingressClassName: nginx
+nginx.ingress.kubernetes.io/*
+Add
+ingressClassName: traefik
+traefik.ingress.kubernetes.io/router.entrypoints: websecure
+traefik.ingress.kubernetes.io/router.tls: "true"
+traefik.ingress.kubernetes.io/service.serversscheme: https
+KC_PROXY_HEADERS=xforwarded
+Change
+pathType: ImplementationSpecific
+
+to
+
+pathType: Prefix
+Keep
+servicePort: https
+--http-enabled=false
+http.internalScheme: HTTPS
+http.internalPort: https-internal
+mounted TLS secret
+HTTPS probes
+http.relativePath: /auth
+cert-manager issuer annotation
+My recommended migration order for this specific Keycloak chart
+
+Update only the ingress section and KC_PROXY_HEADERS
+
+Deploy to lower environment
+
+Validate:
+
+https://host/auth
+
+admin console login
+
+OIDC discovery URL
+
+token issuer
+
+redirect back to one real client app
+
+health probes
+
+metrics scrape
+
+Only after that, consider simplifying backend TLS later
+
+My opinion on your best immediate design
+
+For today, the best design is:
+
+Client -> Traefik TLS -> Traefik -> HTTPS Keycloak backend
+
+not
+
+Client -> Traefik TLS -> HTTP Keycloak backend
+
+because your current chart is already built around internal HTTPS and changing that now gives you no real migration advantage.
+
+If you paste the actual values.yaml text, I will convert it line-by-line and give you the exact final YAML block ready to drop in.
