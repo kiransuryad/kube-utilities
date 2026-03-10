@@ -1,3 +1,68 @@
+
+Recommended exact change pattern
+A. New template
+
+keycloakx/chart/templates/serverstransport.yaml
+
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: keycloak-backend-transport
+  namespace: {{ .Release.Namespace }}
+spec:
+  insecureSkipVerify: true
+B. In your existing Keycloak values
+
+Change the ingress section to roughly this:
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  servicePort: https
+  annotations:
+    cert-manager.io/cluster-issuer: cio-ca-issuer
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/service.serversscheme: https
+    traefik.ingress.kubernetes.io/service.serverstransport: "keycloakx-keycloak-backend-transport@kubernetescrd"
+  rules:
+    - host: keycloak.uat.internal
+      paths:
+        - path: /auth
+          pathType: Prefix
+  tls:
+    - secretName: keycloak-internal-tls
+      hosts:
+        - keycloak.uat.internal
+
+And keep your other hosts if you still need them.
+
+Optional improvement
+
+Since you are on Helm, a cleaner version is to make the annotation namespace-aware:
+
+traefik.ingress.kubernetes.io/service.serverstransport: "{{ .Release.Namespace }}-keycloak-backend-transport@kubernetescrd"
+
+If your values file is plain values only and not templated, then hardcode the namespace.
+
+Deployment order
+
+Apply in this order:
+
+Deploy the Keycloak chart change that includes the new ServersTransport
+
+Confirm the ServersTransport object exists
+
+Confirm the ingress now has the service.serverstransport annotation
+
+Watch Traefik logs
+
+Test Keycloak URLs
+
+
+
+
+----------
 Minimal diff summary
 Remove
 ingressClassName: nginx
