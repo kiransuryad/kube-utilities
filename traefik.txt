@@ -1,3 +1,60 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: security-headers
+  namespace: traefik-ingres
+spec:
+  headers:
+    sslRedirect: true
+    browserXssFilter: true
+    contentTypeNosniff: true
+    frameDeny: true
+    referrerPolicy: "strict-origin-when-cross-origin"
+    permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=()"
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    stsPreload: true
+    customResponseHeaders:
+      X-Robots-Tag: "noindex, nofollow"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: internal-ip-allowlist
+  namespace: traefik-ingres
+spec:
+  ipAllowList:
+    sourceRange:
+      # Replace with your real trusted CIDRs
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: gzip-compression
+  namespace: traefik-ingres
+spec:
+  compress: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: external-https-redirect
+  namespace: traefik-ingres
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+
+
+
+
+
+
+
+-----------------
 Good. Strip it down to the shortest path:
 
 Bastion → internal NLB → Traefik → Keycloak
