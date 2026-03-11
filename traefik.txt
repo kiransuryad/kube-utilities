@@ -1,3 +1,25 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus
+  namespace: kube-prometheus-stack
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.routing.hosts.prometheus }}`)
+      kind: Rule
+      middlewares:
+        - name: monitoring-internal-chain
+          namespace: traefik-ingres
+      services:
+        - name: prometheus-stack-prometheus
+          port: 9090
+  tls:
+    secretName: cio-cert-tls
+
+
+--------------------------------------------------
 1️⃣ Generate a quick self-signed certificate
 
 Run this on the bastion (or any machine with openssl):
