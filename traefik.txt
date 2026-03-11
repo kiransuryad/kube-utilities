@@ -1,4 +1,25 @@
 apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: keycloak-backend-transport
+  namespace: traefik-ingres
+spec:
+  insecureSkipVerify: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: monitoring-backend-transport
+  namespace: traefik-ingres
+spec:
+  insecureSkipVerify: true
+
+
+
+
+
+------------------------------------------
+apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: external-common-chain
