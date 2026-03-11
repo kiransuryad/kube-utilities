@@ -1,3 +1,50 @@
+"routing": {
+  "type": "object",
+  "properties": {
+    "allowLists": {
+      "type": "object",
+      "properties": {
+        "internal": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "external": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "hosts": {
+      "type": "object",
+      "properties": {
+        "grafana": { "type": "string" },
+        "prometheus": { "type": "string" },
+        "alertmanager": { "type": "string" },
+        "keycloak": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+
+-------
+
+routing:
+  allowLists:
+    internal:
+      - "10.32.0.0/16"
+    external: []
+  hosts:
+    grafana: "grafana.monitor.fiscloudservices.com"
+    prometheus: "prometheus.monitor.internal"
+    alertmanager: "alertmanager.monitor.internal"
+    keycloak: "dev-ethos-idp.fiscloudservices.com"
+
+
+
+--------------------------
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
