@@ -1,3 +1,43 @@
+1️⃣ Generate a quick self-signed certificate
+
+Run this on the bastion (or any machine with openssl):
+
+openssl req -x509 -nodes -days 365 \
+  -newkey rsa:2048 \
+  -keyout tls.key \
+  -out tls.crt \
+  -subj "/CN=dev-ethos-idp.monitor.fiscloudservices.com"
+
+This creates:
+
+tls.crt
+tls.key
+2️⃣ Create the Kubernetes TLS secret
+
+Run:
+
+kubectl create secret tls cio-cert-tls \
+  --cert=tls.crt \
+  --key=tls.key \
+  -n kube-prometheus-stack
+
+Verify:
+
+kubectl get secret cio-cert-tls -n kube-prometheus-stack
+
+You should see:
+
+cio-cert-tls   kubernetes.io/tls
+3️⃣ No redeploy needed
+
+Because your IngressRoute already references:
+
+tls:
+  secretName: cio-cert-tls
+
+
+
+---------------------------------------------------------
 "routing": {
   "type": "object",
   "properties": {
