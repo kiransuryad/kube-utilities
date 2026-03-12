@@ -1,6 +1,52 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
+  name: keycloak
+  namespace: keycloak-eda
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.routing.hosts.keycloak }}`)
+      kind: Rule
+      middlewares:
+        - name: external-common-chain
+          namespace: traefik-ingres
+      services:
+        - name: keycloak-http
+          port: 8443
+          scheme: https
+          serversTransport: keycloak-backend-transport
+  tls:
+    secretName: keycloakx-tls
+
+---
+templates/routes/keycloak-ingressroute.yaml
+---
+
+templates/transports/keycloak-backend-transport.yaml
+
+--
+
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: keycloak-backend-transport
+  namespace: keycloak-eda
+spec:
+  insecureSkipVerify: true
+
+------
+
+
+
+
+
+
+------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
   name: alertmanager
   namespace: kube-prometheus-stack
 spec:
