@@ -1,3 +1,61 @@
+Recommended fix
+1. Create a Keycloak-specific security headers middleware
+
+In Traefik templates, add something like:
+
+templates/keycloak-security-headers.yaml
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: keycloak-security-headers
+  namespace: traefik-ingres
+spec:
+  headers:
+    browserXssFilter: true
+    contentTypeNosniff: true
+    referrerPolicy: strict-origin-when-cross-origin
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    stsPreload: true
+    customFrameOptionsValue: "SAMEORIGIN"
+2. Create a Keycloak-specific chain
+
+Example:
+
+templates/keycloak-chain.yaml
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: keycloak-external-chain
+  namespace: traefik-ingres
+spec:
+  chain:
+    middlewares:
+      - name: keycloak-security-headers
+      - name: gzip-compression
+
+If you also want IP restriction or some other middleware, add it there, but do not reuse the exact chain that sets DENY.
+
+3. Update Keycloak IngressRoute
+
+Change this:
+
+middlewares:
+  - name: external-common-chain
+    namespace: traefik-ingres
+
+to:
+
+middlewares:
+  - name: keycloak-external-chain
+    namespace: traefik-ingres
+
+
+
+------------------------------------------
+
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
