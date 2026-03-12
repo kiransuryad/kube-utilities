@@ -1,3 +1,19 @@
+Run these four:
+
+kubectl get ingress -n kube-prometheus-stack
+kubectl logs -n traefik-ingres <one-traefik-pod> --since=15m | grep -i prometheus
+kubectl logs -n traefik-ingres <one-traefik-pod> --since=15m | grep -iE "middleware|router|kubernetescrd|service not found|does not exist"
+kubectl port-forward -n traefik-ingres svc/<traefik-service-name> 9000:9000
+
+Then:
+
+curl http://127.0.0.1:9000/api/http/routers | jq
+
+That will tell us exactly why Prometheus is still not active.
+
+
+
+------------------------------------------------------
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
