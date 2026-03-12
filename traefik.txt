@@ -1,3 +1,74 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: alertmanager
+  namespace: kube-prometheus-stack
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.routing.hosts.alertmanager }}`)
+      kind: Rule
+      middlewares:
+        - name: monitoring-internal-chain
+          namespace: traefik-ingres
+      services:
+        - name: prometheus-stack-alertmanager
+          port: 9093
+  tls:
+    secretName: alertmanager-internal-cert-tls
+
+-------
+
+
+
+Recommended exact edits
+In kube-prometheus-stack values
+
+Change this block:
+
+alertmanager:
+  alertmanagerSpec:
+    ingress:
+      enabled: true
+      ...
+
+to:
+
+alertmanager:
+  alertmanagerSpec:
+    ingress:
+      enabled: false
+
+and remove the rest of the old ingress block content.
+
+
+
+kube-prometheus-stack
+
+For example:
+
+openssl req -x509 -nodes -days 365 \
+  -newkey rsa:2048 \
+  -keyout alertmanager.key \
+  -out alertmanager.crt \
+  -subj "/CN=alertmanager.monitor.internal"
+
+kubectl create secret tls alertmanager-internal-cert-tls \
+  --cert=alertmanager.crt \
+  --key=alertmanager.key \
+  -n kube-prometheus-stack
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------
+
 Run these four:
 
 kubectl get ingress -n kube-prometheus-stack
