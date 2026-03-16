@@ -1,3 +1,20 @@
+kubectl describe certificate grafana-cert -n kube-prometheus-stack
+kubectl describe certificate prometheus-cert -n kube-prometheus-stack
+
+openssl s_client \
+-connect alertmanager.monitor.internal:443 \
+-servername alertmanager.monitor.internal \
+</dev/null | openssl x509 -noout -issuer -dates -subject
+
+
+openssl s_client \
+-connect keycloak-http.keycloak-eda.svc.cluster.local:8443 \
+-servername dev-ethos-idp.fiscloudservices.com
+
+
+
+
+--------------------------------
 kubectl get certificate -A
 kubectl describe certificate keycloakx-cert -n keycloak-eda
 kubectl get secret -n keycloak-eda keycloakx-tls -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -issuer -dates -serial -fingerprint -ext subjectAltName
