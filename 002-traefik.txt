@@ -1,0 +1,104 @@
+chains.yaml 
+--
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Values.middlewares.chains.externalCommon }}
+  namespace: {{ .Values.middlewares.namespace }}
+spec:
+  chain:
+    middlewares:
+      - name: {{ .Values.middlewares.names.securityHeaders }}
+      - name: {{ .Values.middlewares.names.gzipCompression }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Values.middlewares.chains.internalCommon }}
+  namespace: {{ .Values.middlewares.namespace }}
+spec:
+  chain:
+    middlewares:
+      - name: {{ .Values.middlewares.names.securityHeaders }}
+      - name: {{ .Values.middlewares.names.gzipCompression }}
+      - name: {{ .Values.middlewares.names.internalIpAllowlist }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Values.middlewares.chains.monitoringInternal }}
+  namespace: {{ .Values.middlewares.namespace }}
+spec:
+  chain:
+    middlewares:
+      - name: {{ .Values.middlewares.names.securityHeaders }}
+      - name: {{ .Values.middlewares.names.gzipCompression }}
+      - name: {{ .Values.middlewares.names.internalIpAllowlist }}
+
+
+
+----------
+
+middlewares:
+  namespace: traefik-ingres
+
+  names:
+    securityHeaders: security-headers
+    gzipCompression: gzip-compression
+    internalIpAllowlist: internal-ip-allowlist
+
+  chains:
+    externalCommon: external-common-chain
+    internalCommon: internal-common-chain
+    monitoringInternal: monitoring-internal-chain
+
+
+
+-----
+
+
+"middlewares": {
+  "type": "object",
+  "properties": {
+    "namespace": {
+      "type": "string"
+    },
+    "names": {
+      "type": "object",
+      "properties": {
+        "securityHeaders": { "type": "string" },
+        "gzipCompression": { "type": "string" },
+        "internalIpAllowlist": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "chains": {
+      "type": "object",
+      "properties": {
+        "externalCommon": { "type": "string" },
+        "internalCommon": { "type": "string" },
+        "monitoringInternal": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
