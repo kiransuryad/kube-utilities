@@ -1,3 +1,148 @@
+"keycloakIngressRoute": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "name": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "middlewares": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "namespace"]
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "scheme": {
+          "type": "string",
+          "enum": ["http", "https"]
+        },
+        "serversTransport": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "port", "scheme"]
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "secretName": {
+          "type": "string"
+        }
+      },
+      "required": ["enabled"]
+    }
+  },
+  "required": ["enabled", "name", "entryPoints", "service", "tls"]
+}
+
+
+------
+
+
+keycloak-ingressroute.yaml
+--
+
+{{- if .Values.keycloakIngressRoute.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Values.keycloakIngressRoute.name }}
+  namespace: {{ .Values.keycloakIngressRoute.namespace | default .Release.Namespace }}
+spec:
+  entryPoints:
+    {{- range .Values.keycloakIngressRoute.entryPoints }}
+    - {{ . }}
+    {{- end }}
+  routes:
+    - match: Host(`{{ .Values.routing.hosts.keycloak }}`)
+      kind: Rule
+      {{- if .Values.keycloakIngressRoute.middlewares }}
+      middlewares:
+        {{- range .Values.keycloakIngressRoute.middlewares }}
+        - name: {{ .name }}
+          namespace: {{ .namespace }}
+        {{- end }}
+      {{- end }}
+      services:
+        - name: {{ .Values.keycloakIngressRoute.service.name }}
+          port: {{ .Values.keycloakIngressRoute.service.port }}
+          scheme: {{ .Values.keycloakIngressRoute.service.scheme }}
+          {{- if .Values.keycloakIngressRoute.service.serversTransport }}
+          serversTransport: {{ .Values.keycloakIngressRoute.service.serversTransport }}
+          {{- end }}
+  {{- if .Values.keycloakIngressRoute.tls.enabled }}
+  tls:
+    secretName: {{ .Values.keycloakIngressRoute.tls.secretName }}
+  {{- end }}
+{{- end }}
+
+
+---
+
+keycloakIngressRoute:
+  enabled: true
+  name: keycloak
+  namespace: keycloak-eda
+  entryPoints:
+    - websecure
+  middlewares:
+    - name: keycloak-external-chain
+      namespace: traefik-ingress
+  service:
+    name: keycloak-http
+    port: 8443
+    scheme: https
+    serversTransport: traefik-ingress-keycloak-backend-transport@kubernetescrd
+  tls:
+    enabled: true
+    secretName: keycloakx-tls
+
+
+
+
+
+
+
+------------------------------------------------
 transports.yaml
 --
 
