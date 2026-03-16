@@ -1,3 +1,11 @@
+kubectl get certificate -A
+kubectl describe certificate keycloakx-cert -n keycloak-eda
+kubectl get secret -n keycloak-eda keycloakx-tls -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -issuer -dates -serial -fingerprint -ext subjectAltName
+openssl s_client -connect dev-ethos-idp.fiscloudservices.com:443 -servername dev-ethos-idp.fiscloudservices.com </dev/null 2>/dev/null | openssl x509 -noout -issuer -dates -serial -fingerprint -ext subjectAltName
+
+
+-----------------------
+
 certificates:
   enabled: true
   items:
