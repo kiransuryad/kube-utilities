@@ -1,3 +1,287 @@
+{{- if .Values.grafanaIngressRoute.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Values.grafanaIngressRoute.name }}
+  namespace: {{ .Values.grafanaIngressRoute.namespace | default .Release.Namespace }}
+spec:
+  entryPoints:
+    {{- range .Values.grafanaIngressRoute.entryPoints }}
+    - {{ . }}
+    {{- end }}
+  routes:
+    - match: Host(`{{ .Values.routing.hosts.grafana }}`)
+      kind: Rule
+      {{- if .Values.grafanaIngressRoute.middlewares }}
+      middlewares:
+        {{- range .Values.grafanaIngressRoute.middlewares }}
+        - name: {{ .name }}
+          namespace: {{ .namespace }}
+        {{- end }}
+      {{- end }}
+      services:
+        - name: {{ .Values.grafanaIngressRoute.service.name }}
+          port: {{ .Values.grafanaIngressRoute.service.port }}
+          {{- if .Values.grafanaIngressRoute.service.scheme }}
+          scheme: {{ .Values.grafanaIngressRoute.service.scheme }}
+          {{- end }}
+          {{- if .Values.grafanaIngressRoute.service.serversTransport }}
+          serversTransport: {{ .Values.grafanaIngressRoute.service.serversTransport }}
+          {{- end }}
+  {{- if .Values.grafanaIngressRoute.tls.enabled }}
+  tls:
+    secretName: {{ .Values.grafanaIngressRoute.tls.secretName }}
+  {{- end }}
+{{- end }}
+
+
+--
+
+grafanaIngressRoute:
+  enabled: true
+  name: grafana
+  namespace: kube-prometheus-stack
+  entryPoints:
+    - websecure
+  middlewares:
+    - name: external-common-chain
+      namespace: traefik-ingres
+  service:
+    name: release-7c04a1-grafana
+    port: 80
+  tls:
+    enabled: true
+    secretName: cio-cert-tls
+
+--
+
+"grafanaIngressRoute": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "name": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "middlewares": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "namespace"]
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "scheme": {
+          "type": "string",
+          "enum": ["http", "https"]
+        },
+        "serversTransport": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "port"]
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "secretName": {
+          "type": "string"
+        }
+      },
+      "required": ["enabled"]
+    }
+  },
+  "required": ["enabled", "name", "entryPoints", "service", "tls"]
+}
+
+
+
+------------------------
+
+
+
+"prometheusIngressRoute": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "name": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "middlewares": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "namespace"]
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "scheme": {
+          "type": "string",
+          "enum": ["http", "https"]
+        },
+        "serversTransport": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "port"]
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "secretName": {
+          "type": "string"
+        }
+      },
+      "required": ["enabled"]
+    }
+  },
+  "required": ["enabled", "name", "entryPoints", "service", "tls"]
+}
+
+
+-----
+
+
+
+{{- if .Values.prometheusIngressRoute.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Values.prometheusIngressRoute.name }}
+  namespace: {{ .Values.prometheusIngressRoute.namespace | default .Release.Namespace }}
+spec:
+  entryPoints:
+    {{- range .Values.prometheusIngressRoute.entryPoints }}
+    - {{ . }}
+    {{- end }}
+  routes:
+    - match: Host(`{{ .Values.routing.hosts.prometheus }}`)
+      kind: Rule
+      {{- if .Values.prometheusIngressRoute.middlewares }}
+      middlewares:
+        {{- range .Values.prometheusIngressRoute.middlewares }}
+        - name: {{ .name }}
+          namespace: {{ .namespace }}
+        {{- end }}
+      {{- end }}
+      services:
+        - name: {{ .Values.prometheusIngressRoute.service.name }}
+          port: {{ .Values.prometheusIngressRoute.service.port }}
+          {{- if .Values.prometheusIngressRoute.service.scheme }}
+          scheme: {{ .Values.prometheusIngressRoute.service.scheme }}
+          {{- end }}
+          {{- if .Values.prometheusIngressRoute.service.serversTransport }}
+          serversTransport: {{ .Values.prometheusIngressRoute.service.serversTransport }}
+          {{- end }}
+  {{- if .Values.prometheusIngressRoute.tls.enabled }}
+  tls:
+    secretName: {{ .Values.prometheusIngressRoute.tls.secretName }}
+  {{- end }}
+{{- end }}
+
+
+---
+
+prometheusIngressRoute:
+  enabled: true
+  name: prometheus
+  namespace: kube-prometheus-stack
+  entryPoints:
+    - websecure
+  middlewares:
+    - name: monitoring-internal-chain
+      namespace: traefik-ingres
+  service:
+    name: prometheus-stack-prometheus
+    port: 9090
+  tls:
+    enabled: true
+    secretName: cio-prometheus-internal-cert-tls
+
+
+----
+
+
+
+
+
+
+------------------------------------------
 "alertmanagerIngressRoute": {
   "type": "object",
   "additionalProperties": false,
