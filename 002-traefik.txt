@@ -1,3 +1,125 @@
+transports.yaml
+--
+
+{{- if .Values.transports.enabled }}
+{{- range .Values.transports.items }}
+{{- if .enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Values.namespaceOverride | default $.Release.Namespace }}
+spec:
+  {{- if hasKey . "serverName" }}
+  serverName: {{ .serverName | quote }}
+  {{- end }}
+  {{- if hasKey . "insecureSkipVerify" }}
+  insecureSkipVerify: {{ .insecureSkipVerify }}
+  {{- end }}
+  {{- if .rootCAsSecrets }}
+  rootCAsSecrets:
+    {{- range .rootCAsSecrets }}
+    - {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- if .certificatesSecrets }}
+  certificatesSecrets:
+    {{- range .certificatesSecrets }}
+    - {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- if .maxIdleConnsPerHost }}
+  maxIdleConnsPerHost: {{ .maxIdleConnsPerHost }}
+  {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}
+
+
+
+------
+
+
+"transports": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "items": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "insecureSkipVerify": {
+            "type": "boolean"
+          },
+          "rootCAsSecrets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "certificatesSecrets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "maxIdleConnsPerHost": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "name",
+          "enabled"
+        ]
+      }
+    }
+  },
+  "required": [
+    "enabled",
+    "items"
+  ]
+}
+
+
+
+-----------
+
+transports:
+  enabled: true
+  items:
+    - name: keycloak-backend-transport
+      enabled: true
+      insecureSkipVerify: true
+    - name: monitoring-backend-transport
+      enabled: true
+      insecureSkipVerify: true
+
+
+
+
+
+-------------------------------------------------------------------
 keycloak-security-headers.yaml
 --
 
