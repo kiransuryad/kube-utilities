@@ -1,3 +1,150 @@
+"alertmanagerIngressRoute": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "name": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "middlewares": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "namespace"]
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "scheme": {
+          "type": "string",
+          "enum": ["http", "https"]
+        },
+        "serversTransport": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "port"]
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "secretName": {
+          "type": "string"
+        }
+      },
+      "required": ["enabled"]
+    }
+  },
+  "required": ["enabled", "name", "entryPoints", "service", "tls"]
+}
+
+--
+
+
+{{- if .Values.alertmanagerIngressRoute.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Values.alertmanagerIngressRoute.name }}
+  namespace: {{ .Values.alertmanagerIngressRoute.namespace | default .Release.Namespace }}
+spec:
+  entryPoints:
+    {{- range .Values.alertmanagerIngressRoute.entryPoints }}
+    - {{ . }}
+    {{- end }}
+  routes:
+    - match: Host(`{{ .Values.routing.hosts.alertmanager }}`)
+      kind: Rule
+      {{- if .Values.alertmanagerIngressRoute.middlewares }}
+      middlewares:
+        {{- range .Values.alertmanagerIngressRoute.middlewares }}
+        - name: {{ .name }}
+          namespace: {{ .namespace }}
+        {{- end }}
+      {{- end }}
+      services:
+        - name: {{ .Values.alertmanagerIngressRoute.service.name }}
+          port: {{ .Values.alertmanagerIngressRoute.service.port }}
+          {{- if .Values.alertmanagerIngressRoute.service.scheme }}
+          scheme: {{ .Values.alertmanagerIngressRoute.service.scheme }}
+          {{- end }}
+          {{- if .Values.alertmanagerIngressRoute.service.serversTransport }}
+          serversTransport: {{ .Values.alertmanagerIngressRoute.service.serversTransport }}
+          {{- end }}
+  {{- if .Values.alertmanagerIngressRoute.tls.enabled }}
+  tls:
+    secretName: {{ .Values.alertmanagerIngressRoute.tls.secretName }}
+  {{- end }}
+{{- end }}
+
+
+
+-----
+
+
+
+
+alertmanagerIngressRoute:
+  enabled: true
+  name: alertmanager
+  namespace: kube-prometheus-stack
+  entryPoints:
+    - websecure
+  middlewares:
+    - name: monitoring-internal-chain
+      namespace: traefik-ingress
+  service:
+    name: prometheus-stack-alertmanager
+    port: 9093
+  tls:
+    enabled: true
+    secretName: cio-alertmanager-internal-cert-tls
+
+---
+
+
+
+
+
+
+
+----------------------------------------------------
 "keycloakIngressRoute": {
   "type": "object",
   "additionalProperties": false,
