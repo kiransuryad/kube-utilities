@@ -1,3 +1,118 @@
+"keycloakBackendTLS": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "certificate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "secretName": {
+          "type": "string"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "issuerKind": {
+          "type": "string",
+          "enum": ["Issuer", "ClusterIssuer"]
+        },
+        "commonName": {
+          "type": "string"
+        },
+        "dnsNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "name",
+        "secretName",
+        "issuer",
+        "issuerKind",
+        "commonName",
+        "dnsNames"
+      ]
+    }
+  },
+  "required": [
+    "enabled",
+    "certificate"
+  ]
+}
+
+
+---
+
+
+transports:
+  enabled: true
+  items:
+    - name: keycloak-backend-transport
+      enabled: true
+      serverName: dev-ethos-idp.fiscloudservices.com
+      insecureSkipVerify: false
+      rootCAsSecrets:
+        - keycloak-backend-ca-trust
+
+    - name: monitoring-backend-transport
+      enabled: true
+      insecureSkipVerify: true
+
+
+----
+
+keycloakBackendTLS:
+  enabled: true
+  certificate:
+    name: keycloak-backend-ca-cert
+    secretName: keycloak-backend-ca-trust
+    issuer: cio-ca-issuer
+    issuerKind: ClusterIssuer
+    commonName: dev-ethos-idp.fiscloudservices.com
+    dnsNames:
+      - dev-ethos-idp.fiscloudservices.com
+
+
+----
+
+
+templates/keycloak-backend-ca-certificate.yaml
+--
+
+{{- if .Values.keycloakBackendTLS.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.keycloakBackendTLS.certificate.name }}
+  namespace: {{ $.Values.namespaceOverride | default $.Release.Namespace }}
+spec:
+  secretName: {{ .Values.keycloakBackendTLS.certificate.secretName }}
+  issuerRef:
+    name: {{ .Values.keycloakBackendTLS.certificate.issuer }}
+    kind: {{ .Values.keycloakBackendTLS.certificate.issuerKind }}
+  commonName: {{ .Values.keycloakBackendTLS.certificate.commonName }}
+  dnsNames:
+    {{- range .Values.keycloakBackendTLS.certificate.dnsNames }}
+    - {{ . }}
+    {{- end }}
+{{- end }}
+
+
+
+
+
+
+------------------------------------------------------------------------------
 kubectl describe certificate grafana-cert -n kube-prometheus-stack
 kubectl describe certificate prometheus-cert -n kube-prometheus-stack
 
