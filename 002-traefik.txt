@@ -1,3 +1,148 @@
+certificates:
+  enabled: true
+  items:
+    - name: keycloakx-cert
+      enabled: true
+      namespace: keycloak-eda
+      issuer: cio-ca-issuer
+      issuerKind: ClusterIssuer
+      secretName: keycloakx-tls
+      commonName: dev-ethos-idp.fiscloudservices.com
+      dnsNames:
+        - dev-ethos-idp.fiscloudservices.com
+
+    - name: grafana-cert
+      enabled: true
+      namespace: kube-prometheus-stack
+      issuer: cio-ca-issuer
+      issuerKind: ClusterIssuer
+      secretName: cio-cert-tls
+      commonName: dev-ethos-idp.monitor.fiscloudservices.com
+      dnsNames:
+        - dev-ethos-idp.monitor.fiscloudservices.com
+
+    - name: prometheus-cert
+      enabled: true
+      namespace: kube-prometheus-stack
+      issuer: cio-ca-issuer
+      issuerKind: ClusterIssuer
+      secretName: cio-prometheus-internal-cert-tls
+      commonName: prometheus.monitor.internal
+      dnsNames:
+        - prometheus.monitor.internal
+
+    - name: alertmanager-cert
+      enabled: true
+      namespace: kube-prometheus-stack
+      issuer: cio-ca-issuer
+      issuerKind: ClusterIssuer
+      secretName: cio-alertmanager-internal-cert-tls
+      commonName: alertmanager.monitor.internal
+      dnsNames:
+        - alertmanager.monitor.internal
+
+
+---
+templates/certificates.yaml
+--
+
+
+{{- if .Values.certificates.enabled }}
+{{- range .Values.certificates.items }}
+{{- if .enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace }}
+spec:
+  secretName: {{ .secretName }}
+  issuerRef:
+    name: {{ .issuer }}
+    kind: {{ .issuerKind | default "ClusterIssuer" }}
+  commonName: {{ .commonName }}
+  dnsNames:
+    {{- range .dnsNames }}
+    - {{ . }}
+    {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}
+
+
+---
+
+"certificates": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "items": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "issuerKind": {
+            "type": "string",
+            "enum": ["Issuer", "ClusterIssuer"]
+          },
+          "secretName": {
+            "type": "string"
+          },
+          "commonName": {
+            "type": "string"
+          },
+          "dnsNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "namespace",
+          "issuer",
+          "secretName",
+          "commonName",
+          "dnsNames"
+        ]
+      }
+    }
+  },
+  "required": [
+    "enabled",
+    "items"
+  ]
+}
+
+
+
+
+
+
+----------------------------------------------------------------------
 {{- if .Values.grafanaIngressRoute.enabled }}
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
