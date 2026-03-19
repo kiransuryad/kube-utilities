@@ -1,0 +1,146 @@
+Proposal: CI Platform Modernisation — Jenkins & Bitbucket → GitHub & GitHub Actions
+Executive Summary
+
+We propose to modernise our CI platform by consolidating source code and CI/CD pipelines into GitHub, replacing the current Bitbucket + Jenkins setup.
+
+This will simplify the engineering platform, reduce operational overhead, improve developer productivity, and align with modern cloud-native delivery practices.
+
+Target State (End Vision)
+
+Single platform for:
+
+Source code → GitHub
+
+CI/CD → GitHub Actions
+
+Standardised pipelines across all services
+
+Reduced dependency on self-managed infrastructure (Jenkins)
+
+Improved governance, auditability, and security controls
+
+Why Change? (Business Drivers)
+1. Platform Simplification
+
+Today: Multiple tools (Bitbucket + Jenkins + plugins)
+
+Future: Single integrated platform (GitHub)
+
+2. Operational Efficiency
+
+Eliminate Jenkins maintenance (servers, plugins, upgrades)
+
+Reduce support and troubleshooting overhead
+
+3. Developer Productivity
+
+Faster onboarding with standardised workflows
+
+Native CI integrated with source code
+
+4. Security & Governance
+
+Centralised access control and audit trail
+
+Built-in secrets management and policy enforcement
+
+5. Scalability & Future Readiness
+
+Align with modern DevOps / AI / cloud-native ecosystems
+
+Easier integration with security scanning, automation, and AI tooling
+
+High-Level Migration Plan
+Phase 1 — Strategy & Decision
+
+Confirm GitHub as the strategic platform
+
+Define governance, access model, and standards
+
+Phase 2 — Repository Migration (FOUNDATIONAL STEP)
+
+Move all repositories from Bitbucket → GitHub
+
+Preserve history, branches, and permissions
+
+Establish GitHub organisation structure
+
+Phase 3 — Platform Foundation Setup
+
+Define:
+
+Access controls & teams
+
+Secrets & credentials strategy
+
+Runner strategy (hosted vs self-hosted)
+
+Standard CI templates
+
+Phase 4 — Pilot Migration
+
+Select a small set of services
+
+Migrate Jenkins pipelines → GitHub Actions
+
+Validate:
+
+Build performance
+
+Security controls
+
+Developer workflows
+
+Phase 5 — Full Migration (Wave-Based)
+
+Migrate remaining applications in controlled batches
+
+Prioritise based on business criticality
+
+Track progress and stability per wave
+
+Phase 6 — Stabilisation & Validation
+
+Ensure:
+
+Build reliability
+
+Deployment consistency
+
+Audit/compliance readiness
+
+Phase 7 — Jenkins Decommission
+
+Retire Jenkins infrastructure
+
+Remove plugin dependencies
+
+Finalise platform consolidation
+
+Key Decisions Required
+
+Approve GitHub as the strategic platform
+
+Approve repository migration from Bitbucket
+
+Define timeline (phased vs accelerated)
+
+Confirm runner model (cloud-hosted vs internal)
+
+Risks & Mitigations
+Risk	Mitigation
+Migration disruption	Pilot-first approach before full rollout
+Pipeline incompatibility	Redesign using standard templates
+Team learning curve	Provide enablement & reusable templates
+Temporary dual systems	Time-boxed transition period
+Success Criteria
+
+All repositories migrated to GitHub
+
+All CI pipelines running on GitHub Actions
+
+Jenkins fully decommissioned
+
+Reduced build times and operational overhead
+
+Positive developer adoption and feedback
