@@ -1,3 +1,17 @@
+aws s3 sync s3://ethos-portal-cecl-cdn-prod/files ./files
+aws s3 sync s3://ethos-portal-cecl-cdn-prod/reports ./reports
+aws s3 sync s3://ethos-portal-cecl-cdn-prod/temp ./temp
+
+
+
+aws s3 cp ./files s3://ethos-cecl-cdn-prod-s3/files --recursive 
+aws s3 cp ./reports s3://ethos-cecl-cdn-prod-s3/reports --recursive 
+aws s3 cp ./temp s3://ethos-cecl-cdn-prod-s3/temp --recursive 
+
+
+
+
+--------------------------------------------------------------------------
 resource "aws_iam_policy" "DynamoDBRestorePolicy" {
   name   = "DynamoDBRestorePolicy"
   path   = "/"
