@@ -1,0 +1,88 @@
+Enterprise Platform Engineering Strategy (Summary)
+Context
+
+The organisation currently operates across multiple AWS accounts and Azure subscriptions, enabling scalability but resulting in fragmented platforms, pipelines, security practices, and observability.
+
+While applications are running successfully, the lack of standardisation introduces increasing operational risk, delivery inefficiencies, and governance challenges.
+
+Problem Statement
+Platforms are inconsistent across AWS and Azure
+CI/CD pipelines vary by team with manual steps
+Security practices (secrets, scanning, TLS) are not standardised
+Observability is fragmented with no unified view
+Each team manages its own DevOps, leading to duplication
+
+Impact:
+Higher risk, slower delivery, increased cost, and limited scalability
+
+The organisation is effectively managing infrastructure, not operating a platform.
+
+Proposed Strategy
+
+Establish a central Platform Engineering function to provide a unified, secure, and scalable multi-cloud platform.
+
+This platform will standardise how infrastructure is provisioned, how applications are deployed, and how security and observability are enforced.
+
+Key Components
+1. Platform Standardisation
+
+Define consistent patterns across AWS and Azure:
+
+Landing zones and account structure
+Standard Kubernetes platforms (EKS / AKS)
+Reusable Terraform modules
+2. DevSecOps by Design
+
+Embed security into delivery pipelines:
+
+Standard CI/CD templates (golden paths)
+Integrated security scanning
+Centralised secrets management
+Policy as code
+3. Unified Observability
+
+Provide a single view across environments:
+
+Metrics, logs, and traces standardised
+Central monitoring (Dynatrace or OSS stack)
+SLO-based alerting
+4. Operating Model Transformation
+
+Shift to a platform-led approach:
+
+Central platform team owns infrastructure, pipelines, and governance
+Application teams focus on delivering features
+Platform delivered as a reusable product
+Developer Experience (End State)
+
+From a developer perspective:
+
+Write code
+Raise a pull request
+
+Everything else — build, security, deployment, secrets, monitoring — is handled by the platform.
+
+Expected Outcomes
+Faster and more consistent delivery
+Reduced operational and security risk
+Improved visibility across systems
+Lower cost through standardisation and reuse
+Why This Approach
+
+This strategy builds on proven delivery experience, including:
+
+Successful multi-account AWS migration
+Secure data transfer with zero data loss
+Production-grade platform deployment
+
+It is not a theoretical model — it is an evolution of what already works.
+
+Implementation Approach (High-Level)
+Assess current environments and identify gaps
+Define standard platform and pipeline patterns
+Pilot with selected applications
+Gradually scale across teams
+Transition to centralised platform operations
+Summary
+
+This strategy transitions the organisation from fragmented, team-specific DevOps practices to a standardised, secure, and scalable platform operating model, enabling faster delivery and better control across AWS and Azure.
