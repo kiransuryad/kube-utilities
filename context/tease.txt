@@ -1,0 +1,86 @@
+{{- if .Values.keycloakIngressRoute.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Values.keycloakIngressRoute.name }}
+  namespace: {{ .Values.keycloakIngressRoute.namespace | default .Release.Namespace }}
+spec:
+  entryPoints:
+    {{- range .Values.keycloakIngressRoute.entryPoints }}
+    - {{ . }}
+    {{- end }}
+  routes:
+    - match: {{ include "traefik.hostMatchRule" .Values.routing.hosts.keycloak }}
+      kind: Rule
+      {{- if .Values.keycloakIngressRoute.middlewares }}
+      middlewares:
+        {{- range .Values.keycloakIngressRoute.middlewares }}
+        - name: {{ .name }}
+          namespace: {{ .namespace }}
+        {{- end }}
+      {{- end }}
+      services:
+        - name: {{ .Values.keycloakIngressRoute.service.name }}
+          port: {{ .Values.keycloakIngressRoute.service.port }}
+          scheme: {{ .Values.keycloakIngressRoute.service.scheme }}
+          {{- if .Values.keycloakIngressRoute.service.serversTransport }}
+          serversTransport: {{ .Values.keycloakIngressRoute.service.serversTransport }}
+          {{- end }}
+  {{- if .Values.keycloakIngressRoute.tls.enabled }}
+  tls:
+    secretName: {{ .Values.keycloakIngressRoute.tls.secretName }}
+  {{- end }}
+{{- end }}
+
+
+---
+
+
+{{- define "traefik.hostMatchRule" -}}
+{{- $hosts := . -}}
+{{- range $i, $host := $hosts -}}
+{{- if $i }} || {{ end -}}Host(`{{ $host }}`)
+{{- end -}}
+{{- end -}}
+
+
+--
+
+
+"routing": {
+  "type": "object",
+  "properties": {
+    "allowlists": {
+      "type": "object",
+      "properties": {
+        "internal": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "external": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "hosts": {
+      "type": "object",
+      "properties": {
+        "grafana": { "type": "string" },
+        "prometheus": { "type": "string" },
+        "alertmanager": { "type": "string" },
+        "keycloak": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+
+
+
+---
