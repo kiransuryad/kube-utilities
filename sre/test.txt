@@ -1,3 +1,18 @@
+What is it
+As part of our migration from CloudBees (Jenkins) to GitHub Actions, we propose establishing a centrally managed GitHub Actions Runner platform within a dedicated AWS account. This becomes the standard execution layer for all CI/CD workloads, ensuring a consistent, secure, and scalable foundation as we transition away from legacy Jenkins infrastructure.
+
+How we do it
+The Platform Engineering team will own and operate the GitHub Actions runner platform (using Kubernetes/EKS-based autoscaling runners), including infrastructure, security baselines, and access controls. Engineering teams will consume runners directly via GitHub workflows without managing any underlying compute. Existing ad-hoc or team-specific runner setups will be consolidated into this model to ensure uniform governance, isolation, and scalability across teams and clients.
+
+Advantages (and why not alternatives)
+This approach provides a controlled, enterprise-grade execution environment aligned with GitHub Actions, improving security (ephemeral runners, IAM-based access), reducing cost through shared autoscaling infrastructure, and accelerating delivery by removing operational overhead from teams. Continuing with existing or decentralized runner implementations would perpetuate inconsistency, duplicated cost, and security gaps, and would not meet the standardisation and compliance requirements expected from the Jenkins-to-GitHub migration.
+
+
+
+
+----------------
+
+
 
 Common SRE Approach — First Call Summary
 1. Objective
