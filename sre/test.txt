@@ -1,3 +1,179 @@
+central, governed GitHub Actions execution platform for internal clients.
+
+Recommended target architecture
+Developers / Internal Client Teams
+        |
+        v
+GitHub Enterprise Cloud / GitHub Org
+- Repositories
+- Environments
+- Runner Groups
+- Reusable Workflows
+        |
+        | HTTPS/TLS to GitHub APIs
+        v
+Central CI Platform AWS Account
+--------------------------------
+VPC
+  |
+  |-- Private EKS Cluster
+  |     |
+  |     |-- ARC Controller namespace
+  |     |     - Actions Runner Controller
+  |     |     - GitHub App / auth integration
+  |     |
+  |     |-- Runner Scale Set: Client A
+  |     |-- Runner Scale Set: Client B
+  |     |-- Runner Scale Set: Shared build
+  |     |
+  |     |-- Namespaces / quotas / network policies
+  |     |-- IRSA roles per runner set
+  |     |-- Admission policies / image policy / pod security
+  |
+  |-- Private subnets for runner pods
+  |-- Separate node groups
+  |     - General CI
+  |     - Heavy build
+  |     - Restricted / high-trust
+  |
+  |-- NAT / egress control / proxy / firewall
+  |-- VPC endpoints where possible
+  |-- CloudWatch / Prometheus / Grafana / SIEM export
+  |-- ECR for golden runner images
+  |-- Secrets Manager / KMS
+  |
+  +--> Spoke AWS Accounts / Internal Environments
+        - EKS clusters
+        - Private ALB/NLB
+        - RDS
+        - S3
+        - Internal APIs
+        - Shared services
+
+GitHub’s current self-hosted runner model for Kubernetes is Actions Runner Controller with runner scale sets, and runner scale sets are designed to autoscale homogeneous runners for GitHub Actions workloads. GitHub also documents self-hosted runners as customizable execution environments that you deploy and manage yourself.
+
+How this should work
+
+Internal client teams keep their code and workflows in GitHub, but instead of owning their own runner infrastructure, they target centrally managed runner groups and scale sets. The central platform team owns the execution layer: EKS, ARC, hardened runner images, scaling, observability, network guardrails, and AWS access patterns. Teams consume the platform on demand through GitHub Actions YAML, without building or maintaining EC2 runner farms themselves. GitHub documents that ARC can deploy runner scale sets into Kubernetes namespaces and autoscale the number of active runners according to queued jobs.
+
+Secure communication model
+
+There are two trust paths here.
+
+First, GitHub to runner control path. ARC and the runners communicate outbound to GitHub over TLS. You do not need inbound internet exposure from GitHub into your cluster; the control pattern is outbound registration and job acquisition. GitHub’s self-hosted runner registration uses a time-limited token, and the runner connects back to GitHub to receive work.
+
+Second, runner to internal target systems. Because the runners execute inside your AWS network boundary, they can reach private EKS APIs, internal ALBs/NLBs, private RDS endpoints, internal artifact repositories, and other systems that GitHub-hosted runners typically cannot reach directly without extra exposure or bridging. Self-hosted runners are explicitly for cases where you need to customize the runtime and network environment.
+
+Security design
+
+The right security baseline is:
+
+Use ephemeral runners so each job gets a fresh worker and there is minimal state carryover between jobs. GitHub explicitly recommends autoscaling with ephemeral self-hosted runners for clean job isolation.
+
+Use runner scale sets per trust boundary, not one giant shared pool. In practice that means one runner scale set per internal client, per sensitivity tier, or per workload type. GitHub supports assigning runners through scale sets and groups, which maps cleanly to this isolation model.
+
+Use IRSA or EKS pod identity patterns for AWS access from pods instead of broad node permissions. AWS documents IRSA as the preferred pod-level identity pattern for making AWS API calls from containers, and AWS best practices call IRSA and EKS pod identities the preferred way to assign AWS identity to pods.
+
+Use GitHub OIDC for workflows that must assume roles into spoke AWS accounts, rather than storing long-lived AWS credentials in GitHub secrets. GitHub’s AWS OIDC guidance and AWS IAM documentation both recommend scoping the trust policy tightly to specific repositories or branches.
+
+Use golden runner images stored in ECR with only approved tools and versions. This is not a GitHub requirement, but it is the cleanest enterprise operating pattern because it reduces drift, shrinks setup time, and improves vulnerability management.
+
+Use network segmentation. Put ARC and the runner scale sets in separate namespaces, apply Kubernetes network policies, use dedicated node groups for restricted workloads, and restrict outbound access where feasible through NAT, egress filtering, or proxy controls. AWS EKS best practices emphasize identity isolation and controlled access patterns in cluster design.
+
+Compliance and audit justification
+
+The strongest compliance argument is not that “data passes through us,” but that CI execution happens inside an enterprise-controlled AWS boundary rather than on unmanaged or team-managed compute. That gives you:
+
+Central logging of runner activity, image provenance, access patterns, and deployment actions.
+
+Standardized patching and image lifecycle management.
+
+Consistent pod-level IAM and tighter separation of duties.
+
+Clearer evidence for audit around who executed what, from which repo, under which role, in which environment.
+
+GitHub’s OIDC model also helps replace long-lived cloud credentials with short-lived tokens, which is materially better for audit and secret minimization.
+
+This does not mean all source code becomes “owned” by the platform team. The code still lives in GitHub; the platform provides the controlled execution substrate. That is a defensible compliance position.
+
+Multi-client operating model
+
+A successful internal pattern is:
+
+A single central CI platform account.
+
+One shared EKS control plane for the runner platform.
+
+Separate namespaces, runner groups, quotas, and IAM roles per internal client.
+
+Optional dedicated node groups for higher-trust clients or heavyweight builds.
+
+Spoke-account access via cross-account IAM roles, assumed only by permitted repositories, workflows, or environments.
+
+This gives you platform efficiency without forcing all clients into one undifferentiated security boundary.
+
+For highly regulated or politically sensitive internal clients, a second successful pattern is federated central standards with selective dedicated execution pools. That means the platform team still owns the design and tooling, but some clients get their own isolated runner scale set, node group, or even separate EKS cluster when required.
+
+Successful patterns to recommend
+
+These are the patterns I would explicitly propose:
+
+Pattern 1: Shared control plane, isolated execution pools
+Best default. One central runner platform, but per-client runner scale sets, namespaces, IAM roles, and quotas. This is the best balance of cost, control, and operational simplicity.
+
+Pattern 2: Tiered runner classes
+Create distinct scale sets for general CI, heavy container builds, and restricted deployments. This prevents expensive or sensitive jobs from contaminating the whole platform.
+
+Pattern 3: Ephemeral-only runners
+No long-lived static runners. This reduces persistence risk and configuration drift. GitHub’s runner guidance strongly supports ephemeral autoscaled models for clean execution.
+
+Pattern 4: Reusable workflow plus central execution
+Do not just provide compute. Also publish reusable workflow templates for build, test, scan, package, deploy, and rollback. That is where central platform value compounds.
+
+Pattern 5: OIDC plus least-privilege deployment roles
+Each repo or environment assumes only the AWS roles it needs. GitHub and AWS both document OIDC federation as the preferred alternative to static secrets.
+
+Feasibility assessment
+
+This is highly feasible if your organization already operates EKS and AWS platform services well. The hard parts are not Kubernetes mechanics; they are platform governance, client onboarding, runner image management, and identity boundaries.
+
+Technically, the core stack is mature enough:
+GitHub supports self-hosted runners, ARC, and runner scale sets.
+AWS supports pod-level identity through IRSA.
+GitHub and AWS support OIDC federation for short-lived cloud authentication.
+
+The main implementation risk is building a platform that is too “open” and becomes just another unmanaged runner pool. That is why the platform must be opinionated.
+
+What you should explicitly include in the proposal
+
+Say that the central platform will provide:
+
+Secure, autoscaling GitHub Actions execution within approved AWS boundaries.
+
+Standardized runner images and reusable workflow patterns.
+
+Per-client isolation through runner groups, namespaces, IAM roles, and network controls.
+
+Central logging, observability, and audit evidence.
+
+A migration landing zone for Jenkins-to-GitHub Actions adoption.
+
+What not to promise
+
+Do not say every workload from every internal client should always use the exact same runner pool. That will trigger immediate security objections.
+
+Do not say the platform team will permanently handcraft every team’s YAML. That turns you into a one-time migration factory.
+
+Do not frame the value as only “cost savings.” Cost is real, but the stronger case is control, private access, standardization, and auditability.
+
+Recommended leadership wording
+
+You can describe the architecture like this:
+
+“We propose a centrally managed GitHub Actions execution platform hosted in a dedicated AWS account, using EKS and GitHub Actions Runner Controller to provide secure, autoscaling self-hosted runners on demand for internal clients. The platform will enforce standardized security controls, isolated execution pools, pod-level AWS identity, and centralized auditability, while allowing teams to consume CI/CD capacity through GitHub workflows without owning runner infrastructure.”
+
+--------------------
+
 What is it
 As part of our migration from CloudBees (Jenkins) to GitHub Actions, we propose establishing a centrally managed GitHub Actions Runner platform within a dedicated AWS account. This becomes the standard execution layer for all CI/CD workloads, ensuring a consistent, secure, and scalable foundation as we transition away from legacy Jenkins infrastructure.
 
