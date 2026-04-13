@@ -1,3 +1,12 @@
+aws kms list-keys --query "Keys[].KeyId" --output text | tr '\t' '\n' | while read key; do
+  aws kms describe-key --key-id $key \
+    --query "KeyMetadata.[KeyId,Origin,KeyManager]" \
+    --output text
+done
+
+
+
+------------------
 aws s3 sync s3://ethos-portal-cecl-cdn-prod/files ./files
 aws s3 sync s3://ethos-portal-cecl-cdn-prod/reports ./reports
 aws s3 sync s3://ethos-portal-cecl-cdn-prod/temp ./temp
