@@ -1,3 +1,11 @@
+The platform enforces mandatory change and release gates automatically, ensuring required controls such as SAST scanning are consistently executed within pipelines—eliminating manual evidence handling and preventing non-compliant changes from progressing.
+
+Standardised workflows, automated scaling, and built-in governance eliminate repetitive manual effort across teams, reducing pipeline setup, maintenance, and compliance-related toil while improving consistency and speed of delivery.
+
+
+
+----------------------
+
 central, governed GitHub Actions execution platform for internal clients.
 
 Recommended target architecture
