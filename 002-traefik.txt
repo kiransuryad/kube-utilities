@@ -1,57 +1,33 @@
-🔹 Issues Being Addressed (use these across teams)
-
-You can reuse these per team depending on relevance:
-
-1. Fragmented CI/CD ownership
-Multiple team-managed runners and pipelines leading to inconsistency and duplication
-2. High operational toil
-Significant time spent managing CI/CD infrastructure, debugging runners, and handling access/secrets
-3. Inconsistent security & compliance enforcement
-Manual SAST/report uploads and non-standardised security controls across pipelines
-4. Lack of standardisation in pipelines
-Different pipeline implementations increasing complexity and cognitive load
-5. Slow onboarding & setup
-Manual setup of pipelines and infrastructure for new services/projects
-6. Limited visibility & observability
-No central view of pipeline performance, failures, or cost usage
-7. Uncontrolled change & release processes
-Manual approvals and inconsistent change gate enforcement
-8. Inefficient resource utilisation
-Idle or over-provisioned runners increasing cost and reducing efficiency
-🔹 Comment / Status (SRE-aligned, outcome-driven)
-
-Use these as status updates or comments:
-
-1. Platform standardisation in progress
-Central GitHub Actions runner platform being implemented to unify CI/CD execution across teams
-2. Toil reduction enabled
-CI/CD infrastructure ownership removed from application teams; platform provides managed execution
-3. Security & compliance automated
-Mandatory controls (e.g., SAST, policy checks) integrated into pipelines; manual evidence handling eliminated
-4. Standard workflows introduced
-Reusable GitHub Actions templates being rolled out to reduce duplication and improve consistency
-5. Onboarding accelerated
-Automated onboarding and pre-configured templates reducing setup time for new services
-6. Observability improved
-Centralised monitoring and reporting for pipeline performance, failures, and usage
-7. Controlled release process enforced
-Automated change gates, approvals, and deployment controls embedded into standard workflows
-8. Cost & efficiency optimised
-Autoscaling runners and shared infrastructure improving utilisation and reducing cost
-🔹 Example (how one row would look)
-Ethos Analytics
-
 Issues Being Addressed
-
-Fragmented CI/CD ownership and inconsistent pipeline implementations
-High operational toil due to team-managed runners and infrastructure
-Manual security and compliance processes (e.g., SAST evidence handling)
+Fragmented CI/CD ownership with multiple team-managed runners and inconsistent pipeline implementations
+High operational toil due to infrastructure management, runner issues, and manual secrets handling
+Inconsistent security and compliance enforcement, including manual SAST evidence submission
+Lack of standardisation in pipelines leading to duplication and increased cognitive load
+Slow onboarding and setup for new services and environments
+Limited visibility into pipeline performance, failures, and cost usage
+Uncontrolled change and release processes with manual approvals and inconsistent gate enforcement
+Inefficient resource utilisation due to idle or over-provisioned runners
 
 Comment / Status
+Migration to central GitHub Actions runner platform in progress, establishing a standardised CI/CD execution model
+CI/CD infrastructure abstracted into a managed platform, eliminating non-value-adding operational work for application teams
+Security and compliance controls embedded into pipelines, shifting enforcement left and eliminating manual intervention
+Reusable workflows and standard pipeline patterns introduced to improve consistency and reduce cognitive complexity
+Automated onboarding and pre-approved templates enabling faster and consistent service setup
+Centralised observability introduced for CI/CD pipelines, enabling proactive monitoring and reliability improvements
+Automated change gates and controlled release workflows implemented, aligning deployments with policy-driven governance
+Autoscaling runner model implemented to optimise utilisation and align capacity with demand
 
-Migration to central GitHub Actions runner platform in progress
-Standard workflows and automated security gates being implemented
-Expected reduction in CI/CD operational overhead and improved compliance consistency
+
+Success Metrics (SRE-aligned)
+Platform adoption rate (% workloads onboarded); reduction in configuration drift across pipelines
+Reduction in engineering toil (hours/week); decrease in CI/CD-related operational tickets/incidents
+% of pipelines meeting compliance SLOs; reduction in manual audit effort; % automated control enforcement
+% standard workflow adoption; reduction in pipeline variance; developer cognitive load (qualitative improvement)
+Lead time for onboarding new services; time to first successful pipeline execution
+Pipeline success rate (reliability SLI); mean time to detect (MTTD) pipeline failures; visibility coverage (%)
+Change failure rate (DORA); % releases passing automated gates; reduction in manual approval interventions
+Runner utilisation rate; cost per pipeline/job; infrastructure efficiency ratio (idle vs active capacity)
 
 ------------------------
 
