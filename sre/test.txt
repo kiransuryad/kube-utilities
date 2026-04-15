@@ -1,3 +1,141 @@
+Central GitHub Actions Runner Platform – Direction & Guardrails
+1. Objective
+
+Build a centrally owned GitHub Actions runner platform in AWS that enables multiple teams to consume secure, autoscaled, ephemeral runners—without each team operating their own runner infrastructure.
+
+The platform is intended to be a shared internal product, not just an implementation.
+
+2. Scope of Ownership
+
+The solution is expected to be designed and led end-to-end, including:
+
+AWS account and platform architecture
+EKS cluster and runner orchestration (ARC)
+Runner lifecycle and scaling model
+Network connectivity and access model
+Identity, authentication, and secrets management
+Tenant isolation model
+Observability and operational support model
+Onboarding and consumption model for teams
+Cost visibility and control considerations
+3. Platform Principles (Non-Negotiable Thinking Guidelines)
+
+The following principles should guide design decisions:
+
+Prefer ephemeral runners over long-lived runners
+Prefer identity-based access (OIDC/IAM) over static credentials
+Design for multi-tenant usage from day one
+Observability must be built-in, not added later
+Platform should enable self-service onboarding for teams
+Avoid designs that introduce manual operational overhead
+Prefer standardisation and reuse over bespoke team-specific setups
+Ensure clear separation of responsibilities between platform and consuming teams
+4. Constraints (Fixed Boundaries)
+
+The following are agreed upfront:
+
+Platform will be built on AWS using EKS + GitHub Actions Runner Controller (ARC)
+Must support multiple teams / tenants
+Must integrate with:
+GitHub
+JFrog / Artifactory
+HashiCorp Vault
+Selected AWS accounts/services
+Must align with SRE principles (reliability, observability, operability)
+Must support secure and auditable pipeline execution
+5. Key Design Considerations
+
+The following areas require explicit design decisions:
+
+Tenant isolation model (soft vs strong isolation)
+Runner lifecycle (ephemeral, scaling, cleanup)
+Secrets and identity model
+Network connectivity model (egress/ingress, service access)
+Observability and debugging model
+Onboarding and access model for teams
+Cost attribution and usage visibility
+Handling of privileged workloads (e.g. Docker builds)
+6. CI/CD Platform Expectations
+
+The runner platform is expected to support and align with enterprise CI/CD practices.
+
+The design should consider support for:
+
+Pull request triggered pipelines and automated validation workflows
+Standardised and reusable workflow templates
+Branch-based and environment-based promotion models
+Change governance and approval gates where required
+Secure handling of build-time credentials and secrets
+Artifact integrity, traceability, and auditability
+Policy enforcement prior to promotion/deployment
+Scalable execution for concurrent workloads
+7. Security & Compliance Considerations
+
+The platform should enable integration with enterprise security controls, including:
+
+SAST (Static Application Security Testing)
+SCA (Software Composition Analysis)
+SBOM generation
+DAST (Dynamic Application Security Testing)
+API security scanning
+Secure secret management and least-privilege access
+Auditability and evidence generation for compliance
+
+Integration with tools such as CheckmarxOne should be considered as part of the platform design.
+
+8. Non-Goals (For Initial Phase)
+
+To maintain focus and speed:
+
+Not aiming for a “perfect” v1 platform
+No requirement for full feature coverage across all use cases
+No mandatory service mesh in initial design
+No need to support all edge cases upfront
+9. Working Model
+
+This document provides direction and guardrails, not a prescriptive design.
+
+The expectation is to:
+
+Explore solution approaches
+Propose architecture options with trade-offs
+Align at key checkpoints before finalising design
+10. Alignment Checkpoints
+
+To ensure clarity and avoid rework, alignment is expected at:
+
+Discovery Review
+Problem understanding
+Assumptions
+Risks and unknowns
+Architecture Options Review
+2–3 design approaches
+Trade-offs and recommendations
+Final Design Review
+Detailed architecture
+Key decisions and rationale
+11. Open Questions (To Drive Discovery)
+What level of tenant isolation is required initially?
+Expected scale (concurrent pipelines, peak load)?
+Do we need support for privileged workloads (e.g., Docker builds)?
+What environments/services must runners access?
+How many AWS accounts need to be integrated?
+What level of governance and approval is required across teams?
+Any compliance or audit requirements influencing design?
+12. Clarification
+
+This document is intended to guide direction and highlight constraints.
+It is not a prescriptive design and should not limit exploration of better approaches.
+
+H
+
+
+
+
+
+
+
+-----------------------------
 The platform enforces mandatory change and release gates automatically, ensuring required controls such as SAST scanning are consistently executed within pipelines—eliminating manual evidence handling and preventing non-compliant changes from progressing.
 
 Standardised workflows, automated scaling, and built-in governance eliminate repetitive manual effort across teams, reducing pipeline setup, maintenance, and compliance-related toil while improving consistency and speed of delivery.
