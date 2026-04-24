@@ -1,0 +1,69 @@
+📘 AWS Account Decommission Plan (Confluence Draft)
+🔷 Objective
+
+Decommission AWS account in a controlled, auditable, and cost-optimised manner, ensuring:
+
+All data is securely purged
+All resources are deleted
+No residual cost or orphaned infrastructure
+Account is ready for handover and final closure
+🔷 High-Level Plan
+
+The decommission will be executed in 5 structured phases, each mapped to a Snow ticket with clear deliverables and evidence.
+
+🟢 Phase 1 — Data Purge (Critical)
+Scope
+RDS (instances + snapshots)
+S3 (including versioned objects)
+DynamoDB (tables + backups)
+EBS snapshots
+Backup vaults
+Outcome
+All persistent data permanently removed
+Evidence
+Before: resource inventory + cost snapshot
+After: zero data resources remaining
+🟡 Phase 2 — Application & Compute Cleanup
+Scope
+EC2 instances
+ECS services
+Lambda functions
+Load balancers (ALB/NLB)
+API Gateway
+CloudFront
+Route53 records
+Outcome
+No active workloads or entry points
+Evidence
+Before: running compute + endpoints
+After: zero active compute/services
+🟠 Phase 3 — EKS Decommission
+Scope
+EKS cluster
+Node groups / EC2 nodes
+Fargate profiles
+Associated IAM roles & networking
+Outcome
+Kubernetes platform fully removed
+Evidence
+aws eks list-clusters → empty
+No worker nodes or ENIs
+🔵 Phase 4 — Residual Infrastructure Cleanup
+Scope
+VPCs, subnets
+NAT gateways (high cost)
+Internet gateways
+Elastic IPs
+Security groups
+CloudWatch logs
+Secrets Manager / Config / GuardDuty
+Outcome
+No hidden cost or orphaned infra
+🟣 Phase 5 — Final Sanitisation & Handover
+Scope
+IAM cleanup (users, roles, keys)
+Final cost validation
+Handover to account closure team
+Outcome
+Account in near-zero cost state
+Ready for deletion
