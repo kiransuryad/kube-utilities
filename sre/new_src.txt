@@ -3,6 +3,277 @@
 set -u
 
 REGION="us-east-1"
+OUT_DIR="deletion-logs"
+RUN_DATE=$(date '+%Y-%m-%d')
+MODE="${1:-dry-run}"
+
+mkdir -p "$OUT_DIR"
+
+LOG_FILE="$OUT_DIR/delete-data-resources-${RUN_DATE}.log"
+
+log() {
+  echo "[$RUN_DATE] $*" | tee -a "$LOG_FILE"
+}
+
+run_cmd() {
+  log "COMMAND: $*"
+
+  if [ "$MODE" = "--execute" ]; then
+    "$@" 2>&1 | tee -a "$LOG_FILE"
+  else
+    log "DRY-RUN ONLY: command not executed"
+  fi
+
+  echo | tee -a "$LOG_FILE"
+}
+
+confirm_mode() {
+  if [ "$MODE" != "--execute" ]; then
+    log "Running in DRY-RUN mode."
+    log "No resources will be deleted."
+    log "To delete resources, run: ./delete-data-resources.sh --execute"
+    echo
+  else
+    log "RUNNING IN EXECUTE MODE."
+    log "Resources will be deleted from region: $REGION"
+    echo
+    read -p "Type DELETE to continue: " CONFIRM
+    if [ "$CONFIRM" != "DELETE" ]; then
+      log "Execution cancelled."
+      exit 1
+    fi
+  fi
+}
+
+delete_rds_instances() {
+  log "Deleting RDS DB instances"
+
+  DBS=$(aws rds describe-db-instances \
+    --region "$REGION" \
+    --query 'DBInstances[].DBInstanceIdentifier' \
+    --output text 2>/dev/null)
+
+  for DB in $DBS; do
+    log "Disabling deletion protection for RDS DB instance: $DB"
+
+    run_cmd aws rds modify-db-instance \
+      --region "$REGION" \
+      --db-instance-identifier "$DB" \
+      --no-deletion-protection \
+      --apply-immediately
+
+    log "Deleting RDS DB instance without final snapshot: $DB"
+
+    run_cmd aws rds delete-db-instance \
+      --region "$REGION" \
+      --db-instance-identifier "$DB" \
+      --skip-final-snapshot \
+      --delete-automated-backups
+  done
+}
+
+delete_rds_snapshots() {
+  log "Deleting manual RDS DB snapshots"
+
+  SNAPSHOTS=$(aws rds describe-db-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --query 'DBSnapshots[].DBSnapshotIdentifier' \
+    --output text 2>/dev/null)
+
+  for SNAP in $SNAPSHOTS; do
+    log "Deleting RDS manual snapshot: $SNAP"
+
+    run_cmd aws rds delete-db-snapshot \
+      --region "$REGION" \
+      --db-snapshot-identifier "$SNAP"
+  done
+}
+
+delete_dynamodb_tables() {
+  log "Deleting DynamoDB tables"
+
+  TABLES=$(aws dynamodb list-tables \
+    --region "$REGION" \
+    --query 'TableNames[]' \
+    --output text 2>/dev/null)
+
+  for TABLE in $TABLES; do
+    log "Deleting DynamoDB table: $TABLE"
+
+    run_cmd aws dynamodb delete-table \
+      --region "$REGION" \
+      --table-name "$TABLE"
+  done
+}
+
+delete_ebs_snapshots() {
+  log "Deleting self-owned EBS snapshots"
+
+  SNAPSHOTS=$(aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --query 'Snapshots[].SnapshotId' \
+    --output text 2>/dev/null)
+
+  for SNAP in $SNAPSHOTS; do
+    log "Deleting EBS snapshot: $SNAP"
+
+    run_cmd aws ec2 delete-snapshot \
+      --region "$REGION" \
+      --snapshot-id "$SNAP"
+  done
+}
+
+delete_efs_filesystems() {
+  log "Deleting EFS file systems"
+
+  FILESYSTEMS=$(aws efs describe-file-systems \
+    --region "$REGION" \
+    --query 'FileSystems[].FileSystemId' \
+    --output text 2>/dev/null)
+
+  for FS in $FILESYSTEMS; do
+    log "Processing EFS file system: $FS"
+
+    MOUNTS=$(aws efs describe-mount-targets \
+      --region "$REGION" \
+      --file-system-id "$FS" \
+      --query 'MountTargets[].MountTargetId' \
+      --output text 2>/dev/null)
+
+    for MT in $MOUNTS; do
+      log "Deleting EFS mount target: $MT"
+
+      run_cmd aws efs delete-mount-target \
+        --region "$REGION" \
+        --mount-target-id "$MT"
+    done
+
+    log "Deleting EFS file system: $FS"
+
+    run_cmd aws efs delete-file-system \
+      --region "$REGION" \
+      --file-system-id "$FS"
+  done
+}
+
+delete_backup_recovery_points_and_vaults() {
+  log "Deleting AWS Backup recovery points and vaults"
+
+  VAULTS=$(aws backup list-backup-vaults \
+    --region "$REGION" \
+    --query 'BackupVaultList[].BackupVaultName' \
+    --output text 2>/dev/null)
+
+  for VAULT in $VAULTS; do
+    log "Processing backup vault: $VAULT"
+
+    RECOVERY_POINTS=$(aws backup list-recovery-points-by-backup-vault \
+      --region "$REGION" \
+      --backup-vault-name "$VAULT" \
+      --query 'RecoveryPoints[].RecoveryPointArn' \
+      --output text 2>/dev/null)
+
+    for RP in $RECOVERY_POINTS; do
+      log "Deleting recovery point: $RP"
+
+      run_cmd aws backup delete-recovery-point \
+        --region "$REGION" \
+        --backup-vault-name "$VAULT" \
+        --recovery-point-arn "$RP"
+    done
+
+    log "Deleting backup vault: $VAULT"
+
+    run_cmd aws backup delete-backup-vault \
+      --region "$REGION" \
+      --backup-vault-name "$VAULT"
+  done
+}
+
+delete_s3_buckets() {
+  log "Deleting S3 buckets including versioned objects and delete markers"
+
+  BUCKETS=$(aws s3api list-buckets \
+    --query 'Buckets[].Name' \
+    --output text 2>/dev/null)
+
+  for BUCKET in $BUCKETS; do
+    log "Processing S3 bucket: $BUCKET"
+
+    if [ "$MODE" = "--execute" ]; then
+      log "Deleting all object versions and delete markers from bucket: $BUCKET"
+
+      aws s3api list-object-versions \
+        --bucket "$BUCKET" \
+        --output json \
+        --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' \
+        > "$OUT_DIR/${BUCKET}-versions.json" 2>/dev/null || true
+
+      if grep -q '"Key"' "$OUT_DIR/${BUCKET}-versions.json"; then
+        aws s3api delete-objects \
+          --bucket "$BUCKET" \
+          --delete "file://$OUT_DIR/${BUCKET}-versions.json" \
+          2>&1 | tee -a "$LOG_FILE" || true
+      fi
+
+      aws s3api list-object-versions \
+        --bucket "$BUCKET" \
+        --output json \
+        --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' \
+        > "$OUT_DIR/${BUCKET}-delete-markers.json" 2>/dev/null || true
+
+      if grep -q '"Key"' "$OUT_DIR/${BUCKET}-delete-markers.json"; then
+        aws s3api delete-objects \
+          --bucket "$BUCKET" \
+          --delete "file://$OUT_DIR/${BUCKET}-delete-markers.json" \
+          2>&1 | tee -a "$LOG_FILE" || true
+      fi
+
+      log "Removing remaining non-versioned objects from bucket: $BUCKET"
+      aws s3 rm "s3://$BUCKET" --recursive 2>&1 | tee -a "$LOG_FILE" || true
+
+      log "Deleting bucket: $BUCKET"
+      aws s3api delete-bucket --bucket "$BUCKET" 2>&1 | tee -a "$LOG_FILE" || true
+    else
+      log "DRY-RUN ONLY: would empty and delete bucket: $BUCKET"
+    fi
+
+    echo | tee -a "$LOG_FILE"
+  done
+}
+
+main() {
+  log "Starting data resource deletion"
+  log "Region: $REGION"
+  log "Mode: $MODE"
+  echo
+
+  confirm_mode
+
+  delete_rds_instances
+  delete_rds_snapshots
+  delete_dynamodb_tables
+  delete_ebs_snapshots
+  delete_efs_filesystems
+  delete_backup_recovery_points_and_vaults
+  delete_s3_buckets
+
+  log "Deletion script completed"
+  log "Log file: $LOG_FILE"
+}
+
+main
+
+
+
+---------------------------------------------------------------------------
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
 OUT_DIR="resource-inventory"
 RUN_DATE=$(date '+%Y-%m-%d')
 
