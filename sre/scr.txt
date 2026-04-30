@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PHASE="${1:-before}"   # before or after
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+REGION="${AWS_REGION:-$(aws configure get region)}"
+TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+
+OUT_DIR="evidence-${ACCOUNT_ID}-${REGION}-${PHASE}-${TIMESTAMP}"
+mkdir -p "$OUT_DIR"
+
+echo "Capturing AWS decommission evidence"
+echo "Account: $ACCOUNT_ID"
+echo "Region:  $REGION"
+echo "Phase:   $PHASE"
+echo "Output:  $OUT_DIR"
+
+run_cmd () {
+  NAME="$1"
+  shift
+
+  echo "Running: $NAME"
+  {
+    echo "Command: $*"
+    echo "Captured at: $(date -Iseconds)"
+    echo
+    "$@"
+  } 2>&1 | tee "$OUT_DIR/${NAME}.txt"
+}
+
+run_json () {
+  NAME="$1"
+  shift
+
+  echo "Running: $NAME"
+  "$@" 2>&1 | tee "$OUT_DIR/${NAME}.json" >/dev/null || true
+}
+
+# Identity
+run_json "identity" aws sts get-caller-identity
+
+# RDS
+run_json "rds-db-instances" aws rds describe-db-instances
+run_json "rds-db-snapshots" aws rds describe-db-snapshots --snapshot-type manual
+run_json "rds-clusters" aws rds describe-db-clusters
+run_json "rds-cluster-snapshots" aws rds describe-db-cluster-snapshots --snapshot-type manual
+
+# S3
+run_json "s3-buckets" aws s3api list-buckets
+
+# DynamoDB
+run_json "dynamodb-tables" aws dynamodb list-tables
+run_json "dynamodb-backups" aws dynamodb list-backups
+
+# EBS snapshots
+run_json "ebs-snapshots" aws ec2 describe-snapshots --owner-ids self
+
+# EFS
+run_json "efs-filesystems" aws efs describe-file-systems
+
+# AWS Backup
+run_json "backup-vaults" aws backup list-backup-vaults
+
+# Extra useful cost/resource indicators
+run_json "ec2-instances" aws ec2 describe-instances
+run_json "ebs-volumes" aws ec2 describe-volumes
+run_json "eks-clusters" aws eks list-clusters
+run_json "load-balancers-v2" aws elbv2 describe-load-balancers
+run_json "nat-gateways" aws ec2 describe-nat-gateways
+run_json "elastic-ips" aws ec2 describe-addresses
+
+# Human-readable summary
+{
+  echo "# AWS Decommission Evidence Summary"
+  echo
+  echo "Account: $ACCOUNT_ID"
+  echo "Region: $REGION"
+  echo "Phase: $PHASE"
+  echo "Captured at: $(date -Iseconds)"
+  echo
+  echo "## Key checks"
+  echo
+  echo "RDS instances:"
+  jq -r '.DBInstances[]?.DBInstanceIdentifier // empty' "$OUT_DIR/rds-db-instances.json" || true
+  echo
+  echo "RDS manual snapshots:"
+  jq -r '.DBSnapshots[]?.DBSnapshotIdentifier // empty' "$OUT_DIR/rds-db-snapshots.json" || true
+  echo
+  echo "S3 buckets:"
+  jq -r '.Buckets[]?.Name // empty' "$OUT_DIR/s3-buckets.json" || true
+  echo
+  echo "DynamoDB tables:"
+  jq -r '.TableNames[]? // empty' "$OUT_DIR/dynamodb-tables.json" || true
+  echo
+  echo "EBS snapshots:"
+  jq -r '.Snapshots[]?.SnapshotId // empty' "$OUT_DIR/ebs-snapshots.json" || true
+  echo
+  echo "EFS file systems:"
+  jq -r '.FileSystems[]?.FileSystemId // empty' "$OUT_DIR/efs-filesystems.json" || true
+  echo
+  echo "Backup vaults:"
+  jq -r '.BackupVaultList[]?.BackupVaultName // empty' "$OUT_DIR/backup-vaults.json" || true
+} | tee "$OUT_DIR/SUMMARY.md"
+
+tar -czf "${OUT_DIR}.tar.gz" "$OUT_DIR"
+
+echo
+echo "Evidence captured successfully:"
+echo "$OUT_DIR"
+echo "${OUT_DIR}.tar.gz"
