@@ -1,0 +1,110 @@
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
+OUT_DIR="evidence-before"
+RUN_DATE=$(date '+%Y-%m-%d')
+
+mkdir -p "$OUT_DIR"
+
+capture_window() {
+  NAME="$1"
+
+  echo
+  echo "======================================"
+  echo "Captured section: $NAME"
+  echo "Date: $RUN_DATE"
+  echo "Region: $REGION"
+  echo "======================================"
+  echo
+
+  sleep 2
+  screencapture -x -i -w "$OUT_DIR/${NAME}.png"
+}
+
+run_and_capture() {
+  NAME="$1"
+  TITLE="$2"
+  shift 2
+
+  CMD="./$*"
+
+  clear
+  echo "AWS BEFORE Evidence Capture"
+  echo "Account: $(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo UNKNOWN)"
+  echo "Region: $REGION"
+  echo "Check: $TITLE"
+  echo "Date: $RUN_DATE"
+  echo "======================================"
+  echo
+  echo "Command:"
+  echo "$CMD"
+  echo "--------------------------------------"
+  echo
+
+  "$@" 2>&1 | tee "$OUT_DIR/${NAME}.txt"
+
+  capture_window "$NAME"
+}
+
+run_and_capture \
+  "01-rds-instances-before" \
+  "RDS Instances" \
+  aws rds describe-db-instances \
+    --region "$REGION" \
+    --query 'DBInstances[].{DB:DBInstanceIdentifier,Status:DBInstanceStatus,Engine:Engine}' \
+    --output table
+
+run_and_capture \
+  "02-rds-snapshots-before" \
+  "RDS Manual Snapshots" \
+  aws rds describe-db-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --query 'DBSnapshots[].{Snapshot:DBSnapshotIdentifier,Status:Status,Engine:Engine}' \
+    --output table
+
+run_and_capture \
+  "03-s3-buckets-before" \
+  "S3 Buckets" \
+  aws s3api list-buckets \
+    --query 'Buckets[].{Bucket:Name,Created:CreationDate}' \
+    --output table
+
+run_and_capture \
+  "04-dynamodb-tables-before" \
+  "DynamoDB Tables" \
+  aws dynamodb list-tables \
+    --region "$REGION" \
+    --query 'TableNames[]' \
+    --output table
+
+run_and_capture \
+  "05-ebs-snapshots-before" \
+  "EBS Snapshots" \
+  aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --query 'Snapshots[].{Snapshot:SnapshotId,State:State,Volume:VolumeId,Started:StartTime}' \
+    --output table
+
+run_and_capture \
+  "06-efs-filesystems-before" \
+  "EFS File Systems" \
+  aws efs describe-file-systems \
+    --region "$REGION" \
+    --query 'FileSystems[].{FileSystem:FileSystemId,State:LifeCycleState,Created:CreationTime}' \
+    --output table
+
+run_and_capture \
+  "07-backup-vaults-before" \
+  "AWS Backup Vaults" \
+  aws backup list-backup-vaults \
+    --region "$REGION" \
+    --query 'BackupVaultList[].{Vault:BackupVaultName,RecoveryPoints:NumberOfRecoveryPoints}' \
+    --output table
+
+echo
+echo "BEFORE evidence capture completed"
+echo "Saved in: $OUT_DIR"
