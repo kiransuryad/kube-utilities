@@ -1,3 +1,300 @@
+#!/usr/bin/env python3
+
+import json
+import sys
+from pathlib import Path
+from datetime import datetime
+
+import pandas as pd
+
+
+def load_json(file_path):
+    try:
+        with open(file_path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def rows_from_rds_instances(data, phase, file_name):
+    rows = []
+    for item in data.get("DBInstances", []):
+        rows.append({
+            "Service": "RDS",
+            "Resource Type": "DB Instance",
+            "Resource Name": item.get("DBInstanceIdentifier"),
+            "Region/Scope": item.get("AvailabilityZone", ""),
+            "Status": item.get("DBInstanceStatus"),
+            "Engine": item.get("Engine"),
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_rds_snapshots(data, phase, file_name):
+    rows = []
+    for item in data.get("DBSnapshots", []):
+        rows.append({
+            "Service": "RDS",
+            "Resource Type": "DB Snapshot",
+            "Resource Name": item.get("DBSnapshotIdentifier"),
+            "Region/Scope": item.get("AvailabilityZone", ""),
+            "Status": item.get("Status"),
+            "Engine": item.get("Engine"),
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_s3_buckets(data, phase, file_name):
+    rows = []
+    for item in data.get("Buckets", []):
+        rows.append({
+            "Service": "S3",
+            "Resource Type": "Bucket",
+            "Resource Name": item.get("Name"),
+            "Region/Scope": "Global",
+            "Status": "Present",
+            "Engine": "",
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_dynamodb_tables(data, phase, file_name):
+    rows = []
+    for table_name in data.get("TableNames", []):
+        rows.append({
+            "Service": "DynamoDB",
+            "Resource Type": "Table",
+            "Resource Name": table_name,
+            "Region/Scope": "",
+            "Status": "Present",
+            "Engine": "",
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_dynamodb_backups(data, phase, file_name):
+    rows = []
+    for item in data.get("BackupSummaries", []):
+        rows.append({
+            "Service": "DynamoDB",
+            "Resource Type": "Backup",
+            "Resource Name": item.get("BackupName"),
+            "Region/Scope": "",
+            "Status": item.get("BackupStatus"),
+            "Engine": "",
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_ebs_snapshots(data, phase, file_name):
+    rows = []
+    for item in data.get("Snapshots", []):
+        rows.append({
+            "Service": "EBS",
+            "Resource Type": "Snapshot",
+            "Resource Name": item.get("SnapshotId"),
+            "Region/Scope": "",
+            "Status": item.get("State"),
+            "Engine": "",
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_efs(data, phase, file_name):
+    rows = []
+    for item in data.get("FileSystems", []):
+        rows.append({
+            "Service": "EFS",
+            "Resource Type": "File System",
+            "Resource Name": item.get("FileSystemId"),
+            "Region/Scope": "",
+            "Status": item.get("LifeCycleState"),
+            "Engine": "",
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_backup_vaults(data, phase, file_name):
+    rows = []
+    for item in data.get("BackupVaultList", []):
+        rows.append({
+            "Service": "AWS Backup",
+            "Resource Type": "Backup Vault",
+            "Resource Name": item.get("BackupVaultName"),
+            "Region/Scope": "",
+            "Status": "Present",
+            "Engine": "",
+            "Phase": phase,
+            "Evidence File": file_name,
+        })
+    return rows
+
+
+def rows_from_ec2_instances(data, phase, file_name):
+    rows = []
+    for reservation in data.get("Reservations", []):
+        for item in reservation.get("Instances", []):
+            rows.append({
+                "Service": "EC2",
+                "Resource Type": "Instance",
+                "Resource Name": item.get("InstanceId"),
+                "Region/Scope": item.get("Placement", {}).get("AvailabilityZone", ""),
+                "Status": item.get("State", {}).get("Name"),
+                "Engine": item.get("InstanceType"),
+                "Phase": phase,
+                "Evidence File": file_name,
+            })
+    return rows
+
+
+def rows_from_generic_empty(data, phase, file_name, service, resource_type):
+    return []
+
+
+PARSERS = {
+    "rds-db-instances.json": rows_from_rds_instances,
+    "rds-db-snapshots.json": rows_from_rds_snapshots,
+    "s3-buckets.json": rows_from_s3_buckets,
+    "dynamodb-tables.json": rows_from_dynamodb_tables,
+    "dynamodb-backups.json": rows_from_dynamodb_backups,
+    "ebs-snapshots.json": rows_from_ebs_snapshots,
+    "efs-filesystems.json": rows_from_efs,
+    "backup-vaults.json": rows_from_backup_vaults,
+    "ec2-instances.json": rows_from_ec2_instances,
+}
+
+
+def detect_phase(path):
+    name = path.name.lower()
+    full = str(path).lower()
+
+    if "before" in name or "before" in full:
+        return "Before"
+    if "after" in name or "after" in full:
+        return "After"
+
+    return "Unknown"
+
+
+def collect_rows(input_dir):
+    input_path = Path(input_dir)
+    all_rows = []
+
+    for json_file in input_path.rglob("*.json"):
+        parser = PARSERS.get(json_file.name)
+        if not parser:
+            continue
+
+        data = load_json(json_file)
+        phase = detect_phase(json_file)
+        rows = parser(data, phase, json_file.name)
+        all_rows.extend(rows)
+
+    return all_rows
+
+
+def create_summary(df):
+    if df.empty:
+        return pd.DataFrame(columns=["Service", "Resource Type", "Before Count", "After Count", "Status"])
+
+    grouped = (
+        df.groupby(["Service", "Resource Type", "Phase"])
+        .size()
+        .reset_index(name="Count")
+    )
+
+    pivot = grouped.pivot_table(
+        index=["Service", "Resource Type"],
+        columns="Phase",
+        values="Count",
+        fill_value=0
+    ).reset_index()
+
+    if "Before" not in pivot.columns:
+        pivot["Before"] = 0
+    if "After" not in pivot.columns:
+        pivot["After"] = 0
+
+    pivot = pivot.rename(columns={
+        "Before": "Before Count",
+        "After": "After Count"
+    })
+
+    pivot["Status"] = pivot.apply(
+        lambda r: "Cleared" if r["Before Count"] > 0 and r["After Count"] == 0
+        else "Still Present" if r["After Count"] > 0
+        else "No Resources Found",
+        axis=1
+    )
+
+    return pivot[["Service", "Resource Type", "Before Count", "After Count", "Status"]]
+
+
+def autosize_excel(writer, sheet_name, df):
+    worksheet = writer.sheets[sheet_name]
+
+    for idx, col in enumerate(df.columns):
+        max_len = max(
+            [len(str(col))] + [len(str(x)) for x in df[col].astype(str).values]
+        )
+        worksheet.set_column(idx, idx, min(max_len + 2, 50))
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python aws_evidence_to_excel.py <evidence-folder>")
+        sys.exit(1)
+
+    input_dir = sys.argv[1]
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    output_file = f"aws-decommission-evidence-{timestamp}.xlsx"
+
+    rows = collect_rows(input_dir)
+    inventory_df = pd.DataFrame(rows)
+
+    if inventory_df.empty:
+        print("No supported AWS evidence JSON files found.")
+        sys.exit(1)
+
+    summary_df = create_summary(inventory_df)
+
+    with pd.ExcelWriter(output_file, engine="xlsxwriter") as writer:
+        summary_df.to_excel(writer, sheet_name="Summary", index=False)
+        inventory_df.to_excel(writer, sheet_name="Resource Inventory", index=False)
+
+        before_df = inventory_df[inventory_df["Phase"] == "Before"]
+        after_df = inventory_df[inventory_df["Phase"] == "After"]
+
+        before_df.to_excel(writer, sheet_name="Before Evidence", index=False)
+        after_df.to_excel(writer, sheet_name="After Evidence", index=False)
+
+        autosize_excel(writer, "Summary", summary_df)
+        autosize_excel(writer, "Resource Inventory", inventory_df)
+        autosize_excel(writer, "Before Evidence", before_df)
+        autosize_excel(writer, "After Evidence", after_df)
+
+    print(f"Excel evidence workbook created: {output_file}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+------------------
 #!/usr/bin/env bash
 set -euo pipefail
 
