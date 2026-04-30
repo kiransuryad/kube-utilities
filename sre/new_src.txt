@@ -2,6 +2,248 @@
 
 set -u
 
+BUCKET="${1:-}"
+MODE="${2:-dry-run}"
+OUT_DIR="s3-single-bucket-deletion-logs"
+RUN_DATE=$(date '+%Y-%m-%d')
+LOG_FILE="$OUT_DIR/delete-${BUCKET}-${RUN_DATE}.log"
+MAX_RETRIES=3
+SLEEP_SECONDS=5
+
+mkdir -p "$OUT_DIR"
+
+log() {
+  echo "[$RUN_DATE] $*" | tee -a "$LOG_FILE"
+}
+
+usage() {
+  echo "Usage:"
+  echo "./delete-single-s3-bucket.sh <bucket-name>            # dry run"
+  echo "./delete-single-s3-bucket.sh <bucket-name> --execute  # actual deletion"
+}
+
+retry_cmd() {
+  local attempt=1
+
+  while [ "$attempt" -le "$MAX_RETRIES" ]; do
+    log "Attempt $attempt/$MAX_RETRIES: $*"
+
+    if "$@" 2>&1 | tee -a "$LOG_FILE"; then
+      return 0
+    fi
+
+    log "Command failed. Retrying after ${SLEEP_SECONDS}s..."
+    sleep "$SLEEP_SECONDS"
+    attempt=$((attempt + 1))
+  done
+
+  log "FAILED after $MAX_RETRIES attempts: $*"
+  return 1
+}
+
+confirm_mode() {
+  if [ -z "$BUCKET" ]; then
+    usage
+    exit 1
+  fi
+
+  if [ "$MODE" != "--execute" ]; then
+    log "Running in DRY-RUN mode."
+    log "No deletion will happen."
+    log "To execute: ./delete-single-s3-bucket.sh $BUCKET --execute"
+    echo
+  else
+    log "RUNNING IN EXECUTE MODE."
+    log "Bucket targeted for deletion: $BUCKET"
+    read -p "Type DELETE-S3 to continue: " CONFIRM
+
+    if [ "$CONFIRM" != "DELETE-S3" ]; then
+      log "Cancelled."
+      exit 1
+    fi
+  fi
+}
+
+run_or_dry() {
+  if [ "$MODE" = "--execute" ]; then
+    retry_cmd "$@"
+  else
+    log "DRY-RUN ONLY: $*"
+  fi
+}
+
+check_bucket() {
+  log "Checking bucket access: $BUCKET"
+
+  if ! aws s3api head-bucket --bucket "$BUCKET" 2>&1 | tee -a "$LOG_FILE"; then
+    log "Bucket not accessible or does not exist."
+    exit 1
+  fi
+}
+
+capture_bucket_metadata() {
+  log "Capturing bucket metadata"
+
+  log "Bucket location:"
+  aws s3api get-bucket-location --bucket "$BUCKET" 2>&1 | tee -a "$LOG_FILE" || true
+
+  log "Bucket versioning:"
+  aws s3api get-bucket-versioning --bucket "$BUCKET" 2>&1 | tee -a "$LOG_FILE" || true
+
+  log "Object lock configuration:"
+  aws s3api get-object-lock-configuration --bucket "$BUCKET" 2>&1 | tee -a "$LOG_FILE" || true
+
+  log "Bucket policy:"
+  aws s3api get-bucket-policy --bucket "$BUCKET" 2>&1 | tee -a "$LOG_FILE" || true
+}
+
+abort_multipart_uploads() {
+  log "Checking multipart uploads"
+
+  aws s3api list-multipart-uploads \
+    --bucket "$BUCKET" \
+    --query 'Uploads[].{Key:Key,UploadId:UploadId}' \
+    --output json > "$OUT_DIR/${BUCKET}-multipart.json" 2>/dev/null || echo "[]" > "$OUT_DIR/${BUCKET}-multipart.json"
+
+  COUNT=$(jq 'length' "$OUT_DIR/${BUCKET}-multipart.json" 2>/dev/null || echo 0)
+
+  log "Multipart uploads found: $COUNT"
+
+  if [ "$COUNT" = "0" ]; then
+    return
+  fi
+
+  jq -c '.[]' "$OUT_DIR/${BUCKET}-multipart.json" | while read -r upload; do
+    KEY=$(echo "$upload" | jq -r '.Key')
+    UPLOAD_ID=$(echo "$upload" | jq -r '.UploadId')
+
+    run_or_dry aws s3api abort-multipart-upload \
+      --bucket "$BUCKET" \
+      --key "$KEY" \
+      --upload-id "$UPLOAD_ID"
+  done
+}
+
+delete_versions_batch() {
+  log "Deleting object versions in batches"
+
+  while true; do
+    aws s3api list-object-versions \
+      --bucket "$BUCKET" \
+      --max-items 1000 \
+      --output json \
+      --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' \
+      > "$OUT_DIR/${BUCKET}-versions-batch.json" 2>/dev/null || echo '{"Objects":[]}' > "$OUT_DIR/${BUCKET}-versions-batch.json"
+
+    COUNT=$(jq '.Objects | length' "$OUT_DIR/${BUCKET}-versions-batch.json" 2>/dev/null || echo 0)
+    log "Object versions in current batch: $COUNT"
+
+    if [ "$COUNT" = "0" ]; then
+      break
+    fi
+
+    run_or_dry aws s3api delete-objects \
+      --bucket "$BUCKET" \
+      --delete "file://$OUT_DIR/${BUCKET}-versions-batch.json"
+
+    if [ "$MODE" != "--execute" ]; then
+      break
+    fi
+
+    sleep 2
+  done
+}
+
+delete_markers_batch() {
+  log "Deleting delete markers in batches"
+
+  while true; do
+    aws s3api list-object-versions \
+      --bucket "$BUCKET" \
+      --max-items 1000 \
+      --output json \
+      --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' \
+      > "$OUT_DIR/${BUCKET}-delete-markers-batch.json" 2>/dev/null || echo '{"Objects":[]}' > "$OUT_DIR/${BUCKET}-delete-markers-batch.json"
+
+    COUNT=$(jq '.Objects | length' "$OUT_DIR/${BUCKET}-delete-markers-batch.json" 2>/dev/null || echo 0)
+    log "Delete markers in current batch: $COUNT"
+
+    if [ "$COUNT" = "0" ]; then
+      break
+    fi
+
+    run_or_dry aws s3api delete-objects \
+      --bucket "$BUCKET" \
+      --delete "file://$OUT_DIR/${BUCKET}-delete-markers-batch.json"
+
+    if [ "$MODE" != "--execute" ]; then
+      break
+    fi
+
+    sleep 2
+  done
+}
+
+delete_non_versioned_objects() {
+  log "Deleting remaining non-versioned/current objects"
+
+  run_or_dry aws s3 rm "s3://$BUCKET" --recursive
+}
+
+delete_bucket() {
+  log "Attempting final bucket delete"
+
+  run_or_dry aws s3api delete-bucket --bucket "$BUCKET"
+}
+
+validate_bucket_deleted() {
+  log "Validating bucket deletion"
+
+  if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+    log "VALIDATION FAILED: bucket still exists or is still accessible."
+    log "Run diagnostics:"
+    log "aws s3api list-object-versions --bucket $BUCKET --max-items 10"
+    log "aws s3api get-object-lock-configuration --bucket $BUCKET"
+    log "aws s3api get-bucket-policy --bucket $BUCKET"
+    return 1
+  else
+    log "VALIDATION PASSED: bucket is deleted or no longer accessible."
+    return 0
+  fi
+}
+
+main() {
+  confirm_mode
+
+  log "Starting single bucket deletion"
+  log "Bucket: $BUCKET"
+  log "Mode: $MODE"
+
+  check_bucket
+  capture_bucket_metadata
+  abort_multipart_uploads
+  delete_versions_batch
+  delete_markers_batch
+  delete_non_versioned_objects
+  delete_bucket
+
+  if [ "$MODE" = "--execute" ]; then
+    validate_bucket_deleted
+  fi
+
+  log "Completed single bucket deletion process"
+  log "Log file: $LOG_FILE"
+}
+
+main
+
+
+
+---------------------
+#!/bin/bash
+
+set -u
+
 REGION="us-east-1"
 OUT_DIR="deletion-logs"
 RUN_DATE=$(date '+%Y-%m-%d')
