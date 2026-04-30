@@ -3,6 +3,150 @@
 set -u
 
 REGION="us-east-1"
+OUT_DIR="resource-inventory"
+RUN_DATE=$(date '+%Y-%m-%d')
+
+mkdir -p "$OUT_DIR"
+
+echo "Generating AWS resource inventory CSVs"
+echo "Date: $RUN_DATE"
+echo "Region: $REGION"
+
+write_header() {
+  FILE="$1"
+  echo "Service,Resource Type,Resource Name,Status,Region,Additional Detail,Evidence Date" > "$FILE"
+}
+
+MASTER="$OUT_DIR/aws-resource-inventory-master.csv"
+write_header "$MASTER"
+
+append_csv() {
+  FILE="$1"
+  if [ -s "$FILE" ]; then
+    tail -n +2 "$FILE" >> "$MASTER"
+  fi
+}
+
+RDS_INST="$OUT_DIR/01-rds-instances.csv"
+write_header "$RDS_INST"
+aws rds describe-db-instances \
+  --region "$REGION" \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .DBInstances[]? |
+  ["RDS","DB Instance",.DBInstanceIdentifier,.DBInstanceStatus,$region,.Engine,$date] | @csv
+' >> "$RDS_INST"
+append_csv "$RDS_INST"
+
+RDS_SNAP="$OUT_DIR/02-rds-manual-snapshots.csv"
+write_header "$RDS_SNAP"
+aws rds describe-db-snapshots \
+  --region "$REGION" \
+  --snapshot-type manual \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .DBSnapshots[]? |
+  ["RDS","Manual Snapshot",.DBSnapshotIdentifier,.Status,$region,.Engine,$date] | @csv
+' >> "$RDS_SNAP"
+append_csv "$RDS_SNAP"
+
+S3="$OUT_DIR/03-s3-buckets.csv"
+write_header "$S3"
+aws s3api list-buckets \
+  --output json | jq -r --arg date "$RUN_DATE" '
+  .Buckets[]? |
+  ["S3","Bucket",.Name,"Present","Global",(.CreationDate // ""),$date] | @csv
+' >> "$S3"
+append_csv "$S3"
+
+DDB="$OUT_DIR/04-dynamodb-tables.csv"
+write_header "$DDB"
+aws dynamodb list-tables \
+  --region "$REGION" \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .TableNames[]? |
+  ["DynamoDB","Table",.,"Present",$region,"",$date] | @csv
+' >> "$DDB"
+append_csv "$DDB"
+
+DDB_BKP="$OUT_DIR/05-dynamodb-backups.csv"
+write_header "$DDB_BKP"
+aws dynamodb list-backups \
+  --region "$REGION" \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .BackupSummaries[]? |
+  ["DynamoDB","Backup",.BackupName,.BackupStatus,$region,.TableName,$date] | @csv
+' >> "$DDB_BKP"
+append_csv "$DDB_BKP"
+
+EBS_SNAP="$OUT_DIR/06-ebs-snapshots.csv"
+write_header "$EBS_SNAP"
+aws ec2 describe-snapshots \
+  --region "$REGION" \
+  --owner-ids self \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .Snapshots[]? |
+  ["EBS","Snapshot",.SnapshotId,.State,$region,(.VolumeId // ""),$date] | @csv
+' >> "$EBS_SNAP"
+append_csv "$EBS_SNAP"
+
+EFS="$OUT_DIR/07-efs-filesystems.csv"
+write_header "$EFS"
+aws efs describe-file-systems \
+  --region "$REGION" \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .FileSystems[]? |
+  ["EFS","File System",.FileSystemId,.LifeCycleState,$region,("SizeBytes=" + ((.SizeInBytes.Value // 0) | tostring)),$date] | @csv
+' >> "$EFS"
+append_csv "$EFS"
+
+BACKUP="$OUT_DIR/08-backup-vaults.csv"
+write_header "$BACKUP"
+aws backup list-backup-vaults \
+  --region "$REGION" \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .BackupVaultList[]? |
+  ["AWS Backup","Backup Vault",.BackupVaultName,"Present",$region,("RecoveryPoints=" + ((.NumberOfRecoveryPoints // 0) | tostring)),$date] | @csv
+' >> "$BACKUP"
+append_csv "$BACKUP"
+
+EC2="$OUT_DIR/09-ec2-instances.csv"
+write_header "$EC2"
+aws ec2 describe-instances \
+  --region "$REGION" \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .Reservations[]?.Instances[]? |
+  ["EC2","Instance",.InstanceId,.State.Name,$region,.InstanceType,$date] | @csv
+' >> "$EC2"
+append_csv "$EC2"
+
+EBS_VOL="$OUT_DIR/10-ebs-volumes.csv"
+write_header "$EBS_VOL"
+aws ec2 describe-volumes \
+  --region "$REGION" \
+  --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+  .Volumes[]? |
+  ["EBS","Volume",.VolumeId,.State,$region,("SizeGiB=" + (.Size | tostring)),$date] | @csv
+' >> "$EBS_VOL"
+append_csv "$EBS_VOL"
+
+echo
+echo "CSV inventory generated:"
+echo "$OUT_DIR"
+echo
+echo "Main Excel-openable file:"
+echo "$MASTER"
+
+
+
+
+
+
+------------------------
+
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
 OUT_DIR="evidence-before"
 RUN_DATE=$(date '+%Y-%m-%d')
 
