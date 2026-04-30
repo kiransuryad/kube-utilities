@@ -1,3 +1,101 @@
+#!/bin/bash
+
+set -e
+
+REGION=${AWS_REGION:-eu-west-1}
+OUT_DIR="evidence-before"
+mkdir -p "$OUT_DIR"
+
+echo "Starting BEFORE evidence capture..."
+echo "Region: $REGION"
+echo
+
+pause_and_capture() {
+  NAME=$1
+  echo
+  echo "======================================"
+  echo "Captured: $NAME"
+  echo "Time: $(date)"
+  echo "======================================"
+  sleep 5
+  screencapture -x "$OUT_DIR/${NAME}.png"
+}
+
+# -----------------------------
+# RDS Instances
+# -----------------------------
+echo "RDS Instances:"
+aws rds describe-db-instances \
+  --query 'DBInstances[].DBInstanceIdentifier' \
+  --output table | tee "$OUT_DIR/rds-instances.txt"
+
+pause_and_capture "01-rds-instances-before"
+
+# -----------------------------
+# RDS Snapshots
+# -----------------------------
+echo "RDS Snapshots:"
+aws rds describe-db-snapshots \
+  --query 'DBSnapshots[].DBSnapshotIdentifier' \
+  --output table | tee "$OUT_DIR/rds-snapshots.txt"
+
+pause_and_capture "02-rds-snapshots-before"
+
+# -----------------------------
+# S3 Buckets
+# -----------------------------
+echo "S3 Buckets:"
+aws s3 ls | tee "$OUT_DIR/s3-buckets.txt"
+
+pause_and_capture "03-s3-buckets-before"
+
+# -----------------------------
+# DynamoDB Tables
+# -----------------------------
+echo "DynamoDB Tables:"
+aws dynamodb list-tables \
+  --query 'TableNames' \
+  --output table | tee "$OUT_DIR/dynamodb-tables.txt"
+
+pause_and_capture "04-dynamodb-before"
+
+# -----------------------------
+# EBS Snapshots
+# -----------------------------
+echo "EBS Snapshots:"
+aws ec2 describe-snapshots --owner-ids self \
+  --query 'Snapshots[].SnapshotId' \
+  --output table | tee "$OUT_DIR/ebs-snapshots.txt"
+
+pause_and_capture "05-ebs-snapshots-before"
+
+# -----------------------------
+# EFS File Systems
+# -----------------------------
+echo "EFS File Systems:"
+aws efs describe-file-systems \
+  --query 'FileSystems[].FileSystemId' \
+  --output table | tee "$OUT_DIR/efs-before.txt"
+
+pause_and_capture "06-efs-before"
+
+# -----------------------------
+# Backup Vaults
+# -----------------------------
+echo "Backup Vaults:"
+aws backup list-backup-vaults \
+  --query 'BackupVaultList[].BackupVaultName' \
+  --output table | tee "$OUT_DIR/backup-vaults.txt"
+
+pause_and_capture "07-backup-vaults-before"
+
+echo
+echo "✅ BEFORE evidence capture completed"
+echo "Saved in: $OUT_DIR"
+
+
+
+----------------------------
 #!/usr/bin/env python3
 
 import json
