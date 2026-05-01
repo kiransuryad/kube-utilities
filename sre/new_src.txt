@@ -2,6 +2,376 @@
 
 set -u
 
+REGION="us-east-1"
+MODE="${1:-dry-run}"
+OUT_DIR="second-pass-deletion-logs"
+RUN_DATE=$(date '+%Y-%m-%d')
+LOG_FILE="$OUT_DIR/second-pass-${RUN_DATE}.log"
+
+mkdir -p "$OUT_DIR"
+
+log() {
+  echo "[$RUN_DATE] $*" | tee -a "$LOG_FILE"
+}
+
+run_cmd() {
+  log "COMMAND: $*"
+
+  if [ "$MODE" = "--execute" ]; then
+    "$@" 2>&1 | tee -a "$LOG_FILE" || true
+  else
+    log "DRY-RUN ONLY"
+  fi
+
+  echo | tee -a "$LOG_FILE"
+}
+
+confirm_mode() {
+  if [ "$MODE" != "--execute" ]; then
+    log "Running in DRY-RUN mode."
+    log "To execute: ./delete-data-resources-second-pass.sh --execute"
+    echo
+  else
+    log "RUNNING SECOND PASS IN EXECUTE MODE."
+    read -p "Type SECOND-PASS-DELETE to continue: " CONFIRM
+    if [ "$CONFIRM" != "SECOND-PASS-DELETE" ]; then
+      log "Cancelled."
+      exit 1
+    fi
+  fi
+}
+
+delete_remaining_rds_instances() {
+  log "Checking remaining RDS DB instances"
+
+  DBS=$(aws rds describe-db-instances \
+    --region "$REGION" \
+    --query 'DBInstances[].DBInstanceIdentifier' \
+    --output text 2>/dev/null)
+
+  if [ -z "$DBS" ]; then
+    log "No RDS DB instances found."
+    return
+  fi
+
+  for DB in $DBS; do
+    STATUS=$(aws rds describe-db-instances \
+      --region "$REGION" \
+      --db-instance-identifier "$DB" \
+      --query 'DBInstances[0].DBInstanceStatus' \
+      --output text 2>/dev/null)
+
+    log "RDS DB instance found: $DB, status: $STATUS"
+
+    if [[ "$STATUS" == "deleting" ]]; then
+      log "Skipping $DB because it is already deleting."
+      continue
+    fi
+
+    run_cmd aws rds modify-db-instance \
+      --region "$REGION" \
+      --db-instance-identifier "$DB" \
+      --no-deletion-protection \
+      --apply-immediately
+
+    run_cmd aws rds delete-db-instance \
+      --region "$REGION" \
+      --db-instance-identifier "$DB" \
+      --skip-final-snapshot \
+      --delete-automated-backups
+  done
+}
+
+delete_remaining_rds_snapshots() {
+  log "Checking remaining manual RDS DB snapshots"
+
+  SNAPS=$(aws rds describe-db-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --query 'DBSnapshots[].DBSnapshotIdentifier' \
+    --output text 2>/dev/null)
+
+  if [ -z "$SNAPS" ]; then
+    log "No manual RDS DB snapshots found."
+    return
+  fi
+
+  for SNAP in $SNAPS; do
+    STATUS=$(aws rds describe-db-snapshots \
+      --region "$REGION" \
+      --db-snapshot-identifier "$SNAP" \
+      --query 'DBSnapshots[0].Status' \
+      --output text 2>/dev/null)
+
+    log "RDS snapshot found: $SNAP, status: $STATUS"
+
+    if [[ "$STATUS" == "deleting" ]]; then
+      log "Skipping $SNAP because it is already deleting."
+      continue
+    fi
+
+    run_cmd aws rds delete-db-snapshot \
+      --region "$REGION" \
+      --db-snapshot-identifier "$SNAP"
+  done
+}
+
+delete_remaining_dynamodb_tables() {
+  log "Checking remaining DynamoDB tables"
+
+  TABLES=$(aws dynamodb list-tables \
+    --region "$REGION" \
+    --query 'TableNames[]' \
+    --output text 2>/dev/null)
+
+  if [ -z "$TABLES" ]; then
+    log "No DynamoDB tables found."
+    return
+  fi
+
+  for TABLE in $TABLES; do
+    STATUS=$(aws dynamodb describe-table \
+      --region "$REGION" \
+      --table-name "$TABLE" \
+      --query 'Table.TableStatus' \
+      --output text 2>/dev/null)
+
+    log "DynamoDB table found: $TABLE, status: $STATUS"
+
+    if [[ "$STATUS" == "DELETING" ]]; then
+      log "Skipping $TABLE because it is already deleting."
+      continue
+    fi
+
+    run_cmd aws dynamodb delete-table \
+      --region "$REGION" \
+      --table-name "$TABLE"
+  done
+}
+
+delete_remaining_ebs_snapshots() {
+  log "Checking remaining EBS snapshots"
+
+  SNAPS=$(aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --query 'Snapshots[].SnapshotId' \
+    --output text 2>/dev/null)
+
+  if [ -z "$SNAPS" ]; then
+    log "No EBS snapshots found."
+    return
+  fi
+
+  for SNAP in $SNAPS; do
+    STATE=$(aws ec2 describe-snapshots \
+      --region "$REGION" \
+      --snapshot-ids "$SNAP" \
+      --query 'Snapshots[0].State' \
+      --output text 2>/dev/null)
+
+    log "EBS snapshot found: $SNAP, state: $STATE"
+
+    if [[ "$STATE" == "pending" ]]; then
+      log "Skipping $SNAP because snapshot is pending."
+      continue
+    fi
+
+    run_cmd aws ec2 delete-snapshot \
+      --region "$REGION" \
+      --snapshot-id "$SNAP"
+  done
+}
+
+delete_remaining_efs_filesystems() {
+  log "Checking remaining EFS file systems"
+
+  FILESYSTEMS=$(aws efs describe-file-systems \
+    --region "$REGION" \
+    --query 'FileSystems[].FileSystemId' \
+    --output text 2>/dev/null)
+
+  if [ -z "$FILESYSTEMS" ]; then
+    log "No EFS file systems found."
+    return
+  fi
+
+  for FS in $FILESYSTEMS; do
+    STATE=$(aws efs describe-file-systems \
+      --region "$REGION" \
+      --file-system-id "$FS" \
+      --query 'FileSystems[0].LifeCycleState' \
+      --output text 2>/dev/null)
+
+    log "EFS file system found: $FS, state: $STATE"
+
+    MOUNTS=$(aws efs describe-mount-targets \
+      --region "$REGION" \
+      --file-system-id "$FS" \
+      --query 'MountTargets[].MountTargetId' \
+      --output text 2>/dev/null)
+
+    for MT in $MOUNTS; do
+      MT_STATE=$(aws efs describe-mount-targets \
+        --region "$REGION" \
+        --mount-target-id "$MT" \
+        --query 'MountTargets[0].LifeCycleState' \
+        --output text 2>/dev/null)
+
+      log "EFS mount target found: $MT, state: $MT_STATE"
+
+      if [[ "$MT_STATE" == "deleting" ]]; then
+        log "Skipping mount target $MT because it is already deleting."
+      else
+        run_cmd aws efs delete-mount-target \
+          --region "$REGION" \
+          --mount-target-id "$MT"
+      fi
+    done
+
+    REMAINING_MOUNTS=$(aws efs describe-mount-targets \
+      --region "$REGION" \
+      --file-system-id "$FS" \
+      --query 'length(MountTargets)' \
+      --output text 2>/dev/null)
+
+    if [ "$REMAINING_MOUNTS" != "0" ]; then
+      log "Skipping EFS file system $FS until mount targets are fully deleted."
+      continue
+    fi
+
+    run_cmd aws efs delete-file-system \
+      --region "$REGION" \
+      --file-system-id "$FS"
+  done
+}
+
+delete_remaining_backup_recovery_points_and_vaults() {
+  log "Checking remaining AWS Backup vaults"
+
+  VAULTS=$(aws backup list-backup-vaults \
+    --region "$REGION" \
+    --query 'BackupVaultList[].BackupVaultName' \
+    --output text 2>/dev/null)
+
+  if [ -z "$VAULTS" ]; then
+    log "No AWS Backup vaults found."
+    return
+  fi
+
+  for VAULT in $VAULTS; do
+    log "Backup vault found: $VAULT"
+
+    RECOVERY_POINTS=$(aws backup list-recovery-points-by-backup-vault \
+      --region "$REGION" \
+      --backup-vault-name "$VAULT" \
+      --query 'RecoveryPoints[].RecoveryPointArn' \
+      --output text 2>/dev/null)
+
+    if [ -n "$RECOVERY_POINTS" ]; then
+      for RP in $RECOVERY_POINTS; do
+        log "Recovery point found: $RP"
+
+        run_cmd aws backup delete-recovery-point \
+          --region "$REGION" \
+          --backup-vault-name "$VAULT" \
+          --recovery-point-arn "$RP"
+      done
+    else
+      log "No recovery points in vault: $VAULT"
+    fi
+
+    REMAINING_RPS=$(aws backup list-recovery-points-by-backup-vault \
+      --region "$REGION" \
+      --backup-vault-name "$VAULT" \
+      --query 'length(RecoveryPoints)' \
+      --output text 2>/dev/null)
+
+    if [ "$REMAINING_RPS" != "0" ]; then
+      log "Skipping backup vault $VAULT because recovery points still remain."
+      continue
+    fi
+
+    run_cmd aws backup delete-backup-vault \
+      --region "$REGION" \
+      --backup-vault-name "$VAULT"
+  done
+}
+
+summary_check() {
+  log "======================================"
+  log "SECOND PASS SUMMARY CHECK"
+  log "======================================"
+
+  log "RDS instances:"
+  aws rds describe-db-instances \
+    --region "$REGION" \
+    --query 'DBInstances[].{DB:DBInstanceIdentifier,Status:DBInstanceStatus}' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+
+  log "RDS manual snapshots:"
+  aws rds describe-db-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --query 'DBSnapshots[].{Snapshot:DBSnapshotIdentifier,Status:Status}' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+
+  log "DynamoDB tables:"
+  aws dynamodb list-tables \
+    --region "$REGION" \
+    --query 'TableNames[]' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+
+  log "EBS snapshots:"
+  aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --query 'Snapshots[].{Snapshot:SnapshotId,State:State}' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+
+  log "EFS file systems:"
+  aws efs describe-file-systems \
+    --region "$REGION" \
+    --query 'FileSystems[].{FileSystem:FileSystemId,State:LifeCycleState}' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+
+  log "Backup vaults:"
+  aws backup list-backup-vaults \
+    --region "$REGION" \
+    --query 'BackupVaultList[].{Vault:BackupVaultName,RecoveryPoints:NumberOfRecoveryPoints}' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+}
+
+main() {
+  log "Starting second-pass data deletion"
+  log "Region: $REGION"
+  log "Mode: $MODE"
+  log "S3 buckets excluded from this script."
+
+  confirm_mode
+
+  delete_remaining_rds_instances
+  delete_remaining_rds_snapshots
+  delete_remaining_dynamodb_tables
+  delete_remaining_ebs_snapshots
+  delete_remaining_efs_filesystems
+  delete_remaining_backup_recovery_points_and_vaults
+
+  summary_check
+
+  log "Second-pass script completed."
+  log "Log file: $LOG_FILE"
+}
+
+main
+
+
+
+------------------------------------
+#!/bin/bash
+
+set -u
+
 BUCKET="${1:-}"
 MODE="${2:-dry-run}"
 OUT_DIR="s3-single-bucket-deletion-logs"
