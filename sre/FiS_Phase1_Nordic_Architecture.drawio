@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" version="21.0.0">
+  <diagram name="FiS Phase 1 Architecture - Nordic Ice" id="fis-phase1-nordic">
+    <mxGraphModel dx="1400" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="0" arrows="0" fold="0" page="0" pageScale="1" pageWidth="1500" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+
+        <!-- ════ TITLE ════ -->
+        <mxCell id="title" value="FiS Centralised Observability Platform — Phase 1" style="text;html=1;align=center;fontSize=18;fontStyle=1;strokeColor=none;fillColor=none;fontColor=#2C3E50;" vertex="1" parent="1"><mxGeometry x="80" y="14" width="1340" height="28" as="geometry"/></mxCell>
+        <mxCell id="sub" value="FiS-approved tools only · BigPanda AIOps as-is · multiple dashboards with clear team ownership · no custom AI layer · no Grafana" style="text;html=1;align=center;fontSize=11;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="1"><mxGeometry x="80" y="42" width="1340" height="20" as="geometry"/></mxCell>
+
+        <!-- ════ LAYER 1: SIGNAL SOURCES ════ -->
+        <mxCell id="l1" value="LAYER 1 · SIGNAL SOURCES" style="swimlane;startSize=24;fillColor=#F1F4F7;strokeColor=#A4BDD3;fontColor=#5A7A95;fontSize=10;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="80" y="80" width="1340" height="160" as="geometry"/></mxCell>
+
+        <!-- Group: Applications (PoC) -->
+        <mxCell id="g-apps" value="Applications · ★ PoC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;fontColor=#2C3E50;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;" vertex="1" parent="l1"><mxGeometry x="20" y="34" width="420" height="116" as="geometry"/></mxCell>
+        <mxCell id="java" value="Java App (EKS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-apps"><mxGeometry x="14" y="34" width="180" height="38" as="geometry"/></mxCell>
+        <mxCell id="keycloak" value="Keycloak (EKS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-apps"><mxGeometry x="206" y="34" width="180" height="38" as="geometry"/></mxCell>
+        <mxCell id="apps-owner" value="Owner: app dev teams · Instrumented via Dynatrace OneAgent + OTel Java SDK" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="g-apps"><mxGeometry x="14" y="80" width="392" height="28" as="geometry"/></mxCell>
+
+        <!-- Group: Data Platform -->
+        <mxCell id="g-data" value="Data platform" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;fontColor=#2C3E50;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;" vertex="1" parent="l1"><mxGeometry x="450" y="34" width="420" height="116" as="geometry"/></mxCell>
+        <mxCell id="databr" value="Databricks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-data"><mxGeometry x="14" y="34" width="120" height="38" as="geometry"/></mxCell>
+        <mxCell id="snow-src" value="Snowflake" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-data"><mxGeometry x="146" y="34" width="120" height="38" as="geometry"/></mxCell>
+        <mxCell id="python" value="Python big data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-data"><mxGeometry x="278" y="34" width="128" height="38" as="geometry"/></mxCell>
+        <mxCell id="data-owner" value="Owner: data engineering teams · Instrumented via REST API + OTel Python SDK" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="g-data"><mxGeometry x="14" y="80" width="392" height="28" as="geometry"/></mxCell>
+
+        <!-- Group: Cloud + Infra -->
+        <mxCell id="g-infra" value="Cloud &amp; infrastructure" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;fontColor=#2C3E50;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;" vertex="1" parent="l1"><mxGeometry x="880" y="34" width="430" height="116" as="geometry"/></mxCell>
+        <mxCell id="aws" value="AWS accounts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-infra"><mxGeometry x="14" y="34" width="120" height="38" as="geometry"/></mxCell>
+        <mxCell id="azure" value="Azure accounts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-infra"><mxGeometry x="146" y="34" width="120" height="38" as="geometry"/></mxCell>
+        <mxCell id="other-infra" value="Zabbix · Tableau · others" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="g-infra"><mxGeometry x="278" y="34" width="138" height="38" as="geometry"/></mxCell>
+        <mxCell id="infra-owner" value="Owner: platform / infra teams · CloudWatch · Azure Monitor · agents" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="g-infra"><mxGeometry x="14" y="80" width="392" height="28" as="geometry"/></mxCell>
+
+        <!-- Arrow L1 → L2 -->
+        <mxCell id="melt-label" value="MELT · Metrics · Events · Logs · Traces (via SDK · agent · API)" style="text;html=1;align=center;fontSize=10;fontStyle=1;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="1"><mxGeometry x="500" y="245" width="500" height="14" as="geometry"/></mxCell>
+        <mxCell id="a12" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#5A7A95;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="l1" target="l2" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ════ LAYER 2: COLLECTION & ROUTING ════ -->
+        <mxCell id="l2" value="LAYER 2 · COLLECTION &amp; ROUTING" style="swimlane;startSize=24;fillColor=#E2E9EF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="80" y="270" width="1340" height="100" as="geometry"/></mxCell>
+
+        <mxCell id="otel" value="OpenTelemetry Collector" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;fontColor=#2C3E50;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;" vertex="1" parent="l2"><mxGeometry x="20" y="32" width="1300" height="60" as="geometry"/></mxCell>
+        <mxCell id="otel-sub" value="DaemonSet on EKS · sidecar · standalone — receive · enrich · filter · fan-out · enforces FiS schema" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="otel"><mxGeometry x="14" y="30" width="700" height="14" as="geometry"/></mxCell>
+
+        <mxCell id="otel-recv" value="receive" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F4F7;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="otel"><mxGeometry x="836" y="20" width="84" height="28" as="geometry"/></mxCell>
+        <mxCell id="otel-enr" value="enrich" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F4F7;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="otel"><mxGeometry x="930" y="20" width="84" height="28" as="geometry"/></mxCell>
+        <mxCell id="otel-fil" value="filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F4F7;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;" vertex="1" parent="otel"><mxGeometry x="1024" y="20" width="84" height="28" as="geometry"/></mxCell>
+        <mxCell id="otel-fan" value="fan-out →" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE3DA;strokeColor=#FF6B47;fontColor=#C2462A;fontSize=10;fontStyle=1;" vertex="1" parent="otel"><mxGeometry x="1118" y="20" width="160" height="28" as="geometry"/></mxCell>
+
+        <!-- Fan-out arrows -->
+        <mxCell id="a-traces" value="traces + metrics" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#2C3E50;strokeWidth=2;fontColor=#2C3E50;fontSize=10;fontStyle=1;endArrow=block;endFill=1;" edge="1" source="otel" target="dt" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="a-logs" value="logs (SoR)" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#5A7A95;strokeWidth=2;fontColor=#5A7A95;fontSize=10;fontStyle=1;endArrow=block;endFill=1;" edge="1" source="otel" target="splunk" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="a-events" value="alert events" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#FF6B47;strokeWidth=2;fontColor=#C2462A;fontSize=10;fontStyle=1;endArrow=block;endFill=1;" edge="1" source="otel" target="bp" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- Governance warning -->
+        <mxCell id="gov" value="⚠ logs do NOT go to Dynatrace (FiS RE governance directive — Oleg Reztsov)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE3DA;strokeColor=#FF6B47;fontColor=#C2462A;fontSize=9;fontStyle=2;dashed=1;" vertex="1" parent="1"><mxGeometry x="80" y="380" width="500" height="22" as="geometry"/></mxCell>
+
+        <!-- ════ LAYER 3: STORAGE ════ -->
+        <mxCell id="l3" value="LAYER 3 · STORAGE — each tool owns its domain · no duplication" style="swimlane;startSize=24;fillColor=#D5DEE6;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="80" y="412" width="1340" height="146" as="geometry"/></mxCell>
+
+        <mxCell id="dt" value="Dynatrace" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;fontColor=#2C3E50;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;" vertex="1" parent="l3"><mxGeometry x="20" y="34" width="420" height="100" as="geometry"/></mxCell>
+        <mxCell id="dt-sub" value="APM · traces · metrics · containers · SLO · Davis AI · Smartscape topology" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="dt"><mxGeometry x="14" y="34" width="392" height="40" as="geometry"/></mxCell>
+        <mxCell id="dt-team" value="Central team owner: Dynatrace platform team" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F4F7;strokeColor=none;fontColor=#2C3E50;fontSize=9;align=left;spacingLeft=8;" vertex="1" parent="dt"><mxGeometry x="14" y="76" width="392" height="18" as="geometry"/></mxCell>
+
+        <mxCell id="splunk" value="Splunk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;" vertex="1" parent="l3"><mxGeometry x="450" y="34" width="420" height="100" as="geometry"/></mxCell>
+        <mxCell id="splunk-sub" value="logs — system of record · DT APM via add-on · SPL search · saved alerts" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="splunk"><mxGeometry x="14" y="34" width="392" height="40" as="geometry"/></mxCell>
+        <mxCell id="splunk-team" value="Central team owner: Splunk administration team" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F4F7;strokeColor=none;fontColor=#2C3E50;fontSize=9;align=left;spacingLeft=8;" vertex="1" parent="splunk"><mxGeometry x="14" y="76" width="392" height="18" as="geometry"/></mxCell>
+
+        <mxCell id="bp" value="BigPanda · AIOps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF6B47;fontColor=#2C3E50;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;" vertex="1" parent="l3"><mxGeometry x="880" y="34" width="430" height="100" as="geometry"/></mxCell>
+        <mxCell id="bp-live" value="LIVE · 17 May 2026" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE3DA;strokeColor=none;fontColor=#C2462A;fontSize=9;fontStyle=1;" vertex="1" parent="bp"><mxGeometry x="270" y="10" width="148" height="18" as="geometry"/></mxCell>
+        <mxCell id="bp-sub" value="correlated incidents · 80%+ noise reduction · change correlation built-in" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="bp"><mxGeometry x="14" y="34" width="402" height="40" as="geometry"/></mxCell>
+        <mxCell id="bp-team" value="Central team owner: BigPanda administration team" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE3DA;strokeColor=none;fontColor=#C2462A;fontSize=9;align=left;spacingLeft=8;" vertex="1" parent="bp"><mxGeometry x="14" y="76" width="402" height="18" as="geometry"/></mxCell>
+
+        <!-- Arrows L3 → L4 -->
+        <mxCell id="a-dt-d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#5A7A95;strokeWidth=1.5;dashed=1;dashPattern=4 3;endArrow=block;endFill=1;" edge="1" source="dt" target="dash-dt" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="a-sp-d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#5A7A95;strokeWidth=1.5;dashed=1;dashPattern=4 3;endArrow=block;endFill=1;" edge="1" source="splunk" target="dash-sp" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="a-bp-d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#FF6B47;strokeWidth=1.5;dashed=1;dashPattern=4 3;endArrow=block;endFill=1;" edge="1" source="bp" target="dash-bp" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="fed-label" value="federated read · datasource APIs · no data copy · governance intact" style="text;html=1;align=center;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="430" y="566" width="640" height="14" as="geometry"/></mxCell>
+
+        <!-- ════ LAYER 4: DASHBOARDS ════ -->
+        <mxCell id="l4" value="LAYER 4 · DASHBOARDS — multiple consoles · clear team ownership" style="swimlane;startSize=24;fillColor=#C9D5DE;strokeColor=#5A7A95;fontColor=#2C3E50;fontSize=10;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="80" y="588" width="1340" height="280" as="geometry"/></mxCell>
+
+        <!-- Row 1: 3 dashboards -->
+        <mxCell id="dash-dt" value="Dynatrace console" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2C3E50;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="20" y="32" width="430" height="32" as="geometry"/></mxCell>
+        <mxCell id="dash-dt-body" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;" vertex="1" parent="l4"><mxGeometry x="20" y="62" width="430" height="98" as="geometry"/></mxCell>
+        <mxCell id="dash-dt-users" value="→ L1 / L2 on-call engineers&#xa;→ App development teams" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#2C3E50;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="20" y="62" width="430" height="40" as="geometry"/></mxCell>
+        <mxCell id="dash-dt-use" value="Live trace waterfall · SLO burn · Smartscape · service health · real-time triage" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;spacingLeft=14;" vertex="1" parent="l4"><mxGeometry x="20" y="106" width="430" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="dash-sp" value="Splunk dashboards" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5A7A95;strokeColor=#5A7A95;fontColor=#FFFFFF;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="460" y="32" width="430" height="32" as="geometry"/></mxCell>
+        <mxCell id="dash-sp-body" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A7A95;" vertex="1" parent="l4"><mxGeometry x="460" y="62" width="430" height="98" as="geometry"/></mxCell>
+        <mxCell id="dash-sp-users" value="→ L3 engineers · forensics &amp; deep investigation&#xa;→ Security &amp; audit teams" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#2C3E50;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="460" y="62" width="430" height="40" as="geometry"/></mxCell>
+        <mxCell id="dash-sp-use" value="Log search · trace_id correlation · cross-service drill-down · audit trail queries" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;spacingLeft=14;" vertex="1" parent="l4"><mxGeometry x="460" y="106" width="430" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="dash-bp" value="BigPanda console" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF6B47;strokeColor=#FF6B47;fontColor=#FFFFFF;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="900" y="32" width="420" height="32" as="geometry"/></mxCell>
+        <mxCell id="dash-bp-body" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF6B47;" vertex="1" parent="l4"><mxGeometry x="900" y="62" width="420" height="98" as="geometry"/></mxCell>
+        <mxCell id="dash-bp-users" value="→ Central observability solutions team&#xa;→ NOC / incident commanders" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#2C3E50;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="900" y="62" width="420" height="40" as="geometry"/></mxCell>
+        <mxCell id="dash-bp-use" value="Correlated incidents · timeline · change correlation · noise reduction metrics" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;spacingLeft=14;" vertex="1" parent="l4"><mxGeometry x="900" y="106" width="420" height="50" as="geometry"/></mxCell>
+
+        <!-- Row 2: 2 wider dashboards -->
+        <mxCell id="dash-sre" value="SRE KPI dashboard (built in Splunk)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5A7A95;strokeColor=#5A7A95;fontColor=#FFFFFF;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="20" y="172" width="650" height="32" as="geometry"/></mxCell>
+        <mxCell id="dash-sre-body" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A7A95;dashed=1;dashPattern=4 3;" vertex="1" parent="l4"><mxGeometry x="20" y="202" width="650" height="64" as="geometry"/></mxCell>
+        <mxCell id="dash-sre-users" value="→ SRE managers · engineering leadership&#xa;→ Central observability team (governance &amp; reporting)" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#2C3E50;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="20" y="202" width="650" height="40" as="geometry"/></mxCell>
+        <mxCell id="dash-sre-use" value="MTTA · MTTD · MTTF · MTTR trends · error budget · Change Failover Rate · alert volume per team" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;spacingLeft=14;" vertex="1" parent="l4"><mxGeometry x="20" y="244" width="650" height="20" as="geometry"/></mxCell>
+
+        <mxCell id="dash-snow" value="ServiceNow incident dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF6B47;strokeColor=#FF6B47;fontColor=#FFFFFF;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="680" y="172" width="640" height="32" as="geometry"/></mxCell>
+        <mxCell id="dash-snow-body" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF6B47;dashed=1;dashPattern=4 3;" vertex="1" parent="l4"><mxGeometry x="680" y="202" width="640" height="64" as="geometry"/></mxCell>
+        <mxCell id="dash-snow-users" value="→ Incident commanders · service owners&#xa;→ Executive leadership · audit &amp; compliance" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#2C3E50;spacingLeft=14;spacingTop=8;" vertex="1" parent="l4"><mxGeometry x="680" y="202" width="640" height="40" as="geometry"/></mxCell>
+        <mxCell id="dash-snow-use" value="Open P1/P2 · resolution status · SLA tracking · post-incident reviews · root cause register" style="text;html=1;align=left;fontSize=9;strokeColor=none;fillColor=none;fontColor=#5A7A95;spacingLeft=14;" vertex="1" parent="l4"><mxGeometry x="680" y="244" width="640" height="20" as="geometry"/></mxCell>
+
+        <!-- Arrow L4 → L5 -->
+        <mxCell id="snow-action-label" value="P1/P2 → enriched SNOW ticket · trace_id · service · BigPanda incident ID · CI" style="text;html=1;align=center;fontSize=10;fontStyle=1;strokeColor=none;fillColor=none;fontColor=#C2462A;" vertex="1" parent="1"><mxGeometry x="430" y="876" width="640" height="14" as="geometry"/></mxCell>
+        <mxCell id="a45" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#FF6B47;strokeWidth=2;endArrow=block;endFill=1;" edge="1" source="l4" target="l5" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ════ LAYER 5: ITSM ════ -->
+        <mxCell id="l5" value="LAYER 5 · ITSM &amp; NOTIFICATION" style="swimlane;startSize=24;fillColor=#FFE3DA;strokeColor=#FF6B47;fontColor=#C2462A;fontSize=10;fontStyle=1;align=left;" vertex="1" parent="1"><mxGeometry x="80" y="898" width="1340" height="100" as="geometry"/></mxCell>
+
+        <mxCell id="snow" value="ServiceNow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF6B47;fontColor=#2C3E50;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l5"><mxGeometry x="20" y="32" width="430" height="58" as="geometry"/></mxCell>
+        <mxCell id="snow-sub" value="auto P1/P2 ticket creation · full lifecycle · enriched: trace_id · CI · BigPanda ID" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="snow"><mxGeometry x="14" y="28" width="402" height="26" as="geometry"/></mxCell>
+
+        <mxCell id="xmatters" value="xMatters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF6B47;fontColor=#2C3E50;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l5"><mxGeometry x="460" y="32" width="430" height="58" as="geometry"/></mxCell>
+        <mxCell id="xm-sub" value="on-call routing · escalation policies · P1/P2 paging by service" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="xmatters"><mxGeometry x="14" y="28" width="402" height="26" as="geometry"/></mxCell>
+
+        <mxCell id="teams" value="Microsoft Teams" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF6B47;fontColor=#2C3E50;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="l5"><mxGeometry x="900" y="32" width="420" height="58" as="geometry"/></mxCell>
+        <mxCell id="teams-sub" value="ChatOps bridge · auto-created incident channel · console links posted" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="teams"><mxGeometry x="14" y="28" width="402" height="26" as="geometry"/></mxCell>
+
+        <!-- ════ CENTRAL TEAM BANNER ════ -->
+        <mxCell id="team" value="Central Observability Solutions Team — design · instrumentation · onboarding · L1/L2/L3 support · SRE governance · SNOW lifecycle" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2C3E50;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=12;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="80" y="1018" width="1340" height="44" as="geometry"/></mxCell>
+
+        <!-- ════ LEGEND ════ -->
+        <mxCell id="leg-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F4F7;strokeColor=#A4BDD3;" vertex="1" parent="1"><mxGeometry x="80" y="1080" width="1340" height="58" as="geometry"/></mxCell>
+        <mxCell id="leg-title" value="Data routing key" style="text;html=1;align=left;fontSize=10;fontStyle=1;strokeColor=none;fillColor=none;fontColor=#2C3E50;spacingLeft=12;spacingTop=8;" vertex="1" parent="1"><mxGeometry x="80" y="1080" width="200" height="20" as="geometry"/></mxCell>
+
+        <mxCell id="leg1-line" style="endArrow=block;endFill=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" parent="1"><mxGeometry x="100" y="1118" width="50" height="0" as="geometry"><Array as="points"/></mxGeometry></mxCell>
+        <mxCell id="leg1-txt" value="traces + metrics → Dynatrace" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#2C3E50;" vertex="1" parent="1"><mxGeometry x="158" y="1110" width="200" height="14" as="geometry"/></mxCell>
+
+        <mxCell id="leg2-line" style="endArrow=block;endFill=1;strokeColor=#5A7A95;strokeWidth=2;" edge="1" parent="1"><mxGeometry x="380" y="1118" width="50" height="0" as="geometry"><Array as="points"/></mxGeometry></mxCell>
+        <mxCell id="leg2-txt" value="logs (System of Record) → Splunk" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="1"><mxGeometry x="438" y="1110" width="220" height="14" as="geometry"/></mxCell>
+
+        <mxCell id="leg3-line" style="endArrow=block;endFill=1;strokeColor=#FF6B47;strokeWidth=2;" edge="1" parent="1"><mxGeometry x="680" y="1118" width="50" height="0" as="geometry"><Array as="points"/></mxGeometry></mxCell>
+        <mxCell id="leg3-txt" value="alert events → BigPanda · ITSM action" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#C2462A;" vertex="1" parent="1"><mxGeometry x="738" y="1110" width="240" height="14" as="geometry"/></mxCell>
+
+        <mxCell id="leg4-line" style="endArrow=block;endFill=1;strokeColor=#5A7A95;strokeWidth=1.5;dashed=1;dashPattern=4 3;" edge="1" parent="1"><mxGeometry x="1010" y="1118" width="50" height="0" as="geometry"><Array as="points"/></mxGeometry></mxCell>
+        <mxCell id="leg4-txt" value="federated read · no data copy" style="text;html=1;align=left;fontSize=10;strokeColor=none;fillColor=none;fontColor=#5A7A95;" vertex="1" parent="1"><mxGeometry x="1068" y="1110" width="220" height="14" as="geometry"/></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
