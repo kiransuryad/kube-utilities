@@ -3,6 +3,185 @@
 set -u
 
 REGION="us-east-1"
+RUN_DATE=$(date '+%Y-%m-%d')
+
+BEFORE_DIR="resource-inventory-before"
+AFTER_DIR="resource-inventory-after"
+REPORT_DIR="before-after-report"
+
+mkdir -p "$BEFORE_DIR" "$AFTER_DIR" "$REPORT_DIR"
+
+MASTER="$REPORT_DIR/before-after-summary.csv"
+
+echo "Service,Resource Type,Before Count,After Count,Status,Date" > "$MASTER"
+
+count_lines() {
+  FILE="$1"
+
+  if [ ! -f "$FILE" ]; then
+    echo 0
+    return
+  fi
+
+  tail -n +2 "$FILE" | grep -v '^$' | wc -l | tr -d ' '
+}
+
+write_header() {
+  FILE="$1"
+  echo "Service,Resource Type,Resource Name,Status,Region,Additional Detail,Evidence Date" > "$FILE"
+}
+
+capture_before_after_csvs() {
+  PHASE="$1"
+  OUT_DIR="$2"
+
+  RDS_INST="$OUT_DIR/01-rds-instances-$PHASE.csv"
+  write_header "$RDS_INST"
+  aws rds describe-db-instances \
+    --region "$REGION" \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .DBInstances[]? |
+    ["RDS","DB Instance",.DBInstanceIdentifier,.DBInstanceStatus,$region,.Engine,$date] | @csv
+  ' >> "$RDS_INST"
+
+  RDS_CLUSTERS="$OUT_DIR/02-rds-clusters-$PHASE.csv"
+  write_header "$RDS_CLUSTERS"
+  aws rds describe-db-clusters \
+    --region "$REGION" \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .DBClusters[]? |
+    ["RDS","DB Cluster",.DBClusterIdentifier,.Status,$region,.Engine,$date] | @csv
+  ' >> "$RDS_CLUSTERS"
+
+  RDS_SNAPS="$OUT_DIR/03-rds-manual-snapshots-$PHASE.csv"
+  write_header "$RDS_SNAPS"
+  aws rds describe-db-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .DBSnapshots[]? |
+    ["RDS","Manual DB Snapshot",.DBSnapshotIdentifier,.Status,$region,.Engine,$date] | @csv
+  ' >> "$RDS_SNAPS"
+
+  RDS_CLUSTER_SNAPS="$OUT_DIR/04-rds-manual-cluster-snapshots-$PHASE.csv"
+  write_header "$RDS_CLUSTER_SNAPS"
+  aws rds describe-db-cluster-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .DBClusterSnapshots[]? |
+    ["RDS","Manual Cluster Snapshot",.DBClusterSnapshotIdentifier,.Status,$region,.Engine,$date] | @csv
+  ' >> "$RDS_CLUSTER_SNAPS"
+
+  S3="$OUT_DIR/05-s3-buckets-$PHASE.csv"
+  write_header "$S3"
+  aws s3api list-buckets \
+    --output json | jq -r --arg date "$RUN_DATE" '
+    .Buckets[]? |
+    ["S3","Bucket",.Name,"Present","Global",(.CreationDate // ""),$date] | @csv
+  ' >> "$S3"
+
+  DDB="$OUT_DIR/06-dynamodb-tables-$PHASE.csv"
+  write_header "$DDB"
+  aws dynamodb list-tables \
+    --region "$REGION" \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .TableNames[]? |
+    ["DynamoDB","Table",.,"Present",$region,"",$date] | @csv
+  ' >> "$DDB"
+
+  DDB_BACKUPS="$OUT_DIR/07-dynamodb-backups-$PHASE.csv"
+  write_header "$DDB_BACKUPS"
+  aws dynamodb list-backups \
+    --region "$REGION" \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .BackupSummaries[]? |
+    ["DynamoDB","Backup",.BackupName,.BackupStatus,$region,.TableName,$date] | @csv
+  ' >> "$DDB_BACKUPS"
+
+  EBS_SNAPS="$OUT_DIR/08-ebs-snapshots-$PHASE.csv"
+  write_header "$EBS_SNAPS"
+  aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .Snapshots[]? |
+    ["EBS","Snapshot",.SnapshotId,.State,$region,(.VolumeId // ""),$date] | @csv
+  ' >> "$EBS_SNAPS"
+
+  EFS="$OUT_DIR/09-efs-filesystems-$PHASE.csv"
+  write_header "$EFS"
+  aws efs describe-file-systems \
+    --region "$REGION" \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .FileSystems[]? |
+    ["EFS","File System",.FileSystemId,.LifeCycleState,$region,("SizeBytes=" + ((.SizeInBytes.Value // 0) | tostring)),$date] | @csv
+  ' >> "$EFS"
+
+  BACKUP="$OUT_DIR/10-backup-vaults-$PHASE.csv"
+  write_header "$BACKUP"
+  aws backup list-backup-vaults \
+    --region "$REGION" \
+    --output json | jq -r --arg region "$REGION" --arg date "$RUN_DATE" '
+    .BackupVaultList[]? |
+    ["AWS Backup","Backup Vault",.BackupVaultName,"Present",$region,("RecoveryPoints=" + ((.NumberOfRecoveryPoints // 0) | tostring)),$date] | @csv
+  ' >> "$BACKUP"
+}
+
+add_summary_row() {
+  SERVICE="$1"
+  RESOURCE_TYPE="$2"
+  BEFORE_FILE="$3"
+  AFTER_FILE="$4"
+
+  BEFORE_COUNT=$(count_lines "$BEFORE_FILE")
+  AFTER_COUNT=$(count_lines "$AFTER_FILE")
+
+  if [ "$AFTER_COUNT" = "0" ]; then
+    STATUS="Cleared"
+  elif [ "$BEFORE_COUNT" = "$AFTER_COUNT" ]; then
+    STATUS="Still Present"
+  else
+    STATUS="Partially Cleared"
+  fi
+
+  echo "$SERVICE,$RESOURCE_TYPE,$BEFORE_COUNT,$AFTER_COUNT,$STATUS,$RUN_DATE" >> "$MASTER"
+}
+
+echo "Generating BEFORE inventory snapshot..."
+capture_before_after_csvs "before" "$BEFORE_DIR"
+
+echo "Generating AFTER inventory snapshot..."
+capture_before_after_csvs "after" "$AFTER_DIR"
+
+add_summary_row "RDS" "DB Instance" "$BEFORE_DIR/01-rds-instances-before.csv" "$AFTER_DIR/01-rds-instances-after.csv"
+add_summary_row "RDS" "DB Cluster" "$BEFORE_DIR/02-rds-clusters-before.csv" "$AFTER_DIR/02-rds-clusters-after.csv"
+add_summary_row "RDS" "Manual DB Snapshot" "$BEFORE_DIR/03-rds-manual-snapshots-before.csv" "$AFTER_DIR/03-rds-manual-snapshots-after.csv"
+add_summary_row "RDS" "Manual Cluster Snapshot" "$BEFORE_DIR/04-rds-manual-cluster-snapshots-before.csv" "$AFTER_DIR/04-rds-manual-cluster-snapshots-after.csv"
+add_summary_row "S3" "Bucket" "$BEFORE_DIR/05-s3-buckets-before.csv" "$AFTER_DIR/05-s3-buckets-after.csv"
+add_summary_row "DynamoDB" "Table" "$BEFORE_DIR/06-dynamodb-tables-before.csv" "$AFTER_DIR/06-dynamodb-tables-after.csv"
+add_summary_row "DynamoDB" "Backup" "$BEFORE_DIR/07-dynamodb-backups-before.csv" "$AFTER_DIR/07-dynamodb-backups-after.csv"
+add_summary_row "EBS" "Snapshot" "$BEFORE_DIR/08-ebs-snapshots-before.csv" "$AFTER_DIR/08-ebs-snapshots-after.csv"
+add_summary_row "EFS" "File System" "$BEFORE_DIR/09-efs-filesystems-before.csv" "$AFTER_DIR/09-efs-filesystems-after.csv"
+add_summary_row "AWS Backup" "Backup Vault" "$BEFORE_DIR/10-backup-vaults-before.csv" "$AFTER_DIR/10-backup-vaults-after.csv"
+
+cat "$BEFORE_DIR"/*.csv > "$REPORT_DIR/before-resource-inventory-combined.csv"
+cat "$AFTER_DIR"/*.csv > "$REPORT_DIR/after-resource-inventory-combined.csv"
+
+echo
+echo "Before/after report generated:"
+echo "$REPORT_DIR"
+echo
+echo "Main summary:"
+echo "$MASTER"
+
+
+--------------------------------
+\#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
 OUT_DIR="evidence-after"
 RUN_DATE=$(date '+%Y-%m-%d')
 
