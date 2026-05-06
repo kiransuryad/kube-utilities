@@ -2,6 +2,215 @@
 
 set -u
 
+BEFORE_DIR="evidence-before"
+AFTER_DIR="evidence-after"
+REPORT_DIR="final-evidence-report"
+REPORT_FILE="$REPORT_DIR/aws-data-purge-evidence-report.html"
+RUN_DATE=$(date '+%Y-%m-%d')
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "UNKNOWN")
+REGION="us-east-1"
+
+mkdir -p "$REPORT_DIR"
+
+cat > "$REPORT_FILE" <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AWS Data Purge Evidence Report</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 32px;
+      color: #222;
+    }
+    h1 {
+      border-bottom: 2px solid #333;
+      padding-bottom: 8px;
+    }
+    h2 {
+      margin-top: 36px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 6px;
+    }
+    h3 {
+      margin-top: 28px;
+    }
+    .meta {
+      background: #f4f4f4;
+      padding: 12px;
+      border: 1px solid #ddd;
+      margin-bottom: 24px;
+    }
+    .evidence-pair {
+      page-break-inside: avoid;
+      margin-bottom: 40px;
+    }
+    .screens {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .screen {
+      width: 49%;
+    }
+    .screen img {
+      width: 100%;
+      border: 1px solid #aaa;
+    }
+    .caption {
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+    .note {
+      background: #fff8dc;
+      border: 1px solid #e6d27a;
+      padding: 10px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>AWS Data Purge Evidence Report</h1>
+
+<div class="meta">
+  <p><strong>Account ID:</strong> $ACCOUNT_ID</p>
+  <p><strong>Region:</strong> $REGION</p>
+  <p><strong>Evidence Date:</strong> $RUN_DATE</p>
+  <p><strong>Scope:</strong> RDS, S3, DynamoDB, EBS Snapshots, EFS, AWS Backup</p>
+  <p><strong>Excluded from this evidence pack:</strong> EC2 instances and EBS volumes</p>
+</div>
+
+<h2>Activity Summary</h2>
+
+<p>
+This evidence report captures before and after screenshots for AWS data purge activities.
+The purpose is to demonstrate that targeted data-bearing resources were reviewed before deletion
+and validated after deletion.
+</p>
+
+<p>
+The detailed before and after inventory summary CSV is maintained separately and can be attached
+alongside this report in ServiceNow.
+</p>
+
+<h2>Before and After Screenshot Evidence</h2>
+
+EOF
+
+add_pair() {
+  TITLE="$1"
+  BEFORE_FILE="$2"
+  AFTER_FILE="$3"
+
+  if [ -f "$BEFORE_FILE" ] || [ -f "$AFTER_FILE" ]; then
+    cat >> "$REPORT_FILE" <<EOF
+<div class="evidence-pair">
+  <h3>$TITLE</h3>
+  <div class="screens">
+    <div class="screen">
+      <div class="caption">Before</div>
+EOF
+
+    if [ -f "$BEFORE_FILE" ]; then
+      echo "      <img src=\"../$BEFORE_FILE\" alt=\"$TITLE before\">" >> "$REPORT_FILE"
+    else
+      echo "      <p>Before screenshot not available.</p>" >> "$REPORT_FILE"
+    fi
+
+    cat >> "$REPORT_FILE" <<EOF
+    </div>
+    <div class="screen">
+      <div class="caption">After</div>
+EOF
+
+    if [ -f "$AFTER_FILE" ]; then
+      echo "      <img src=\"../$AFTER_FILE\" alt=\"$TITLE after\">" >> "$REPORT_FILE"
+    else
+      echo "      <p>After screenshot not available.</p>" >> "$REPORT_FILE"
+    fi
+
+    cat >> "$REPORT_FILE" <<EOF
+    </div>
+  </div>
+</div>
+EOF
+  fi
+}
+
+add_pair "RDS Instances" \
+  "$BEFORE_DIR/01-rds-instances-before.png" \
+  "$AFTER_DIR/01-rds-instances-after.png"
+
+add_pair "RDS Clusters" \
+  "$BEFORE_DIR/02-rds-clusters-before.png" \
+  "$AFTER_DIR/02-rds-clusters-after.png"
+
+add_pair "RDS Manual Snapshots" \
+  "$BEFORE_DIR/02-rds-snapshots-before.png" \
+  "$AFTER_DIR/03-rds-snapshots-after.png"
+
+add_pair "RDS Manual Cluster Snapshots" \
+  "$BEFORE_DIR/04-rds-cluster-snapshots-before.png" \
+  "$AFTER_DIR/04-rds-cluster-snapshots-after.png"
+
+add_pair "S3 Buckets" \
+  "$BEFORE_DIR/03-s3-buckets-before.png" \
+  "$AFTER_DIR/05-s3-buckets-after.png"
+
+add_pair "DynamoDB Tables" \
+  "$BEFORE_DIR/04-dynamodb-tables-before.png" \
+  "$AFTER_DIR/06-dynamodb-tables-after.png"
+
+add_pair "DynamoDB Backups" \
+  "$BEFORE_DIR/07-dynamodb-backups-before.png" \
+  "$AFTER_DIR/07-dynamodb-backups-after.png"
+
+add_pair "EBS Snapshots" \
+  "$BEFORE_DIR/05-ebs-snapshots-before.png" \
+  "$AFTER_DIR/08-ebs-snapshots-after.png"
+
+add_pair "EFS File Systems" \
+  "$BEFORE_DIR/06-efs-filesystems-before.png" \
+  "$AFTER_DIR/09-efs-filesystems-after.png"
+
+add_pair "AWS Backup Vaults" \
+  "$BEFORE_DIR/07-backup-vaults-before.png" \
+  "$AFTER_DIR/10-backup-vaults-after.png"
+
+cat >> "$REPORT_FILE" <<EOF
+
+<h2>Final Validation Statement</h2>
+
+<p>
+The above screenshots provide visual evidence of before and after validation for the scoped AWS data purge activity.
+The detailed resource inventory CSV should be attached separately to provide tabular traceability.
+</p>
+
+<div class="note">
+  <strong>Note:</strong> EC2 instances and EBS volumes are intentionally excluded from this report because they are dependent on compute cleanup and will be handled in a later activity.
+</div>
+
+</body>
+</html>
+EOF
+
+echo "HTML evidence report created:"
+echo "$REPORT_FILE"
+
+echo
+echo "Open it with:"
+echo "open $REPORT_FILE"
+
+
+
+----------------------------------------------
+
+#!/bin/bash
+
+set -u
+
 REGION="us-east-1"
 RUN_DATE=$(date '+%Y-%m-%d')
 
