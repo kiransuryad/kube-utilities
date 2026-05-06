@@ -3,6 +3,144 @@
 set -u
 
 REGION="us-east-1"
+OUT_DIR="evidence-after"
+RUN_DATE=$(date '+%Y-%m-%d')
+
+mkdir -p "$OUT_DIR"
+
+capture_window() {
+  NAME="$1"
+
+  echo
+  echo "======================================"
+  echo "Captured section: $NAME"
+  echo "Date: $RUN_DATE"
+  echo "Region: $REGION"
+  echo "======================================"
+  echo
+
+  sleep 2
+  screencapture -x -i -w "$OUT_DIR/${NAME}.png"
+}
+
+run_and_capture() {
+  NAME="$1"
+  TITLE="$2"
+  shift 2
+
+  CMD="./$*"
+
+  clear
+  echo "AWS AFTER Evidence Capture"
+  echo "Account: $(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo UNKNOWN)"
+  echo "Region: $REGION"
+  echo "Check: $TITLE"
+  echo "Date: $RUN_DATE"
+  echo "======================================"
+  echo
+  echo "Command:"
+  echo "$CMD"
+  echo "--------------------------------------"
+  echo
+
+  "$@" 2>&1 | tee "$OUT_DIR/${NAME}.txt"
+
+  capture_window "$NAME"
+}
+
+run_and_capture \
+  "01-rds-instances-after" \
+  "RDS Instances" \
+  aws rds describe-db-instances \
+    --region "$REGION" \
+    --query 'DBInstances[].{DB:DBInstanceIdentifier,Status:DBInstanceStatus,Engine:Engine}' \
+    --output table
+
+run_and_capture \
+  "02-rds-clusters-after" \
+  "RDS Clusters" \
+  aws rds describe-db-clusters \
+    --region "$REGION" \
+    --query 'DBClusters[].{Cluster:DBClusterIdentifier,Status:Status,Engine:Engine}' \
+    --output table
+
+run_and_capture \
+  "03-rds-snapshots-after" \
+  "RDS Manual Snapshots" \
+  aws rds describe-db-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --query 'DBSnapshots[].{Snapshot:DBSnapshotIdentifier,Status:Status,Engine:Engine}' \
+    --output table
+
+run_and_capture \
+  "04-rds-cluster-snapshots-after" \
+  "RDS Manual Cluster Snapshots" \
+  aws rds describe-db-cluster-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --query 'DBClusterSnapshots[].{Snapshot:DBClusterSnapshotIdentifier,Status:Status,Engine:Engine}' \
+    --output table
+
+run_and_capture \
+  "05-s3-buckets-after" \
+  "S3 Buckets" \
+  aws s3api list-buckets \
+    --query 'Buckets[].{Bucket:Name,Created:CreationDate}' \
+    --output table
+
+run_and_capture \
+  "06-dynamodb-tables-after" \
+  "DynamoDB Tables" \
+  aws dynamodb list-tables \
+    --region "$REGION" \
+    --query 'TableNames[]' \
+    --output table
+
+run_and_capture \
+  "07-dynamodb-backups-after" \
+  "DynamoDB Backups" \
+  aws dynamodb list-backups \
+    --region "$REGION" \
+    --query 'BackupSummaries[].{Backup:BackupName,Status:BackupStatus,Table:TableName}' \
+    --output table
+
+run_and_capture \
+  "08-ebs-snapshots-after" \
+  "EBS Snapshots" \
+  aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --query 'Snapshots[].{Snapshot:SnapshotId,State:State,Volume:VolumeId,Started:StartTime}' \
+    --output table
+
+run_and_capture \
+  "09-efs-filesystems-after" \
+  "EFS File Systems" \
+  aws efs describe-file-systems \
+    --region "$REGION" \
+    --query 'FileSystems[].{FileSystem:FileSystemId,State:LifeCycleState,Created:CreationTime}' \
+    --output table
+
+run_and_capture \
+  "10-backup-vaults-after" \
+  "AWS Backup Vaults" \
+  aws backup list-backup-vaults \
+    --region "$REGION" \
+    --query 'BackupVaultList[].{Vault:BackupVaultName,RecoveryPoints:NumberOfRecoveryPoints}' \
+    --output table
+
+echo
+echo "AFTER evidence capture completed"
+echo "Saved in: $OUT_DIR"
+
+
+--------------------
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
 MODE="${1:-dry-run}"
 OUT_DIR="second-pass-deletion-logs"
 RUN_DATE=$(date '+%Y-%m-%d')
