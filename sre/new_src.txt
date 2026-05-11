@@ -1,5 +1,43 @@
 #!/bin/bash
 
+REGION="us-east-1"
+
+echo "Checking VPC Endpoint Services using NLBs"
+aws ec2 describe-vpc-endpoint-service-configurations \
+  --region "$REGION" \
+  --query 'ServiceConfigurations[].{ServiceName:ServiceName,State:ServiceState,NLBs:NetworkLoadBalancerArns}' \
+  --output table
+
+echo
+echo "Checking API Gateway VPC Links"
+aws apigateway get-vpc-links \
+  --region "$REGION" \
+  --query 'items[].{Name:name,Id:id,Status:status,TargetArns:targetArns}' \
+  --output table
+
+echo
+echo "Checking CloudFormation stacks"
+aws cloudformation describe-stack-resources \
+  --region "$REGION" \
+  --query 'StackResources[?contains(LogicalResourceId, `LoadBalancer`) || contains(ResourceType, `LoadBalancer`)].{Stack:StackName,Type:ResourceType,PhysicalId:PhysicalResourceId,Status:ResourceStatus}' \
+  --output table
+
+
+
+
+
+aws apigateway delete-vpc-link \
+  --region us-east-1 \
+  --vpc-link-id <vpc-link-id>
+
+
+aws ec2 delete-vpc-endpoint-service-configurations \
+  --region us-east-1 \
+  --service-ids <vpce-svc-id>
+
+-------------------------------------------------
+#!/bin/bash
+
 set -u
 
 REGION="us-east-1"
