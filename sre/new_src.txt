@@ -3,6 +3,340 @@
 set -u
 
 REGION="us-east-1"
+OUT_DIR="eks-associated-resource-summary"
+RUN_DATE=$(date '+%Y-%m-%d')
+REPORT="$OUT_DIR/eks-associated-resources-$RUN_DATE.txt"
+CSV="$OUT_DIR/eks-associated-resources-$RUN_DATE.csv"
+
+mkdir -p "$OUT_DIR"
+
+echo "Category,Cluster,ResourceType,ResourceName,ResourceId,Region,VPC,AssociationReason,SafeCandidate" > "$CSV"
+
+log() {
+  echo "$*" | tee -a "$REPORT"
+}
+
+csv() {
+  echo "\"$1\",\"$2\",\"$3\",\"$4\",\"$5\",\"$6\",\"$7\",\"$8\",\"$9\"" >> "$CSV"
+}
+
+log "EKS Associated Resource Discovery"
+log "Date: $RUN_DATE"
+log "Region: $REGION"
+log "======================================"
+log ""
+
+CLUSTERS=$(aws eks list-clusters \
+  --region "$REGION" \
+  --query 'clusters[]' \
+  --output text 2>/dev/null)
+
+if [ -z "$CLUSTERS" ]; then
+  log "No EKS clusters found."
+  exit 0
+fi
+
+for CLUSTER in $CLUSTERS; do
+  log ""
+  log "======================================"
+  log "Cluster: $CLUSTER"
+  log "======================================"
+
+  VPC_ID=$(aws eks describe-cluster \
+    --region "$REGION" \
+    --name "$CLUSTER" \
+    --query 'cluster.resourcesVpcConfig.vpcId' \
+    --output text 2>/dev/null)
+
+  CLUSTER_SG=$(aws eks describe-cluster \
+    --region "$REGION" \
+    --name "$CLUSTER" \
+    --query 'cluster.resourcesVpcConfig.clusterSecurityGroupId' \
+    --output text 2>/dev/null)
+
+  STATUS=$(aws eks describe-cluster \
+    --region "$REGION" \
+    --name "$CLUSTER" \
+    --query 'cluster.status' \
+    --output text 2>/dev/null)
+
+  VERSION=$(aws eks describe-cluster \
+    --region "$REGION" \
+    --name "$CLUSTER" \
+    --query 'cluster.version' \
+    --output text 2>/dev/null)
+
+  log "Status: $STATUS"
+  log "Version: $VERSION"
+  log "VPC: $VPC_ID"
+  log "Cluster SG: $CLUSTER_SG"
+  log ""
+
+  csv "EKS" "$CLUSTER" "Cluster" "$CLUSTER" "$CLUSTER" "$REGION" "$VPC_ID" "EKS cluster object" "Yes"
+
+  if [ "$CLUSTER_SG" != "None" ] && [ -n "$CLUSTER_SG" ]; then
+    csv "Security" "$CLUSTER" "Cluster Security Group" "$CLUSTER_SG" "$CLUSTER_SG" "$REGION" "$VPC_ID" "EKS clusterSecurityGroupId from describe-cluster" "Yes"
+  fi
+
+  log "Nodegroups:"
+  NODEGROUPS=$(aws eks list-nodegroups \
+    --region "$REGION" \
+    --cluster-name "$CLUSTER" \
+    --query 'nodegroups[]' \
+    --output text 2>/dev/null)
+
+  if [ -z "$NODEGROUPS" ]; then
+    log "  None"
+  else
+    for NG in $NODEGROUPS; do
+      NG_STATUS=$(aws eks describe-nodegroup \
+        --region "$REGION" \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG" \
+        --query 'nodegroup.status' \
+        --output text 2>/dev/null)
+
+      ASGS=$(aws eks describe-nodegroup \
+        --region "$REGION" \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG" \
+        --query 'nodegroup.resources.autoScalingGroups[].name' \
+        --output text 2>/dev/null)
+
+      log "  - $NG | Status: $NG_STATUS | ASG: ${ASGS:-None}"
+
+      csv "EKS" "$CLUSTER" "Nodegroup" "$NG" "$NG" "$REGION" "$VPC_ID" "Listed from EKS nodegroup API" "Yes"
+
+      for ASG in $ASGS; do
+        csv "Compute" "$CLUSTER" "Auto Scaling Group" "$ASG" "$ASG" "$REGION" "$VPC_ID" "Returned by describe-nodegroup resources.autoScalingGroups" "Yes"
+      done
+    done
+  fi
+
+  log ""
+  log "Load Balancers associated by EKS/Kubernetes tags:"
+  LBS=$(aws elbv2 describe-load-balancers \
+    --region "$REGION" \
+    --query 'LoadBalancers[].LoadBalancerArn' \
+    --output text 2>/dev/null)
+
+  LB_FOUND="false"
+
+  for LB_ARN in $LBS; do
+    LB_NAME=$(aws elbv2 describe-load-balancers \
+      --region "$REGION" \
+      --load-balancer-arns "$LB_ARN" \
+      --query 'LoadBalancers[0].LoadBalancerName' \
+      --output text 2>/dev/null)
+
+    LB_VPC=$(aws elbv2 describe-load-balancers \
+      --region "$REGION" \
+      --load-balancer-arns "$LB_ARN" \
+      --query 'LoadBalancers[0].VpcId' \
+      --output text 2>/dev/null)
+
+    TAG_MATCH=$(aws elbv2 describe-tags \
+      --region "$REGION" \
+      --resource-arns "$LB_ARN" \
+      --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER' || Key=='elbv2.k8s.aws/cluster' || Key=='ingress.k8s.aws/cluster'].{Key:Key,Value:Value}" \
+      --output text 2>/dev/null)
+
+    NAME_MATCH="false"
+    if echo "$LB_NAME" | grep -qiE "^k8s-|^internal-k8s-|eks|$CLUSTER"; then
+      NAME_MATCH="true"
+    fi
+
+    if [ "$LB_VPC" = "$VPC_ID" ] && { [ -n "$TAG_MATCH" ] || [ "$NAME_MATCH" = "true" ]; }; then
+      LB_FOUND="true"
+      log "  - $LB_NAME | VPC: $LB_VPC | ARN: $LB_ARN"
+      csv "Networking" "$CLUSTER" "Load Balancer" "$LB_NAME" "$LB_ARN" "$REGION" "$LB_VPC" "Same VPC plus Kubernetes/EKS tag or name pattern" "Yes"
+    fi
+  done
+
+  if [ "$LB_FOUND" = "false" ]; then
+    log "  None found with strong EKS/Kubernetes association"
+  fi
+
+  log ""
+  log "Target Groups associated by Kubernetes/EKS tags or VPC:"
+  TGS=$(aws elbv2 describe-target-groups \
+    --region "$REGION" \
+    --query 'TargetGroups[].TargetGroupArn' \
+    --output text 2>/dev/null)
+
+  TG_FOUND="false"
+
+  for TG_ARN in $TGS; do
+    TG_NAME=$(aws elbv2 describe-target-groups \
+      --region "$REGION" \
+      --target-group-arns "$TG_ARN" \
+      --query 'TargetGroups[0].TargetGroupName' \
+      --output text 2>/dev/null)
+
+    TG_VPC=$(aws elbv2 describe-target-groups \
+      --region "$REGION" \
+      --target-group-arns "$TG_ARN" \
+      --query 'TargetGroups[0].VpcId' \
+      --output text 2>/dev/null)
+
+    TAG_MATCH=$(aws elbv2 describe-tags \
+      --region "$REGION" \
+      --resource-arns "$TG_ARN" \
+      --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER' || Key=='elbv2.k8s.aws/cluster' || Key=='ingress.k8s.aws/cluster'].{Key:Key,Value:Value}" \
+      --output text 2>/dev/null)
+
+    NAME_MATCH="false"
+    if echo "$TG_NAME" | grep -qiE "^k8s-|eks|$CLUSTER"; then
+      NAME_MATCH="true"
+    fi
+
+    if [ "$TG_VPC" = "$VPC_ID" ] && { [ -n "$TAG_MATCH" ] || [ "$NAME_MATCH" = "true" ]; }; then
+      TG_FOUND="true"
+      log "  - $TG_NAME | VPC: $TG_VPC | ARN: $TG_ARN"
+      csv "Networking" "$CLUSTER" "Target Group" "$TG_NAME" "$TG_ARN" "$REGION" "$TG_VPC" "Same VPC plus Kubernetes/EKS tag or name pattern" "Yes"
+    fi
+  done
+
+  if [ "$TG_FOUND" = "false" ]; then
+    log "  None found with strong EKS/Kubernetes association"
+  fi
+
+  log ""
+  log "Security Groups directly associated with EKS/Kubernetes:"
+  SG_FOUND="false"
+
+  SGS=$(aws ec2 describe-security-groups \
+    --region "$REGION" \
+    --filters "Name=vpc-id,Values=$VPC_ID" \
+    --query 'SecurityGroups[].GroupId' \
+    --output text 2>/dev/null)
+
+  for SG in $SGS; do
+    SG_NAME=$(aws ec2 describe-security-groups \
+      --region "$REGION" \
+      --group-ids "$SG" \
+      --query 'SecurityGroups[0].GroupName' \
+      --output text 2>/dev/null)
+
+    SG_DESC=$(aws ec2 describe-security-groups \
+      --region "$REGION" \
+      --group-ids "$SG" \
+      --query 'SecurityGroups[0].Description' \
+      --output text 2>/dev/null)
+
+    TAG_MATCH=$(aws ec2 describe-tags \
+      --region "$REGION" \
+      --filters "Name=resource-id,Values=$SG" \
+      --query "Tags[?Key=='kubernetes.io/cluster/$CLUSTER' || Key=='aws:eks:cluster-name' || Key=='eks:cluster-name'].{Key:Key,Value:Value}" \
+      --output text 2>/dev/null)
+
+    DIRECT_MATCH="false"
+
+    if [ "$SG" = "$CLUSTER_SG" ]; then
+      DIRECT_MATCH="true"
+    fi
+
+    if echo "$SG_NAME $SG_DESC" | grep -qiE "eks|k8s|kubernetes|$CLUSTER"; then
+      DIRECT_MATCH="true"
+    fi
+
+    if [ -n "$TAG_MATCH" ] || [ "$DIRECT_MATCH" = "true" ]; then
+      SG_FOUND="true"
+      log "  - $SG | Name: $SG_NAME | Desc: $SG_DESC"
+      csv "Security" "$CLUSTER" "Security Group" "$SG_NAME" "$SG" "$REGION" "$VPC_ID" "EKS cluster SG, Kubernetes/EKS tag, or EKS naming/description" "Yes"
+    fi
+  done
+
+  if [ "$SG_FOUND" = "false" ]; then
+    log "  None found with strong EKS/Kubernetes association"
+  fi
+
+  log ""
+  log "Network Interfaces directly associated with EKS/Kubernetes/ELB in cluster VPC:"
+  ENI_FOUND="false"
+
+  ENIS=$(aws ec2 describe-network-interfaces \
+    --region "$REGION" \
+    --filters "Name=vpc-id,Values=$VPC_ID" \
+    --query 'NetworkInterfaces[].NetworkInterfaceId' \
+    --output text 2>/dev/null)
+
+  for ENI in $ENIS; do
+    ENI_DETAILS=$(aws ec2 describe-network-interfaces \
+      --region "$REGION" \
+      --network-interface-ids "$ENI" \
+      --query 'NetworkInterfaces[0].{Description:Description,Status:Status,Type:InterfaceType,PrivateIP:PrivateIpAddress}' \
+      --output json 2>/dev/null)
+
+    DESC=$(echo "$ENI_DETAILS" | jq -r '.Description // ""')
+    STATUS=$(echo "$ENI_DETAILS" | jq -r '.Status // ""')
+    TYPE=$(echo "$ENI_DETAILS" | jq -r '.Type // ""')
+    IP=$(echo "$ENI_DETAILS" | jq -r '.PrivateIP // ""')
+
+    TAG_MATCH=$(aws ec2 describe-tags \
+      --region "$REGION" \
+      --filters "Name=resource-id,Values=$ENI" \
+      --query "Tags[?Key=='kubernetes.io/cluster/$CLUSTER' || Key=='aws:eks:cluster-name' || Key=='eks:cluster-name'].{Key:Key,Value:Value}" \
+      --output text 2>/dev/null)
+
+    if echo "$DESC" | grep -qiE "Amazon EKS|aws-K8S|kubernetes|$CLUSTER|ELB app/|ELB net/|ELB k8s"; then
+      ENI_FOUND="true"
+      log "  - $ENI | Status: $STATUS | Type: $TYPE | IP: $IP | Desc: $DESC"
+      csv "Networking" "$CLUSTER" "Network Interface" "$ENI" "$ENI" "$REGION" "$VPC_ID" "Same VPC plus EKS/Kubernetes/ELB description" "Review"
+    elif [ -n "$TAG_MATCH" ]; then
+      ENI_FOUND="true"
+      log "  - $ENI | Status: $STATUS | Type: $TYPE | IP: $IP | Desc: $DESC"
+      csv "Networking" "$CLUSTER" "Network Interface" "$ENI" "$ENI" "$REGION" "$VPC_ID" "Same VPC plus Kubernetes/EKS tag" "Review"
+    fi
+  done
+
+  if [ "$ENI_FOUND" = "false" ]; then
+    log "  None found with strong EKS/Kubernetes association"
+  fi
+
+  log ""
+  log "CloudWatch Log Groups associated with EKS cluster:"
+  LOG_GROUPS=$(aws logs describe-log-groups \
+    --region "$REGION" \
+    --log-group-name-prefix "/aws/eks/$CLUSTER" \
+    --query 'logGroups[].logGroupName' \
+    --output text 2>/dev/null)
+
+  if [ -z "$LOG_GROUPS" ]; then
+    log "  None"
+  else
+    for LG in $LOG_GROUPS; do
+      log "  - $LG"
+      csv "Logging" "$CLUSTER" "CloudWatch Log Group" "$LG" "$LG" "$REGION" "$VPC_ID" "Log group prefix /aws/eks/<cluster>" "Yes"
+    done
+  fi
+
+done
+
+log ""
+log "======================================"
+log "Summary files generated:"
+log "$REPORT"
+log "$CSV"
+log "======================================"
+
+
+
+
+
+
+
+
+
+
+
+
+--------------------------------
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
 OUT_DIR="eks-before-evidence"
 RUN_DATE=$(date '+%Y-%m-%d')
 
