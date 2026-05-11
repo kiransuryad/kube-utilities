@@ -2,6 +2,247 @@
 
 set -u
 
+REGION="us-east-1"
+OUT_DIR="eks-before-evidence"
+RUN_DATE=$(date '+%Y-%m-%d')
+
+mkdir -p "$OUT_DIR"
+
+capture_window() {
+  NAME="$1"
+
+  echo
+  echo "======================================"
+  echo "Captured section: $NAME"
+  echo "Date: $RUN_DATE"
+  echo "Region: $REGION"
+  echo "======================================"
+  echo
+
+  sleep 2
+  screencapture -x -i -w "$OUT_DIR/${NAME}.png"
+}
+
+run_and_capture() {
+  NAME="$1"
+  TITLE="$2"
+  shift 2
+
+  CMD="./$*"
+
+  clear
+
+  echo "EKS BEFORE Evidence Capture"
+  echo "Account: $(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo UNKNOWN)"
+  echo "Region: $REGION"
+  echo "Check: $TITLE"
+  echo "Date: $RUN_DATE"
+  echo "======================================"
+  echo
+  echo "Command:"
+  echo "$CMD"
+  echo "--------------------------------------"
+  echo
+
+  "$@" 2>&1 | tee "$OUT_DIR/${NAME}.txt"
+
+  capture_window "$NAME"
+}
+
+# ---------------------------------------------------
+# EKS Clusters
+# ---------------------------------------------------
+
+run_and_capture \
+  "01-eks-clusters-before" \
+  "EKS Clusters" \
+  aws eks list-clusters \
+    --region "$REGION" \
+    --output table
+
+# ---------------------------------------------------
+# EKS Cluster Details
+# ---------------------------------------------------
+
+CLUSTERS=$(aws eks list-clusters \
+  --region "$REGION" \
+  --query 'clusters[]' \
+  --output text 2>/dev/null)
+
+INDEX=2
+
+for CLUSTER in $CLUSTERS; do
+
+  PADDED=$(printf "%02d" $INDEX)
+
+  run_and_capture \
+    "${PADDED}-eks-cluster-${CLUSTER}-before" \
+    "EKS Cluster Detail - ${CLUSTER}" \
+    aws eks describe-cluster \
+      --region "$REGION" \
+      --name "$CLUSTER" \
+      --query 'cluster.{Name:name,Status:status,Version:version,Endpoint:endpoint}' \
+      --output table
+
+  INDEX=$((INDEX + 1))
+
+  PADDED=$(printf "%02d" $INDEX)
+
+  run_and_capture \
+    "${PADDED}-eks-nodegroups-${CLUSTER}-before" \
+    "EKS Nodegroups - ${CLUSTER}" \
+    aws eks list-nodegroups \
+      --region "$REGION" \
+      --cluster-name "$CLUSTER" \
+      --output table
+
+  INDEX=$((INDEX + 1))
+done
+
+# ---------------------------------------------------
+# Auto Scaling Groups
+# ---------------------------------------------------
+
+run_and_capture \
+  "10-autoscaling-groups-before" \
+  "Auto Scaling Groups" \
+  aws autoscaling describe-auto-scaling-groups \
+    --region "$REGION" \
+    --query 'AutoScalingGroups[].{Name:AutoScalingGroupName,Desired:DesiredCapacity,Min:MinSize,Max:MaxSize,Instances:length(Instances)}' \
+    --output table
+
+# ---------------------------------------------------
+# EC2 Instances
+# ---------------------------------------------------
+
+run_and_capture \
+  "11-ec2-instances-before" \
+  "EC2 Instances" \
+  aws ec2 describe-instances \
+    --region "$REGION" \
+    --query 'Reservations[].Instances[].{Instance:InstanceId,State:State.Name,Type:InstanceType,PrivateIP:PrivateIpAddress}' \
+    --output table
+
+# ---------------------------------------------------
+# Load Balancers
+# ---------------------------------------------------
+
+run_and_capture \
+  "12-load-balancers-before" \
+  "Load Balancers" \
+  aws elbv2 describe-load-balancers \
+    --region "$REGION" \
+    --query 'LoadBalancers[].{Name:LoadBalancerName,Type:Type,State:State.Code,DNS:DNSName}' \
+    --output table
+
+# ---------------------------------------------------
+# Target Groups
+# ---------------------------------------------------
+
+run_and_capture \
+  "13-target-groups-before" \
+  "Target Groups" \
+  aws elbv2 describe-target-groups \
+    --region "$REGION" \
+    --query 'TargetGroups[].{Name:TargetGroupName,Port:Port,Protocol:Protocol,Type:TargetType}' \
+    --output table
+
+# ---------------------------------------------------
+# EBS Volumes
+# ---------------------------------------------------
+
+run_and_capture \
+  "14-ebs-volumes-before" \
+  "EBS Volumes" \
+  aws ec2 describe-volumes \
+    --region "$REGION" \
+    --query 'Volumes[].{Volume:VolumeId,State:State,Size:Size,Type:VolumeType}' \
+    --output table
+
+# ---------------------------------------------------
+# EBS Snapshots
+# ---------------------------------------------------
+
+run_and_capture \
+  "15-ebs-snapshots-before" \
+  "EBS Snapshots" \
+  aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --query 'Snapshots[].{Snapshot:SnapshotId,State:State,Volume:VolumeId}' \
+    --output table
+
+# ---------------------------------------------------
+# EFS
+# ---------------------------------------------------
+
+run_and_capture \
+  "16-efs-filesystems-before" \
+  "EFS File Systems" \
+  aws efs describe-file-systems \
+    --region "$REGION" \
+    --query 'FileSystems[].{FileSystem:FileSystemId,State:LifeCycleState,Encrypted:Encrypted}' \
+    --output table
+
+# ---------------------------------------------------
+# Security Groups
+# ---------------------------------------------------
+
+run_and_capture \
+  "17-security-groups-before" \
+  "Security Groups" \
+  aws ec2 describe-security-groups \
+    --region "$REGION" \
+    --query 'SecurityGroups[].{Group:GroupName,Id:GroupId,VPC:VpcId}' \
+    --output table
+
+# ---------------------------------------------------
+# ENIs
+# ---------------------------------------------------
+
+run_and_capture \
+  "18-network-interfaces-before" \
+  "Network Interfaces" \
+  aws ec2 describe-network-interfaces \
+    --region "$REGION" \
+    --query 'NetworkInterfaces[].{ENI:NetworkInterfaceId,Status:Status,PrivateIP:PrivateIpAddress,Type:InterfaceType}' \
+    --output table
+
+# ---------------------------------------------------
+# CloudWatch Log Groups
+# ---------------------------------------------------
+
+run_and_capture \
+  "19-cloudwatch-log-groups-before" \
+  "CloudWatch Log Groups" \
+  aws logs describe-log-groups \
+    --region "$REGION" \
+    --query 'logGroups[].{LogGroup:logGroupName,Retention:retentionInDays}' \
+    --output table
+
+echo
+echo "EKS BEFORE evidence capture completed"
+echo "Saved in: $OUT_DIR"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------
+
+#!/bin/bash
+
+set -u
+
 BEFORE_DIR="evidence-before"
 AFTER_DIR="evidence-after"
 REPORT_DIR="final-evidence-report"
