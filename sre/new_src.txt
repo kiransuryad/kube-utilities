@@ -4,6 +4,189 @@ set -u
 
 REGION="us-east-1"
 MODE="${1:-dry-run}"
+OUT_DIR="elbv2-cleanup-logs"
+RUN_DATE=$(date '+%Y-%m-%d')
+LOG_FILE="$OUT_DIR/delete-leftover-elbv2-${RUN_DATE}.log"
+
+mkdir -p "$OUT_DIR"
+
+log() {
+  echo "[$RUN_DATE] $*" | tee -a "$LOG_FILE"
+}
+
+run_cmd() {
+  log "COMMAND: $*"
+
+  if [ "$MODE" = "--execute" ]; then
+    "$@" 2>&1 | tee -a "$LOG_FILE" || true
+  else
+    log "DRY-RUN ONLY"
+  fi
+
+  echo | tee -a "$LOG_FILE"
+}
+
+confirm_mode() {
+  if [ "$MODE" != "--execute" ]; then
+    log "Running in DRY-RUN mode."
+    log "To execute: ./delete-leftover-elbv2-resources.sh --execute"
+    echo
+  else
+    log "RUNNING ELBV2 CLEANUP IN EXECUTE MODE."
+    read -p "Type DELETE-ELBV2 to continue: " CONFIRM
+    if [ "$CONFIRM" != "DELETE-ELBV2" ]; then
+      log "Cancelled."
+      exit 1
+    fi
+  fi
+}
+
+delete_listeners_for_lb() {
+  LB_ARN="$1"
+
+  LISTENERS=$(aws elbv2 describe-listeners \
+    --region "$REGION" \
+    --load-balancer-arn "$LB_ARN" \
+    --query 'Listeners[].ListenerArn' \
+    --output text 2>/dev/null)
+
+  if [ -z "$LISTENERS" ]; then
+    log "No listeners found for LB: $LB_ARN"
+    return
+  fi
+
+  for LISTENER in $LISTENERS; do
+    log "Deleting listener: $LISTENER"
+    run_cmd aws elbv2 delete-listener \
+      --region "$REGION" \
+      --listener-arn "$LISTENER"
+  done
+}
+
+delete_leftover_load_balancers() {
+  log "Checking leftover Kubernetes/EKS load balancers"
+
+  LBS=$(aws elbv2 describe-load-balancers \
+    --region "$REGION" \
+    --query "LoadBalancers[?starts_with(LoadBalancerName, 'k8s-') || starts_with(LoadBalancerName, 'internal-k8s-') || contains(LoadBalancerName, 'backend') || contains(LoadBalancerName, 'ingress') || contains(LoadBalancerName, 'internal')].LoadBalancerArn" \
+    --output text 2>/dev/null)
+
+  if [ -z "$LBS" ]; then
+    log "No leftover Kubernetes/EKS-looking load balancers found."
+    return
+  fi
+
+  for LB in $LBS; do
+    NAME=$(aws elbv2 describe-load-balancers \
+      --region "$REGION" \
+      --load-balancer-arns "$LB" \
+      --query 'LoadBalancers[0].LoadBalancerName' \
+      --output text 2>/dev/null)
+
+    TYPE=$(aws elbv2 describe-load-balancers \
+      --region "$REGION" \
+      --load-balancer-arns "$LB" \
+      --query 'LoadBalancers[0].Type' \
+      --output text 2>/dev/null)
+
+    STATE=$(aws elbv2 describe-load-balancers \
+      --region "$REGION" \
+      --load-balancer-arns "$LB" \
+      --query 'LoadBalancers[0].State.Code' \
+      --output text 2>/dev/null)
+
+    log "Processing LB: $NAME | Type: $TYPE | State: $STATE | ARN: $LB"
+
+    delete_listeners_for_lb "$LB"
+
+    log "Deleting load balancer: $NAME"
+    run_cmd aws elbv2 delete-load-balancer \
+      --region "$REGION" \
+      --load-balancer-arn "$LB"
+  done
+}
+
+delete_leftover_target_groups() {
+  log "Checking leftover Kubernetes/EKS target groups"
+
+  TGS=$(aws elbv2 describe-target-groups \
+    --region "$REGION" \
+    --query "TargetGroups[?starts_with(TargetGroupName, 'k8s-') || contains(TargetGroupName, 'backend') || contains(TargetGroupName, 'ingress') || contains(TargetGroupName, 'internal')].TargetGroupArn" \
+    --output text 2>/dev/null)
+
+  if [ -z "$TGS" ]; then
+    log "No leftover Kubernetes/EKS-looking target groups found."
+    return
+  fi
+
+  for TG in $TGS; do
+    NAME=$(aws elbv2 describe-target-groups \
+      --region "$REGION" \
+      --target-group-arns "$TG" \
+      --query 'TargetGroups[0].TargetGroupName' \
+      --output text 2>/dev/null)
+
+    log "Attempting target group delete: $NAME | ARN: $TG"
+
+    run_cmd aws elbv2 delete-target-group \
+      --region "$REGION" \
+      --target-group-arn "$TG"
+  done
+}
+
+summary_check() {
+  log "======================================"
+  log "ELBV2 SUMMARY CHECK"
+  log "======================================"
+
+  log "Load balancers:"
+  aws elbv2 describe-load-balancers \
+    --region "$REGION" \
+    --query 'LoadBalancers[].{Name:LoadBalancerName,Type:Type,State:State.Code,DNS:DNSName}' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+
+  log "Target groups:"
+  aws elbv2 describe-target-groups \
+    --region "$REGION" \
+    --query 'TargetGroups[].{Name:TargetGroupName,Port:Port,Protocol:Protocol,Type:TargetType}' \
+    --output table 2>&1 | tee -a "$LOG_FILE"
+}
+
+main() {
+  log "Starting leftover ELBV2 cleanup"
+  log "Mode: $MODE"
+  log "Region: $REGION"
+
+  confirm_mode
+
+  delete_leftover_load_balancers
+
+  log "Waiting 60 seconds for load balancer deletion propagation"
+  sleep 60
+
+  delete_leftover_target_groups
+
+  summary_check
+
+  log "Leftover ELBV2 cleanup completed."
+  log "Log file: $LOG_FILE"
+}
+
+main
+
+
+
+
+
+
+------------------------------
+
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
+MODE="${1:-dry-run}"
 OUT_DIR="eks-deletion-logs"
 RUN_DATE=$(date '+%Y-%m-%d')
 LOG_FILE="$OUT_DIR/delete-eks-safe-resources-$RUN_DATE.log"
