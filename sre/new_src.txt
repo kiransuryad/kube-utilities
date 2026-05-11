@@ -3,6 +3,296 @@
 set -u
 
 REGION="us-east-1"
+MODE="${1:-dry-run}"
+OUT_DIR="eks-deletion-logs"
+RUN_DATE=$(date '+%Y-%m-%d')
+LOG_FILE="$OUT_DIR/delete-eks-safe-resources-$RUN_DATE.log"
+
+mkdir -p "$OUT_DIR"
+
+log() {
+  echo "[$RUN_DATE] $*" | tee -a "$LOG_FILE"
+}
+
+run_cmd() {
+  log "COMMAND: $*"
+
+  if [ "$MODE" = "--execute" ]; then
+    "$@" 2>&1 | tee -a "$LOG_FILE" || true
+  else
+    log "DRY-RUN ONLY"
+  fi
+
+  echo | tee -a "$LOG_FILE"
+}
+
+confirm_mode() {
+  if [ "$MODE" != "--execute" ]; then
+    log "Running in DRY-RUN mode."
+    log "To execute: ./delete-eks-associated-safe-resources.sh --execute"
+    echo
+  else
+    log "RUNNING IN EXECUTE MODE."
+    read -p "Type DELETE-EKS to continue: " CONFIRM
+    if [ "$CONFIRM" != "DELETE-EKS" ]; then
+      log "Cancelled."
+      exit 1
+    fi
+  fi
+}
+
+delete_load_balancers() {
+  CLUSTER="$1"
+  VPC_ID="$2"
+
+  log "Deleting EKS/Kubernetes-associated load balancers for cluster: $CLUSTER"
+
+  LBS=$(aws elbv2 describe-load-balancers \
+    --region "$REGION" \
+    --query 'LoadBalancers[].LoadBalancerArn' \
+    --output text 2>/dev/null)
+
+  for LB_ARN in $LBS; do
+    LB_JSON=$(aws elbv2 describe-load-balancers \
+      --region "$REGION" \
+      --load-balancer-arns "$LB_ARN" \
+      --query 'LoadBalancers[0]' \
+      --output json 2>/dev/null)
+
+    LB_NAME=$(echo "$LB_JSON" | jq -r '.LoadBalancerName')
+    LB_VPC=$(echo "$LB_JSON" | jq -r '.VpcId')
+
+    TAG_MATCH=$(aws elbv2 describe-tags \
+      --region "$REGION" \
+      --resource-arns "$LB_ARN" \
+      --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER' || Key=='elbv2.k8s.aws/cluster' || Key=='ingress.k8s.aws/cluster']" \
+      --output text 2>/dev/null)
+
+    NAME_MATCH="false"
+    if echo "$LB_NAME" | grep -qiE "^k8s-|^internal-k8s-|$CLUSTER"; then
+      NAME_MATCH="true"
+    fi
+
+    if [ "$LB_VPC" = "$VPC_ID" ] && { [ -n "$TAG_MATCH" ] || [ "$NAME_MATCH" = "true" ]; }; then
+      log "Deleting load balancer: $LB_NAME | $LB_ARN"
+      run_cmd aws elbv2 delete-load-balancer \
+        --region "$REGION" \
+        --load-balancer-arn "$LB_ARN"
+    fi
+  done
+}
+
+delete_target_groups() {
+  CLUSTER="$1"
+  VPC_ID="$2"
+
+  log "Deleting EKS/Kubernetes-associated target groups for cluster: $CLUSTER"
+
+  TGS=$(aws elbv2 describe-target-groups \
+    --region "$REGION" \
+    --query 'TargetGroups[].TargetGroupArn' \
+    --output text 2>/dev/null)
+
+  for TG_ARN in $TGS; do
+    TG_JSON=$(aws elbv2 describe-target-groups \
+      --region "$REGION" \
+      --target-group-arns "$TG_ARN" \
+      --query 'TargetGroups[0]' \
+      --output json 2>/dev/null)
+
+    TG_NAME=$(echo "$TG_JSON" | jq -r '.TargetGroupName')
+    TG_VPC=$(echo "$TG_JSON" | jq -r '.VpcId')
+
+    TAG_MATCH=$(aws elbv2 describe-tags \
+      --region "$REGION" \
+      --resource-arns "$TG_ARN" \
+      --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER' || Key=='elbv2.k8s.aws/cluster' || Key=='ingress.k8s.aws/cluster']" \
+      --output text 2>/dev/null)
+
+    NAME_MATCH="false"
+    if echo "$TG_NAME" | grep -qiE "^k8s-|$CLUSTER"; then
+      NAME_MATCH="true"
+    fi
+
+    if [ "$TG_VPC" = "$VPC_ID" ] && { [ -n "$TAG_MATCH" ] || [ "$NAME_MATCH" = "true" ]; }; then
+      log "Deleting target group: $TG_NAME | $TG_ARN"
+      run_cmd aws elbv2 delete-target-group \
+        --region "$REGION" \
+        --target-group-arn "$TG_ARN"
+    fi
+  done
+}
+
+delete_nodegroups() {
+  CLUSTER="$1"
+
+  log "Deleting nodegroups for cluster: $CLUSTER"
+
+  NODEGROUPS=$(aws eks list-nodegroups \
+    --region "$REGION" \
+    --cluster-name "$CLUSTER" \
+    --query 'nodegroups[]' \
+    --output text 2>/dev/null)
+
+  if [ -z "$NODEGROUPS" ]; then
+    log "No nodegroups found for cluster: $CLUSTER"
+    return
+  fi
+
+  for NG in $NODEGROUPS; do
+    STATUS=$(aws eks describe-nodegroup \
+      --region "$REGION" \
+      --cluster-name "$CLUSTER" \
+      --nodegroup-name "$NG" \
+      --query 'nodegroup.status' \
+      --output text 2>/dev/null)
+
+    log "Nodegroup found: $NG | Status: $STATUS"
+
+    if [ "$STATUS" = "DELETING" ]; then
+      log "Skipping nodegroup already deleting: $NG"
+    else
+      run_cmd aws eks delete-nodegroup \
+        --region "$REGION" \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG"
+    fi
+  done
+}
+
+wait_for_nodegroups() {
+  CLUSTER="$1"
+
+  if [ "$MODE" != "--execute" ]; then
+    log "DRY-RUN ONLY: would wait for nodegroups to delete"
+    return
+  fi
+
+  log "Waiting for nodegroups to be deleted for cluster: $CLUSTER"
+
+  while true; do
+    NODEGROUPS=$(aws eks list-nodegroups \
+      --region "$REGION" \
+      --cluster-name "$CLUSTER" \
+      --query 'nodegroups[]' \
+      --output text 2>/dev/null)
+
+    if [ -z "$NODEGROUPS" ]; then
+      log "All nodegroups deleted for cluster: $CLUSTER"
+      break
+    fi
+
+    log "Still waiting. Remaining nodegroups: $NODEGROUPS"
+    sleep 30
+  done
+}
+
+delete_cluster() {
+  CLUSTER="$1"
+
+  log "Deleting EKS cluster: $CLUSTER"
+
+  STATUS=$(aws eks describe-cluster \
+    --region "$REGION" \
+    --name "$CLUSTER" \
+    --query 'cluster.status' \
+    --output text 2>/dev/null)
+
+  if [ "$STATUS" = "DELETING" ]; then
+    log "Cluster already deleting: $CLUSTER"
+  else
+    run_cmd aws eks delete-cluster \
+      --region "$REGION" \
+      --name "$CLUSTER"
+  fi
+}
+
+delete_cloudwatch_log_groups() {
+  CLUSTER="$1"
+
+  log "Deleting CloudWatch log groups for cluster: $CLUSTER"
+
+  LOG_GROUPS=$(aws logs describe-log-groups \
+    --region "$REGION" \
+    --log-group-name-prefix "/aws/eks/$CLUSTER" \
+    --query 'logGroups[].logGroupName' \
+    --output text 2>/dev/null)
+
+  if [ -z "$LOG_GROUPS" ]; then
+    log "No EKS CloudWatch log groups found for cluster: $CLUSTER"
+    return
+  fi
+
+  for LG in $LOG_GROUPS; do
+    log "Deleting log group: $LG"
+    run_cmd aws logs delete-log-group \
+      --region "$REGION" \
+      --log-group-name "$LG"
+  done
+}
+
+main() {
+  log "Starting safe EKS-associated resource deletion"
+  log "Region: $REGION"
+  log "Mode: $MODE"
+
+  confirm_mode
+
+  CLUSTERS=$(aws eks list-clusters \
+    --region "$REGION" \
+    --query 'clusters[]' \
+    --output text 2>/dev/null)
+
+  if [ -z "$CLUSTERS" ]; then
+    log "No EKS clusters found."
+    exit 0
+  fi
+
+  for CLUSTER in $CLUSTERS; do
+    log "======================================"
+    log "Processing cluster: $CLUSTER"
+    log "======================================"
+
+    VPC_ID=$(aws eks describe-cluster \
+      --region "$REGION" \
+      --name "$CLUSTER" \
+      --query 'cluster.resourcesVpcConfig.vpcId' \
+      --output text 2>/dev/null)
+
+    log "Cluster VPC: $VPC_ID"
+
+    delete_load_balancers "$CLUSTER" "$VPC_ID"
+
+    log "Waiting briefly for load balancer deletion propagation"
+    if [ "$MODE" = "--execute" ]; then
+      sleep 60
+    fi
+
+    delete_target_groups "$CLUSTER" "$VPC_ID"
+
+    delete_nodegroups "$CLUSTER"
+    wait_for_nodegroups "$CLUSTER"
+
+    delete_cluster "$CLUSTER"
+
+    delete_cloudwatch_log_groups "$CLUSTER"
+  done
+
+  log "Safe EKS deletion script completed."
+  log "Log file: $LOG_FILE"
+}
+
+main
+
+
+
+----------------------------------------
+
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
 OUT_DIR="eks-before-evidence"
 RUN_DATE=$(date '+%Y-%m-%d')
 REPORT="$OUT_DIR/eks-before-associated-resources-$RUN_DATE.txt"
