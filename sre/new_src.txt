@@ -1,5 +1,153 @@
 #!/bin/bash
 
+set -u
+
+REGION="us-east-1"
+MODE="${1:-dry-run}"
+
+log() {
+  echo "[INFO] $*"
+}
+
+run_cmd() {
+  echo
+  echo "COMMAND: $*"
+  echo
+
+  if [ "$MODE" = "--execute" ]; then
+    "$@"
+  else
+    echo "DRY RUN ONLY"
+  fi
+}
+
+confirm_mode() {
+  if [ "$MODE" != "--execute" ]; then
+    log "Running in DRY RUN mode"
+    log "Execute with:"
+    echo "./delete-vpc-links-and-endpoint-services.sh --execute"
+    exit 0
+  fi
+
+  echo
+  read -p "Type DELETE-VPC-LINKS to continue: " CONFIRM
+
+  if [ "$CONFIRM" != "DELETE-VPC-LINKS" ]; then
+    echo "Cancelled."
+    exit 1
+  fi
+}
+
+delete_vpc_links() {
+
+  log "Discovering API Gateway VPC Links"
+
+  VPC_LINK_IDS=$(aws apigateway get-vpc-links \
+    --region "$REGION" \
+    --query 'items[].id' \
+    --output text)
+
+  if [ -z "$VPC_LINK_IDS" ]; then
+    log "No VPC Links found."
+    return
+  fi
+
+  for ID in $VPC_LINK_IDS; do
+
+    NAME=$(aws apigateway get-vpc-link \
+      --region "$REGION" \
+      --vpc-link-id "$ID" \
+      --query 'name' \
+      --output text)
+
+    STATUS=$(aws apigateway get-vpc-link \
+      --region "$REGION" \
+      --vpc-link-id "$ID" \
+      --query 'status' \
+      --output text)
+
+    log "Deleting VPC Link:"
+    echo "ID: $ID"
+    echo "Name: $NAME"
+    echo "Status: $STATUS"
+
+    run_cmd aws apigateway delete-vpc-link \
+      --region "$REGION" \
+      --vpc-link-id "$ID"
+  done
+}
+
+delete_endpoint_services() {
+
+  log "Discovering VPC Endpoint Service Configurations"
+
+  SERVICE_IDS=$(aws ec2 describe-vpc-endpoint-service-configurations \
+    --region "$REGION" \
+    --query 'ServiceConfigurations[].ServiceId' \
+    --output text)
+
+  if [ -z "$SERVICE_IDS" ]; then
+    log "No VPC Endpoint Services found."
+    return
+  fi
+
+  for ID in $SERVICE_IDS; do
+
+    NAME=$(aws ec2 describe-vpc-endpoint-service-configurations \
+      --region "$REGION" \
+      --service-ids "$ID" \
+      --query 'ServiceConfigurations[0].ServiceName' \
+      --output text)
+
+    STATE=$(aws ec2 describe-vpc-endpoint-service-configurations \
+      --region "$REGION" \
+      --service-ids "$ID" \
+      --query 'ServiceConfigurations[0].ServiceState' \
+      --output text)
+
+    log "Deleting Endpoint Service:"
+    echo "ID: $ID"
+    echo "Name: $NAME"
+    echo "State: $STATE"
+
+    run_cmd aws ec2 delete-vpc-endpoint-service-configurations \
+      --region "$REGION" \
+      --service-ids "$ID"
+  done
+}
+
+main() {
+
+  log "Starting VPC Link + Endpoint Service cleanup"
+  log "Region: $REGION"
+
+  confirm_mode
+
+  delete_vpc_links
+
+  echo
+  log "Waiting 60 seconds before deleting endpoint services"
+  sleep 60
+
+  delete_endpoint_services
+
+  echo
+  log "Cleanup completed."
+  log "Now wait 5-10 minutes and rerun:"
+  echo "./delete-leftover-elbv2-resources.sh --execute"
+}
+
+main
+
+
+
+
+
+
+
+-----------------------------------------------
+#!/bin/bash
+
 REGION="us-east-1"
 
 echo "Checking VPC Endpoint Services using NLBs"
