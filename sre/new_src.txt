@@ -1,4 +1,128 @@
 regions:
+  - global
+  - us-east-1
+
+blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+settings:
+  EC2Instance:
+    DisableStopProtection: true
+    DisableDeletionProtection: true
+  RDSInstance:
+    DisableDeletionProtection: true
+  CloudFormationStack:
+    DisableDeletionProtection: true
+  DynamoDBTable:
+    DisableDeletionProtection: true
+
+resource-types:
+  excludes:
+    # Exclude IAM from discovery/noise
+    - IAMUser
+    - IAMGroup
+    - IAMRole
+    - IAMPolicy
+    - IAMUserPolicy
+    - IAMGroupPolicy
+    - IAMRolePolicy
+    - IAMUserPolicyAttachment
+    - IAMGroupPolicyAttachment
+    - IAMRolePolicyAttachment
+    - IAMUserAccessKey
+    - IAMInstanceProfile
+    - IAMInstanceProfileRole
+    - IAMLoginProfile
+    - IAMVirtualMFADevice
+    - IAMSAMLProvider
+    - IAMOpenIDConnectProvider
+
+    # Keep S3 object-level noise out; bucket deletion handles objects
+    - S3Object
+
+accounts:
+  "949089020426": {}
+
+
+
+
+./aws-nuke run \
+  --config aws-nuke-discovery-no-iam.yaml \
+  | tee aws-nuke-discovery-no-iam.log
+
+-------------
+regions:
+  - us-east-1
+  - global
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+resource-types:
+  targets:
+    # Leftover networking / EKS related cleanup only
+    - ELBv2LoadBalancer
+    - ELBv2TargetGroup
+    - EC2NetworkInterface
+    - EC2SecurityGroup
+    - EC2Subnet
+    - EC2RouteTable
+    - EC2InternetGateway
+    - EC2NatGateway
+    - EC2Vpc
+    - VPCLink
+    - VPCEndpointServiceConfiguration
+
+  excludes:
+    # Explicitly protect high-risk/shared services
+    - IAMUser
+    - IAMGroup
+    - IAMRole
+    - IAMPolicy
+    - IAMRolePolicyAttachment
+    - IAMUserPolicyAttachment
+    - IAMGroupPolicyAttachment
+
+    - KMSKey
+    - KMSAlias
+
+    - CloudTrailTrail
+    - CloudWatchLogGroup
+
+    - S3Bucket
+
+accounts:
+  "949089020426":
+    filters:
+
+      EC2SecurityGroup:
+        - property: GroupName
+          type: regex
+          value: "^default$"
+
+      EC2Vpc:
+        - property: IsDefault
+          value: "true"
+
+      EC2Subnet:
+        - property: DefaultForAz
+          value: "true"
+
+      EC2RouteTable:
+        - property: Main
+          value: "true"
+
+
+
+
+
+
+---------------------
+regions:
   - us-east-1
   - global
 
