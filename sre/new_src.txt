@@ -1,3 +1,50 @@
+regions:
+  - us-east-1
+  - global
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+accounts:
+  "949089020426":
+    filters:
+      IAMUser:
+        - property: Name
+          value: ".*"
+      IAMUserPolicyAttachment:
+        - property: UserName
+          value: ".*"
+      IAMRole:
+        - property: Name
+          value: ".*"
+      IAMRolePolicyAttachment:
+        - property: RoleName
+          value: ".*"
+      IAMPolicy:
+        - property: Name
+          value: ".*"
+      IAMGroup:
+        - property: Name
+          value: ".*"
+      KMSKey:
+        - property: KeyState
+          value: ".*"
+      KMSAlias:
+        - property: Name
+          value: ".*"
+
+
+
+
+
+
+
+
+
+
+--------------------------------------------
 #!/bin/bash
 
 set -u
