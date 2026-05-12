@@ -1,3 +1,179 @@
+Phase order
+1. application-compute
+2. load-balancers-and-public-endpoints
+3. data-storage
+4. secrets
+5. cloudfront
+6. kms
+7. final-discovery
+
+aws-nuke itself does not give you perfect business-order control inside one run, so separate config files are safer.
+
+1. 01-app-compute.yaml
+regions:
+  - us-east-1
+  - global
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+resource-types:
+  targets:
+    - EC2Instance
+    - AutoScalingGroup
+    - LaunchTemplate
+    - LambdaFunction
+    - LambdaLayer
+    - ECSCluster
+    - EKSCluster
+    - EKSNodegroup
+
+accounts:
+  "949089020426": {}
+2. 02-loadbalancers-public-endpoints.yaml
+regions:
+  - us-east-1
+  - global
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+resource-types:
+  targets:
+    - ELBv2LoadBalancer
+    - ELBv2TargetGroup
+    - APIGateway
+    - APIGatewayV2
+    - APIGatewayVpcLink
+    - VPCEndpoint
+    - VPCEndpointServiceConfiguration
+    - EC2Address
+
+accounts:
+  "949089020426": {}
+3. 03-data-storage.yaml
+regions:
+  - us-east-1
+  - global
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+resource-types:
+  targets:
+    - RDSInstance
+    - RDSCluster
+    - RDSSnapshot
+    - RDSClusterSnapshot
+    - EC2Volume
+    - EC2Snapshot
+    - S3Bucket
+    - DynamoDBTable
+    - DynamoDBBackup
+    - EFSFileSystem
+    - BackupVault
+    - BackupRecoveryPoint
+
+accounts:
+  "949089020426": {}
+4. 04-secrets.yaml
+regions:
+  - us-east-1
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+settings:
+  SecretsManagerSecret:
+    force-delete-without-recovery: true
+
+resource-types:
+  targets:
+    - SecretsManagerSecret
+
+accounts:
+  "949089020426": {}
+5. 05-cloudfront.yaml
+regions:
+  - global
+  - us-east-1
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+resource-types:
+  targets:
+    - CloudFrontDistribution
+    - CloudFrontDistributionDeployment
+    - CloudFrontOriginAccessIdentity
+    - CloudFrontOriginAccessControl
+
+accounts:
+  "949089020426": {}
+6. 06-kms.yaml
+regions:
+  - us-east-1
+  - global
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+resource-types:
+  targets:
+    - KMSKey
+    - KMSAlias
+
+accounts:
+  "949089020426":
+    filters:
+      KMSKey:
+        - property: Manager
+          value: "AWS"
+
+      KMSAlias:
+        - property: Name
+          type: regex
+          value: "^alias/aws/.*"
+Run pattern
+
+For every phase:
+
+./aws-nuke run --config 01-app-compute.yaml \
+  | tee 01-app-compute-dryrun-$(date '+%Y-%m-%d').log
+
+Only after reviewing dry-run:
+
+./aws-nuke run --config 01-app-compute.yaml --no-dry-run \
+  | tee 01-app-compute-execute-$(date '+%Y-%m-%d').log
+
+Repeat for each config.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------
 #!/bin/bash
 
 set -u
