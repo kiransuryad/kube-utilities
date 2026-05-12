@@ -1,3 +1,226 @@
+#!/bin/bash
+
+set -u
+
+REGION="us-east-1"
+OUT_DIR="final-validation-evidence"
+RUN_DATE=$(date '+%Y-%m-%d')
+REPORT="$OUT_DIR/final-validation-summary-$RUN_DATE.csv"
+TXT="$OUT_DIR/final-validation-summary-$RUN_DATE.txt"
+
+mkdir -p "$OUT_DIR"
+
+echo "Check,Result,Count,EvidenceFile" > "$REPORT"
+
+log() {
+  echo "$*" | tee -a "$TXT"
+}
+
+record() {
+  CHECK="$1"
+  COUNT="$2"
+  FILE="$3"
+
+  if [ "$COUNT" = "0" ]; then
+    RESULT="PASS"
+  else
+    RESULT="REVIEW"
+  fi
+
+  echo "$CHECK,$RESULT,$COUNT,$FILE" >> "$REPORT"
+}
+
+run_check() {
+  CHECK="$1"
+  FILE="$2"
+  COUNT_CMD="$3"
+  shift 3
+
+  echo
+  log "Running check: $CHECK"
+  log "Command: $*"
+
+  "$@" --output table 2>&1 | tee "$OUT_DIR/$FILE"
+
+  COUNT=$(eval "$COUNT_CMD" 2>/dev/null || echo "UNKNOWN")
+  record "$CHECK" "$COUNT" "$FILE"
+}
+
+log "AWS Final Decommission Validation"
+log "Date: $RUN_DATE"
+log "Region: $REGION"
+log "Account: $(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo UNKNOWN)"
+log "======================================"
+
+run_check \
+  "No EC2 instances" \
+  "01-ec2-instances.txt" \
+  "aws ec2 describe-instances --region $REGION --query 'length(Reservations[].Instances[])' --output text" \
+  aws ec2 describe-instances \
+    --region "$REGION" \
+    --query 'Reservations[].Instances[].{Instance:InstanceId,State:State.Name,Type:InstanceType,PrivateIP:PrivateIpAddress,PublicIP:PublicIpAddress}'
+
+run_check \
+  "No EBS volumes" \
+  "02-ebs-volumes.txt" \
+  "aws ec2 describe-volumes --region $REGION --query 'length(Volumes[])' --output text" \
+  aws ec2 describe-volumes \
+    --region "$REGION" \
+    --query 'Volumes[].{Volume:VolumeId,State:State,Size:Size,Type:VolumeType,Encrypted:Encrypted}'
+
+run_check \
+  "No RDS DB instances" \
+  "03-rds-db-instances.txt" \
+  "aws rds describe-db-instances --region $REGION --query 'length(DBInstances[])' --output text" \
+  aws rds describe-db-instances \
+    --region "$REGION" \
+    --query 'DBInstances[].{DB:DBInstanceIdentifier,Status:DBInstanceStatus,Engine:Engine}'
+
+run_check \
+  "No RDS clusters" \
+  "04-rds-clusters.txt" \
+  "aws rds describe-db-clusters --region $REGION --query 'length(DBClusters[])' --output text" \
+  aws rds describe-db-clusters \
+    --region "$REGION" \
+    --query 'DBClusters[].{Cluster:DBClusterIdentifier,Status:Status,Engine:Engine}'
+
+run_check \
+  "No RDS manual snapshots" \
+  "05-rds-snapshots.txt" \
+  "aws rds describe-db-snapshots --region $REGION --snapshot-type manual --query 'length(DBSnapshots[])' --output text" \
+  aws rds describe-db-snapshots \
+    --region "$REGION" \
+    --snapshot-type manual \
+    --query 'DBSnapshots[].{Snapshot:DBSnapshotIdentifier,Status:Status,Engine:Engine}'
+
+run_check \
+  "No EBS snapshots" \
+  "06-ebs-snapshots.txt" \
+  "aws ec2 describe-snapshots --region $REGION --owner-ids self --query 'length(Snapshots[])' --output text" \
+  aws ec2 describe-snapshots \
+    --region "$REGION" \
+    --owner-ids self \
+    --query 'Snapshots[].{Snapshot:SnapshotId,State:State,Volume:VolumeId,Encrypted:Encrypted}'
+
+run_check \
+  "No Secrets Manager secrets" \
+  "07-secrets-manager.txt" \
+  "aws secretsmanager list-secrets --region $REGION --include-planned-deletion --query 'length(SecretList[])' --output text" \
+  aws secretsmanager list-secrets \
+    --region "$REGION" \
+    --include-planned-deletion \
+    --query 'SecretList[].{Name:Name,DeletedDate:DeletedDate,ARN:ARN}'
+
+run_check \
+  "No S3 buckets" \
+  "08-s3-buckets.txt" \
+  "aws s3api list-buckets --query 'length(Buckets[])' --output text" \
+  aws s3api list-buckets \
+    --query 'Buckets[].{Bucket:Name,Created:CreationDate}'
+
+run_check \
+  "No active load balancers" \
+  "09-load-balancers.txt" \
+  "aws elbv2 describe-load-balancers --region $REGION --query 'length(LoadBalancers[])' --output text" \
+  aws elbv2 describe-load-balancers \
+    --region "$REGION" \
+    --query 'LoadBalancers[].{Name:LoadBalancerName,Type:Type,State:State.Code,DNS:DNSName}'
+
+run_check \
+  "No target groups" \
+  "10-target-groups.txt" \
+  "aws elbv2 describe-target-groups --region $REGION --query 'length(TargetGroups[])' --output text" \
+  aws elbv2 describe-target-groups \
+    --region "$REGION" \
+    --query 'TargetGroups[].{Name:TargetGroupName,Port:Port,Protocol:Protocol,Type:TargetType}'
+
+run_check \
+  "No Elastic IPs" \
+  "11-elastic-ips.txt" \
+  "aws ec2 describe-addresses --region $REGION --query 'length(Addresses[])' --output text" \
+  aws ec2 describe-addresses \
+    --region "$REGION" \
+    --query 'Addresses[].{PublicIP:PublicIp,AllocationId:AllocationId,AssociationId:AssociationId}'
+
+run_check \
+  "No API Gateway REST APIs" \
+  "12-api-gateway-rest.txt" \
+  "aws apigateway get-rest-apis --region $REGION --query 'length(items[])' --output text" \
+  aws apigateway get-rest-apis \
+    --region "$REGION" \
+    --query 'items[].{Name:name,Id:id,Created:createdDate}'
+
+run_check \
+  "No API Gateway VPC Links" \
+  "13-api-gateway-vpc-links.txt" \
+  "aws apigateway get-vpc-links --region $REGION --query 'length(items[])' --output text" \
+  aws apigateway get-vpc-links \
+    --region "$REGION" \
+    --query 'items[].{Name:name,Id:id,Status:status,TargetArns:targetArns}'
+
+run_check \
+  "No Lambda functions" \
+  "14-lambda-functions.txt" \
+  "aws lambda list-functions --region $REGION --query 'length(Functions[])' --output text" \
+  aws lambda list-functions \
+    --region "$REGION" \
+    --query 'Functions[].{Function:FunctionName,Runtime:Runtime,LastModified:LastModified}'
+
+run_check \
+  "No ECS clusters" \
+  "15-ecs-clusters.txt" \
+  "aws ecs list-clusters --region $REGION --query 'length(clusterArns[])' --output text" \
+  aws ecs list-clusters \
+    --region "$REGION" \
+    --query 'clusterArns[]'
+
+run_check \
+  "No EKS clusters" \
+  "16-eks-clusters.txt" \
+  "aws eks list-clusters --region $REGION --query 'length(clusters[])' --output text" \
+  aws eks list-clusters \
+    --region "$REGION" \
+    --query 'clusters[]'
+
+run_check \
+  "No Auto Scaling Groups" \
+  "17-auto-scaling-groups.txt" \
+  "aws autoscaling describe-auto-scaling-groups --region $REGION --query 'length(AutoScalingGroups[])' --output text" \
+  aws autoscaling describe-auto-scaling-groups \
+    --region "$REGION" \
+    --query 'AutoScalingGroups[].{Name:AutoScalingGroupName,Desired:DesiredCapacity,Min:MinSize,Max:MaxSize,Instances:length(Instances)}'
+
+run_check \
+  "No CloudFront distributions" \
+  "18-cloudfront-distributions.txt" \
+  "aws cloudfront list-distributions --query 'length(DistributionList.Items[])' --output text" \
+  aws cloudfront list-distributions \
+    --query 'DistributionList.Items[].{Id:Id,Domain:DomainName,Status:Status,Enabled:Enabled}'
+
+run_check \
+  "Customer KMS keys scheduled/deleted only" \
+  "19-kms-customer-keys.txt" \
+  "aws kms list-keys --region $REGION --query 'length(Keys[])' --output text" \
+  aws kms list-keys \
+    --region "$REGION" \
+    --query 'Keys[].{KeyId:KeyId}'
+
+log ""
+log "======================================"
+log "Summary CSV:"
+log "$REPORT"
+log ""
+log "Evidence folder:"
+log "$OUT_DIR"
+log "======================================"
+
+
+
+
+
+
+
+----------------------------------------------------------
 regions:
   - us-east-1
   - global
