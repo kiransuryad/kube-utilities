@@ -1,4 +1,63 @@
 regions:
+  - us-east-1
+  - global
+
+account-blocklist:
+  - "588633075404"
+  - "683257720905"
+  - "079158889262"
+
+resource-types:
+  targets:
+    - SecretsManagerSecret
+    - CloudFrontDistribution
+    - CloudFrontDistributionDeployment
+    - KMSKey
+    - KMSAlias
+
+accounts:
+  "949089020426":
+    filters:
+      KMSKey:
+        - property: Manager
+          value: "AWS"
+      KMSAlias:
+        - property: Name
+          type: regex
+          value: "^alias/aws/.*"
+
+
+
+
+---
+
+./aws-nuke run \
+  --config aws-nuke-target-secrets-cloudfront-kms.yaml \
+  | tee aws-nuke-target-secrets-cloudfront-kms-dryrun-$(date '+%Y-%m-%d').log
+
+
+----
+
+
+./aws-nuke run \
+  --config aws-nuke-target-secrets-cloudfront-kms.yaml \
+  --no-dry-run \
+  | tee aws-nuke-target-secrets-cloudfront-kms-execute-$(date '+%Y-%m-%d').log
+
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------
+regions:
   - global
   - us-east-1
 
