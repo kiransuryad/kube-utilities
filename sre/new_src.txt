@@ -1,3 +1,75 @@
+Hi [Infra Team / Recipient Name],
+
+I hope you are doing well.
+
+We wanted to provide some context and confirm our choices regarding SNOW request <included> for provisioning a VM to host the Fivetran Hybrid Deployment on-prem agent. We’d appreciate your advice if these selections are sufficient or if any adjustments are recommended.
+
+1. Proposed VM Configuration
+
+As currently selected in the ServiceNow catalog:
+
+OS: RHEL App VM (16 vCPU, 64 GB RAM, 100 GB base storage)
+Additional Storage: 3 × 100 GB (effective total: ~400 GB)
+Environment: Production
+DR / Equivalent capacity: Selected
+
+We chose this configuration to ensure safe operation for multiple Fivetran connectors, potential high data volumes, and future growth, while aligning with enterprise resilience standards.
+
+2. Fivetran Requirements (from documentation)
+
+According to Fivetran Hybrid Deployment Docker Setup Guide:
+
+OS: Modern Linux — explicitly RHEL 8 or RHEL 9 (x86_64)
+CPU / RAM: 8–16 vCPU, 32–64 GB RAM depending on expected workload
+Disk: Minimum 100 GB root; Docker storage ideally on separate volume (300–500 GB recommended)
+Docker: Docker Engine 20.10.17+ (rootless preferred)
+Connectivity: Outbound HTTPS (port 443) to Fivetran endpoints, Google Artifact Registry, GitHub raw content, and Google Storage
+
+Our requested VM meets or exceeds these requirements to ensure smooth deployment and future-proofing.
+
+3. Storage Clarification
+
+The catalog shows additional storage of 3 × 100 GB. We assume this is sufficient for Docker data, but would appreciate confirmation:
+
+Should the additional storage be mounted specifically to /var/lib/docker?
+Or is it provisioned as general-purpose storage?
+
+Proper layout will ensure container performance and simplify maintenance.
+
+4. DR / Equivalent Capacity
+
+We have selected DR / equivalent capacity in the catalog. Fivetran documentation notes DR is optional but recommended for production workloads.
+
+Our reasoning: this avoids future re-provisioning, ensures continuous connector operation, and aligns with enterprise standards.
+Could you confirm if this selection is sufficient, or if additional configuration is needed during provisioning?
+5. Other Considerations
+Non-root Linux user for Fivetran agent (e.g., fivetran) with Docker permissions
+Encrypted filesystem preferred
+Outbound connectivity rules must allow HTTPS access to all required Fivetran endpoints
+6. Request
+
+Could you please review the proposed configuration and confirm:
+
+OS version (RHEL 8 or 9)
+Docker Engine version and installation approach
+Storage layout and DR / equivalent capacity
+Outbound connectivity rules
+
+If adjustments are needed, we are happy to align with your recommendations.
+
+Thank you very much for your guidance and support.
+
+Best regards
+
+
+
+
+
+
+
+
+-----------------------------------
+
 mkdir -p ~/bin
 
 ln -sf /Applications/SDM.app/Contents/Resources/sdm.darwin ~/bin/sdm
